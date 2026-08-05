@@ -1,0 +1,37 @@
+---
+const label = "回到顶部";
+---
+
+<button
+  id="back-to-top"
+  class="fixed bottom-6 left-6 z-40 hidden h-11 w-11 items-center justify-center border font-serif text-lg leading-none"
+  style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-faint); border-radius: 50%;"
+  aria-label={label}
+  title={label}
+>
+  &uarr;
+</button>
+
+<script>
+  const btn = document.getElementById("back-to-top");
+  if (!btn) throw new Error("back-to-top element missing");
+
+  const SHOW_AFTER = window.innerHeight; // 滚动超过一屏后出现
+
+  function onScroll() {
+    const show = window.scrollY > SHOW_AFTER;
+    btn.classList.toggle("hidden", !show);
+    btn.classList.toggle("flex", show);
+  }
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  btn.addEventListener("click", () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      window.scrollTo(0, 0);
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  });
+</script>

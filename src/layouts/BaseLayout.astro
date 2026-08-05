@@ -3,6 +3,7 @@ import { ViewTransitions } from "astro:transitions";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "../consts";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import BackToTop from "../components/BackToTop.astro";
 import "../styles/editorial.css";
 import "../styles/fonts.css";
 
@@ -66,14 +67,15 @@ const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
 
     <ViewTransitions />
   </head>
-  <body data-pagefind-ignore>
+  <body data-pagefind-ignore class="flex min-h-screen flex-col">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--color-ed-fg)] focus:text-[var(--color-ed-bg)] focus:text-sm">
       跳至主内容
     </a>
     <Nav />
-    <main id="main-content">
+    <main id="main-content" class="flex-1">
       <slot />
     </main>
     <Footer />
+    <BackToTop />
   </body>
 </html>
