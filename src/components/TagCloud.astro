@@ -1,0 +1,27 @@
+---
+import { getCollection } from "astro:content";
+
+const posts = await getCollection("posts");
+const allTags = new Map<string, number>();
+
+for (const post of posts) {
+  if (post.data.draft) continue;
+  for (const tag of post.data.tags) {
+    allTags.set(tag, (allTags.get(tag) || 0) + 1);
+  }
+}
+
+const sortedTags = [...allTags.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+---
+
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+  {sortedTags.map(([tag, count]) => (
+    <a
+      href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+      class="text-xs uppercase tracking-[0.2em] text-[var(--color-ed-muted)] hover-underline"
+    >
+      {tag}
+      <span class="text-[var(--color-ed-subtle)] ml-1">({count})</span>
+    </a>
+  ))}
+</div>

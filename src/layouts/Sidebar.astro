@@ -1,0 +1,217 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { getCollection } from "astro:content";
+import { Image } from "astro:assets";
+import BaseLayout from "./BaseLayout.astro";
+import PrevNext from "../components/PrevNext.astro";
+import MiniPlayer from "../components/MiniPlayer.astro";
+import { readingTime } from "../utils/readingTime";
+
+interface Props {
+  post: CollectionEntry<"posts">;
+}
+
+const { post } = Astro.props;
+const { title, date, excerpt, heroImage, pullQuote, bgm, tags } = post.data;
+const { Content } = await post.render();
+const bodyText = String(post.body || "");
+const readMin = readingTime(bodyText);
+
+// Extract ## headings for table of contents
+const headings = bodyText
+  .split("\n")
+  .filter((line) => line.startsWith("## "))
+  .map((line) => {
+    const text = line.replace(/^## /, "").trim();
+    const id = text
+      .toLowerCase()
+      .replace(/[^\w\u4e00-\u9fff\s-]/g, "")
+      .replace(/\s+/g, "-");
+    return { text, id };
+  });
+
+const allPosts = await getCollection("posts");
+const published = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const idx = published.findIndex((p) => p.id === post.id);
+const prev = idx < published.length - 1 ? published[idx + 1] : null;
+const next = idx > 0 ? published[idx - 1] : null;
+
+// Related posts (same tags, excluding current)
+const related = published
+  .filter(
+    (p) =>
+      p.id !== post.id &&
+      p.data.tags.some((t) => tags.includes(t))
+  )
+  .slice(0, 3);
+---
+
+<BaseLayout title={title} description={excerpt} image={heroImage}>
+  <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
+    <div class="flex flex-col lg:flex-row gap-16">
+      <!-- Main article -->
+      <article class="flex-1 min-w-0">
+        <header class="mb-12">
+          <h1 class="font-serif text-3xl md:text-5xl tracking-tighter leading-tight text-[var(--color-ed-fg)]">
+            {title}
+          </h1>
+          <div class="mt-4 flex items-center gap-3 text-xs text-[var(--color-ed-subtle)]">
+            <time datetime={date.toISOString()}>
+              {date.toLocaleDateString("zh-CN", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </time>
+            <span>&middot;</span>
+            <span>{readMin} 分钟阅读</span>
+          </div>
+        </header>
+
+        {heroImage && (
+          <figure class="mb-12">
+            <Image
+              src={heroImage}
+              alt={title}
+              width={1200}
+              height={675}
+              class="w-full"
+            />
+          </figure>
+        )}
+
+        {pullQuote && (
+          <div class="pull-quote max-w-[45ch] mb-12">
+            &ldquo;{pullQuote}&rdquo;
+          </div>
+        )}
+
+        <div class="prose drop-cap max-w-none">
+          <Content />
+        </div>
+
+        <PrevNext prev={prev} next={next} />
+      </article>
+
+      <!-- Sidebar -->
+      <aside class="lg:w-72 shrink-0">
+        <div class="lg:sticky lg:top-24 space-y-12">
+          <!-- Tags -->
+          {tags.length > 0 && (
+            <div>
+              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
+                标签
+              </h3>
+              <div class="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <a
+                    href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                    class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
+                  >
+                    #{tag}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Table of Contents -->
+          {headings.length > 0 && (
+            <div>
+              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
+                目录
+              </h3>
+              <ul class="space-y-2" id="toc-list">
+                {headings.map((h, i) => (
+                  <li>
+                    <a
+                      href={`#${h.id}`}
+                      data-toc={h.id}
+                      class="block text-sm text-[var(--color-ed-muted)] hover:text-[var(--color-ed-fg)] transition-colors no-underline leading-relaxed border-l-2 border-transparent pl-3 -ml-3"
+                    >
+                      {h.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Related posts */}
+          {related.length > 0 && (
+            <div>
+              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
+                相关文章
+              </h3>
+              <ul class="space-y-3">
+                {related.map((p) => (
+                  <li>
+                    <a
+                      href={`/blog/${p.id.replace(/\.mdx$/, "")}`}
+                      class="block group"
+                    >
+                      <span class="font-serif text-sm text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                        {p.data.title}
+                      </span>
+                      <span class="block text-xs text-[var(--color-ed-subtle)] mt-0.5">
+                        {p.data.date.toLocaleDateString("zh-CN", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  {bgm?.src && <MiniPlayer src={bgm.src} title={bgm.title} />}
+</BaseLayout>
+
+<script>
+  // Scroll spy for table of contents
+  const headings = document.querySelectorAll(".prose h2");
+  const tocLinks = document.querySelectorAll("[data-toc]");
+  if (headings.length && tocLinks.length) {
+    const activate = (id) => {
+      tocLinks.forEach((l) => {
+        l.style.color = "";
+        l.style.borderLeftColor = "transparent";
+      });
+      const link = document.querySelector(`[data-toc="${id}"]`);
+      if (link) {
+        link.style.color = "var(--color-ed-fg)";
+        link.style.borderLeftColor = "var(--color-ed-fg)";
+      }
+    };
+
+    // Click: activate immediately
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        const id = link.getAttribute("data-toc");
+        if (id) activate(id);
+      });
+    });
+
+    // Scroll: observer updates active
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            activate(entry.target.getAttribute("id"));
+          }
+        }
+      },
+      { rootMargin: "-80px 0px -60% 0px" }
+    );
+    headings.forEach((h) => observer.observe(h));
+  }
+</script>

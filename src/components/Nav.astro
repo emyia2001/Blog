@@ -1,0 +1,127 @@
+---
+const navLinks = [
+  { href: "/", label: "首页" },
+  { href: "/tags", label: "标签" },
+  { href: "/archive", label: "归档" },
+  { href: "/about", label: "关于" },
+  { href: "/search", label: "搜索" },
+];
+---
+
+<nav
+  class="sticky top-0 z-40 border-b border-[var(--color-ed-faint)]"
+  style="background: var(--color-ed-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"
+>
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <a
+      href="/"
+      class="font-serif text-sm tracking-[0.08em] text-[var(--color-ed-fg)] no-underline"
+    >
+      Snark
+    </a>
+
+    <!-- Desktop nav -->
+    <ul class="hidden md:flex items-center gap-8">
+      {navLinks.map((link) => (
+        <li>
+          <a
+            href={link.href}
+            class="hover-underline text-xs tracking-[0.05em] text-[var(--color-ed-muted)]"
+          >
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <!-- Mobile hamburger -->
+    <button
+      id="nav-toggle"
+      class="md:hidden flex flex-col gap-1.5 p-2"
+      aria-label="切换菜单"
+      aria-expanded="false"
+    >
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-opacity duration-300"></span>
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
+    </button>
+  </div>
+
+  <!-- Mobile drawer -->
+  <div
+    id="nav-drawer"
+    class="fixed inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-faint)] p-8 transition-transform duration-300 md:hidden"
+    style="background: var(--color-ed-bg);"
+    aria-hidden="true"
+  >
+    <div class="flex justify-end mb-12">
+      <button id="nav-close" class="p-2" aria-label="关闭菜单">
+        <span class="block font-serif text-2xl leading-none">&times;</span>
+      </button>
+    </div>
+    <ul class="flex flex-col gap-6">
+      {navLinks.map((link) => (
+        <li>
+          <a
+            href={link.href}
+            class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
+          >
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <!-- Backdrop -->
+  <div
+    id="nav-backdrop"
+    class="fixed inset-0 z-40 hidden bg-black/20 md:hidden"
+    aria-hidden="true"
+  >
+  </div>
+</nav>
+
+<script>
+  const toggle = document.getElementById("nav-toggle");
+  const drawer = document.getElementById("nav-drawer");
+  const backdrop = document.getElementById("nav-backdrop");
+  const close = document.getElementById("nav-close");
+
+  function open() {
+    drawer?.classList.remove("translate-x-full");
+    backdrop?.classList.remove("hidden");
+    toggle?.setAttribute("aria-expanded", "true");
+    drawer?.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeDrawer() {
+    drawer?.classList.add("translate-x-full");
+    backdrop?.classList.add("hidden");
+    toggle?.setAttribute("aria-expanded", "false");
+    drawer?.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  toggle?.addEventListener("click", () => {
+    const isOpen = toggle.getAttribute("aria-expanded") === "true";
+    isOpen ? closeDrawer() : open();
+  });
+
+  close?.addEventListener("click", closeDrawer);
+  backdrop?.addEventListener("click", closeDrawer);
+
+  // Close on Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && toggle?.getAttribute("aria-expanded") === "true") {
+      closeDrawer();
+    }
+  });
+
+  // Respect prefers-reduced-motion
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (mq.matches && drawer) {
+    drawer.style.transition = "none";
+  }
+</script>

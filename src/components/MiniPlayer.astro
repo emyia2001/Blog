@@ -1,0 +1,101 @@
+---
+interface Props {
+  src: string;
+  title?: string;
+}
+
+const { src, title } = Astro.props;
+---
+
+<mini-player>
+  <button
+    id="mp-btn"
+    class="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center font-serif text-sm border"
+    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-faint); border-radius: 50%;"
+    aria-label={title ? `Play ${title}` : "Play background music"}
+  >
+    <span id="mp-icon">&#9654;</span>
+  </button>
+  <div
+    id="mp-bar"
+    class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 h-11 px-4 border"
+    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-faint);"
+  >
+    <button id="mp-play" class="font-serif text-sm" aria-label="Play/Pause">
+      &#9654;
+    </button>
+    {title && (
+      <span class="text-xs text-[var(--color-ed-muted)] whitespace-nowrap max-w-[120px] truncate">
+        {title}
+      </span>
+    )}
+    <div class="w-24 h-px" style="background: var(--color-ed-faint);">
+      <div
+        id="mp-progress"
+        class="h-px"
+        style="background: var(--color-ed-fg); width: 0%;"
+      ></div>
+    </div>
+  </div>
+</mini-player>
+
+<script>
+  class MiniPlayer extends HTMLElement {
+    connectedCallback() {
+      const btn = this.querySelector("#mp-btn") as HTMLElement;
+      const bar = this.querySelector("#mp-bar") as HTMLElement;
+      const playBtn = this.querySelector("#mp-play") as HTMLElement;
+      const progress = this.querySelector("#mp-progress") as HTMLElement;
+      const icon = this.querySelector("#mp-icon") as HTMLElement;
+
+      const audio = new Audio("{src}");
+      let playing = false;
+
+      audio.addEventListener("timeupdate", () => {
+        if (audio.duration) {
+          const pct = (audio.currentTime / audio.duration) * 100;
+          progress.style.width = `${pct}%`;
+        }
+      });
+
+      audio.addEventListener("ended", () => {
+        playing = false;
+        playBtn.innerHTML = "&#9654;";
+        progress.style.width = "0%";
+      });
+
+      audio.addEventListener("error", () => {
+        if (btn) btn.innerHTML = "!";
+        if (bar) bar.style.display = "none";
+      });
+
+      function toggle() {
+        if (playing) {
+          audio.pause();
+          playBtn.innerHTML = "&#9654;";
+          if (icon) icon.innerHTML = "&#9654;";
+        } else {
+          audio.play();
+          playBtn.innerHTML = "&#9632;";
+          if (icon) icon.innerHTML = "&#9632;";
+        }
+        playing = !playing;
+      }
+
+      btn?.addEventListener("click", () => {
+        if (bar) bar.style.display = "flex";
+        btn.style.display = "none";
+        toggle();
+      });
+
+      playBtn?.addEventListener("click", toggle);
+
+      // Respect prefers-reduced-motion
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (bar) bar.style.transition = "none";
+      }
+    }
+  }
+
+  customElements.define("mini-player", MiniPlayer);
+</script>

@@ -1,0 +1,16 @@
+---
+import { getCollection } from "astro:content";
+import Sidebar from "../../layouts/Sidebar.astro";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("posts");
+  return posts.map((post) => ({
+    params: { slug: post.id.replace(/\.mdx$/, "") },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+---
+
+<Sidebar post={post} />

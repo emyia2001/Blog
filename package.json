@@ -1,0 +1,24 @@
+{
+  "name": "astro-editorial-blog",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "postbuild": "npx pagefind --site dist",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^4.2.6",
+    "@astrojs/rss": "^4.0.12",
+    "@astrojs/sitemap": "^3.4.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
+    "astro": "^5.7.13",
+    "pagefind": "^1.5.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.12",
+    "tailwindcss": "^4.1.12"
+  }
+}

@@ -1,0 +1,52 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import HeroFeatured from "../components/HeroFeatured.astro";
+import ArticleListItem from "../components/ArticleListItem.astro";
+import TagCloud from "../components/TagCloud.astro";
+import { SITE_NAME } from "../consts";
+
+const allPosts = await getCollection("posts");
+const published = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const heroPost = published.find((p) => p.data.featured) || published[0];
+const listPosts = published.filter((p) => p.id !== heroPost?.id);
+---
+
+<BaseLayout title={SITE_NAME}>
+  {heroPost && <HeroFeatured post={heroPost} />}
+
+  {listPosts.length > 0 && (
+    <section class="py-16 px-6">
+      <div class="mx-auto max-w-3xl">
+        <h2 class="text-xs tracking-[0.05em] text-[var(--color-ed-muted)] mb-8">
+          更多文章
+        </h2>
+        <ol>
+          {listPosts.map((post, i) => (
+            <ArticleListItem post={post} index={i + 1} />
+          ))}
+        </ol>
+      </div>
+    </section>
+  )}
+
+  <section class="py-16 px-6 border-t border-[var(--color-ed-faint)]">
+    <div class="mx-auto max-w-3xl">
+      <h2 class="text-xs tracking-[0.05em] text-[var(--color-ed-muted)] mb-8">
+        标签
+      </h2>
+      <TagCloud />
+    </div>
+  </section>
+
+  {published.length === 0 && (
+    <section class="py-32 px-6 text-center">
+      <p class="font-serif text-2xl text-[var(--color-ed-muted)]">
+        暂无文章。
+      </p>
+    </section>
+  )}
+</BaseLayout>

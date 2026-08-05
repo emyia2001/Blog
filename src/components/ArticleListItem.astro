@@ -1,0 +1,29 @@
+---
+import type { CollectionEntry } from "astro:content";
+
+interface Props {
+  post: CollectionEntry<"posts">;
+  index: number;
+}
+
+const { post, index } = Astro.props;
+const { title, date } = post.data;
+const num = String(index).padStart(2, "0");
+---
+
+<li class="border-b border-[var(--color-ed-faint)] py-6 first:border-t">
+  <a
+    href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+    class="group flex items-baseline gap-6 no-underline"
+  >
+    <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
+      NO.{num}
+    </span>
+    <span class="font-serif text-lg md:text-xl text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors duration-200">
+      {title}
+    </span>
+    <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+      {date.toLocaleDateString("zh-CN", { month: "short", day: "numeric", year: "numeric" })}
+    </span>
+  </a>
+</li>

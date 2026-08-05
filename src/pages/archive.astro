@@ -1,0 +1,66 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const allPosts = await getCollection("posts");
+const published = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+// Group by year
+const byYear = new Map<number, typeof published>();
+for (const post of published) {
+  const y = post.data.date.getFullYear();
+  if (!byYear.has(y)) byYear.set(y, []);
+  byYear.get(y)!.push(post);
+}
+
+const years = [...byYear.keys()].sort((a, b) => b - a);
+---
+
+<BaseLayout title="归档">
+  <section class="py-24 md:py-32 px-6">
+    <div class="mx-auto max-w-3xl">
+      <h1 class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-12">
+        归档
+      </h1>
+
+      {years.length > 0 ? (
+        <div class="space-y-12">
+          {years.map((year) => (
+            <section>
+              <h2 class="font-serif text-2xl text-[var(--color-ed-fg)] mb-6">
+                {year}
+              </h2>
+              <ul class="space-y-1">
+                {byYear.get(year)!.map((post) => (
+                  <li class="border-b border-[var(--color-ed-faint)] py-4">
+                    <a
+                      href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+                      class="flex items-baseline gap-6 no-underline group"
+                    >
+                      <time
+                        datetime={post.data.date.toISOString()}
+                        class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0 w-24"
+                      >
+                        {post.data.date.toLocaleDateString("zh-CN", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </time>
+                      <span class="font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                        {post.data.title}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p class="text-[var(--color-ed-muted)]">暂无文章。</p>
+      )}
+    </div>
+  </section>
+</BaseLayout>

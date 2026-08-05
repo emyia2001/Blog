@@ -1,0 +1,74 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export async function getStaticPaths() {
+  const allPosts = await getCollection("posts");
+  const tagSet = new Set<string>();
+  for (const post of allPosts) {
+    if (post.data.draft) continue;
+    for (const tag of post.data.tags) {
+      tagSet.add(tag);
+    }
+  }
+  return [...tagSet].map((tag) => ({
+    params: { tag: tag.toLowerCase().replace(/\s+/g, "-") },
+    props: { tag },
+  }));
+}
+
+const { tag } = Astro.props;
+
+const allPosts = await getCollection("posts");
+const posts = allPosts
+  .filter(
+    (p) =>
+      !p.data.draft &&
+      p.data.tags.some(
+        (t) => t.toLowerCase().replace(/\s+/g, "-") === Astro.params.tag
+      )
+  )
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+---
+
+<BaseLayout title={`#${tag}`}>
+  <section class="py-24 md:py-32 px-6">
+    <div class="mx-auto max-w-3xl">
+      <h1 class="font-serif text-3xl tracking-tighter text-[var(--color-ed-fg)] mb-2">
+        #{tag}
+      </h1>
+      <p class="text-xs text-[var(--color-ed-subtle)] mb-12">
+        {posts.length} 篇
+      </p>
+
+      {posts.length > 0 ? (
+        <ol>
+          {posts.map((post, i) => (
+            <li class="border-b border-[var(--color-ed-faint)] py-6 first:border-t">
+              <a
+                href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+                class="group flex items-baseline gap-6 no-underline"
+              >
+                <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
+                  NO.{String(i + 1).padStart(2, "0")}
+                </span>
+                <span class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                  {post.data.title}
+                </span>
+                <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                  {post.data.date.toLocaleDateString("zh-CN", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p class="text-[var(--color-ed-muted)]">该标签下暂无文章。</p>
+      )}
+    </div>
+  </section>
+</BaseLayout>
