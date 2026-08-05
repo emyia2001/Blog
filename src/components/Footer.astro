@@ -1,15 +1,50 @@
 ---
+import { SITE_NAME, SITE_DESCRIPTION } from "../consts";
 const year = new Date().getFullYear();
+const navLinks = [
+  { href: "/", label: "首页" },
+  { href: "/tags", label: "标签" },
+  { href: "/archive", label: "归档" },
+  { href: "/about", label: "关于" },
+  { href: "/search", label: "搜索" },
+];
+const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
 ---
 
-<footer class="border-t border-[var(--color-ed-faint)] py-12">
-  <div class="mx-auto flex max-w-7xl flex-col items-center gap-4 px-6 text-center">
-    <p class="text-xs text-[var(--color-ed-subtle)]">
-      &copy; {year} Snark
+<footer class="border-t border-[var(--color-ed-faint)] py-16">
+  <div class="mx-auto flex max-w-7xl flex-col items-center gap-5 px-6 text-center">
+    <p class="font-serif text-lg tracking-[0.08em] text-[var(--color-ed-fg)]">
+      {SITE_NAME}
     </p>
-    <nav class="flex items-center gap-3 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
-      <span class="text-[var(--color-ed-faint)]">&middot;</span>
-      <a href="/rss.xml" class="hover-underline">RSS</a>
+    <p class="max-w-md text-xs leading-relaxed text-[var(--color-ed-muted)]">
+      {SITE_DESCRIPTION}
+    </p>
+    <nav class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
+      {navLinks.map((link) => (
+        <a href={link.href} class="hover-underline no-underline">
+          {link.label}
+        </a>
+      ))}
     </nav>
+    <div class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
+      <span class="text-[var(--color-ed-subtle)]">
+        &copy; {year} {SITE_NAME}
+      </span>
+      <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+      <a href="/rss.xml" class="hover-underline no-underline">RSS</a>
+      {socialLinks.map((link) => (
+        <>
+          <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+          <a
+            href={link.href}
+            class="hover-underline no-underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {link.label}
+          </a>
+        </>
+      ))}
+    </div>
   </div>
 </footer>
