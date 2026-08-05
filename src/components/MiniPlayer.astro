@@ -39,17 +39,72 @@ const { src, title } = Astro.props;
   </div>
 </mini-player>
 
-<script>
+<script define:vars={{ src, title }}>
   class MiniPlayer extends HTMLElement {
     connectedCallback() {
-      const btn = this.querySelector("#mp-btn") as HTMLElement;
-      const bar = this.querySelector("#mp-bar") as HTMLElement;
-      const playBtn = this.querySelector("#mp-play") as HTMLElement;
-      const progress = this.querySelector("#mp-progress") as HTMLElement;
-      const icon = this.querySelector("#mp-icon") as HTMLElement;
+      const btn = this.querySelector("#mp-btn");
+      const bar = this.querySelector("#mp-bar");
+      const playBtn = this.querySelector("#mp-play");
+      const progress = this.querySelector("#mp-progress");
+      const icon = this.querySelector("#mp-icon");
 
-      const audio = new Audio("{src}");
+      const audio = new Audio(src);
+      audio.loop = true; // 单曲循环
       let playing = false;
+      let fadeTimer = null;
+      const FADE_INTERVAL = 50; // ms
+      const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
+
+      function setIcons(isPlaying) {
+        const glyph = isPlaying ? "&#9632;" : "&#9654;";
+        if (playBtn) playBtn.innerHTML = glyph;
+        if (icon) icon.innerHTML = glyph;
+      }
+
+      function fadeTo(target, onDone) {
+        if (fadeTimer) clearInterval(fadeTimer);
+        const dir = target > audio.volume ? 1 : -1;
+        fadeTimer = setInterval(() => {
+          let v = audio.volume + FADE_STEP * dir;
+          if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
+            v = target;
+            clearInterval(fadeTimer);
+            fadeTimer = null;
+            if (onDone) onDone();
+          }
+          audio.volume = Math.max(0, Math.min(1, v));
+        }, FADE_INTERVAL);
+      }
+
+      function play() {
+        audio.volume = 0;
+        setIcons(true);
+        audio
+          .play()
+          .then(() => {
+            playing = true;
+            fadeTo(1); // 渐入
+          })
+          .catch(() => {
+            // 自动播放被浏览器拦截：保持可见，等待用户点击
+            playing = false;
+            setIcons(false);
+          });
+      }
+
+      function pause() {
+        fadeTo(0, () => {
+          // 渐出完成后真正暂停
+          audio.pause();
+          playing = false;
+          setIcons(false);
+        });
+      }
+
+      function toggle() {
+        if (playing) pause();
+        else play();
+      }
 
       audio.addEventListener("timeupdate", () => {
         if (audio.duration) {
@@ -58,34 +113,28 @@ const { src, title } = Astro.props;
         }
       });
 
-      audio.addEventListener("ended", () => {
-        playing = false;
-        playBtn.innerHTML = "&#9654;";
-        progress.style.width = "0%";
-      });
-
       audio.addEventListener("error", () => {
-        if (btn) btn.innerHTML = "!";
-        if (bar) bar.style.display = "none";
-      });
-
-      function toggle() {
-        if (playing) {
-          audio.pause();
-          playBtn.innerHTML = "&#9654;";
-          if (icon) icon.innerHTML = "&#9654;";
-        } else {
-          audio.play();
-          playBtn.innerHTML = "&#9632;";
-          if (icon) icon.innerHTML = "&#9632;";
+        if (fadeTimer) {
+          clearInterval(fadeTimer);
+          fadeTimer = null;
         }
-        playing = !playing;
-      }
+        playing = false;
+        audio.volume = 1;
+        if (btn) {
+          btn.style.display = "flex";
+          btn.innerHTML = "!";
+        }
+        if (bar) bar.style.display = "none";
+        setIcons(false);
+        setTimeout(() => {
+          if (btn) btn.innerHTML = "&#9654;";
+        }, 1500);
+      });
 
       btn?.addEventListener("click", () => {
         if (bar) bar.style.display = "flex";
         btn.style.display = "none";
-        toggle();
+        play();
       });
 
       playBtn?.addEventListener("click", toggle);
@@ -94,6 +143,27 @@ const { src, title } = Astro.props;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         if (bar) bar.style.transition = "none";
       }
+
+      // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮
+      if (bar) bar.style.display = "flex";
+      if (btn) btn.style.display = "none";
+      setIcons(false);
+      play();
+
+      // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
+      // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
+      // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
+      let unlocked = false;
+      function unlockAndPlay() {
+        if (unlocked || playing) return;
+        unlocked = true;
+        const events = ["pointerdown", "keydown", "scroll", "touchstart"];
+        events.forEach((evt) => window.removeEventListener(evt, unlockAndPlay));
+        play();
+      }
+      ["pointerdown", "keydown", "scroll", "touchstart"].forEach((evt) =>
+        window.addEventListener(evt, unlockAndPlay, { passive: true })
+      );
     }
   }
 

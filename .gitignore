@@ -5,3 +5,4 @@ node_modules/
 public/pagefind/
 .env
 .env.*
+.playwright-mcp/
