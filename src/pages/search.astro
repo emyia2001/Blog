@@ -18,7 +18,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
       <div id="search-results">
         <p class="text-sm text-[var(--color-ed-muted)]">
-          开发模式下搜索不可用，请运行 <code class="text-xs bg-[var(--color-ed-faint)] px-1.5 py-0.5">npm run build && npm run preview</code>。
+          输入关键词开始搜索。
         </p>
       </div>
 
@@ -36,54 +36,51 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   const results = document.getElementById("search-results");
   if (!input || !results) throw new Error("search elements missing");
 
-  function loadSearch() {
-    const script = document.createElement("script");
-    script.src = "/pagefind/pagefind.js";
-    script.onload = async () => {
-      const pf = (window as any).Pagefind;
-      if (!pf) return;
-      await pf.init();
-      results.innerHTML = "";
+  async function loadSearch() {
+    let pf;
+    try {
+      // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
+      pf = await import("/pagefind/pagefind.js");
+    } catch {
+      return; // Pagefind 未构建（dev 模式）
+    }
+    await pf.init();
+    results.innerHTML = "";
 
-      let debounce: ReturnType<typeof setTimeout>;
-      input.addEventListener("input", () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(async () => {
-          const query = input.value.trim();
-          if (!query) {
-            results.innerHTML = "";
-            return;
-          }
+    let debounce: ReturnType<typeof setTimeout>;
+    input.addEventListener("input", () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(async () => {
+        const query = input.value.trim();
+        if (!query) {
+          results.innerHTML = "";
+          return;
+        }
 
-          const search = await pf.search(query);
-          if (!search.results.length) {
-            results.innerHTML =
-              '<p class="text-sm text-[var(--color-ed-muted)]">未找到结果。</p>';
-            return;
-          }
+        const search = await pf.search(query);
+        if (!search.results.length) {
+          results.innerHTML =
+            '<p class="text-sm text-[var(--color-ed-muted)]">未找到结果。</p>';
+          return;
+        }
 
-          const html: string[] = [];
-          for (const result of search.results) {
-            const data = await result.data();
-            html.push(
-              `<a href="${data.url}" class="block border-b border-[var(--color-ed-faint)] py-6 no-underline group">
-                <h2 class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-                  ${data.meta?.title || "无标题"}
-                </h2>
-                <p class="mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2">
-                  ${data.excerpt || ""}
-                </p>
-              </a>`
-            );
-          }
-          results.innerHTML = html.join("");
-        }, 300);
-      });
-    };
-    script.onerror = () => {
-      // Pagefind not available (dev mode)
-    };
-    document.head.appendChild(script);
+        const html: string[] = [];
+        for (const result of search.results) {
+          const data = await result.data();
+          html.push(
+            `<a href="${data.url}" class="block border-b border-[var(--color-ed-faint)] py-6 no-underline group">
+              <h2 class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                ${data.meta?.title || "无标题"}
+              </h2>
+              <p class="mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2">
+                ${data.excerpt || ""}
+              </p>
+            </a>`
+          );
+        }
+        results.innerHTML = html.join("");
+      }, 300);
+    });
   }
 
   loadSearch();
