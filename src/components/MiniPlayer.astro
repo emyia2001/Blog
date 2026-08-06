@@ -65,6 +65,11 @@ const { src, title } = Astro.props;
     fadeTimer = null;
     playing = false;
     unlocked = false;
+    // 因离开页面（失焦/切后台）自动停止时置位，回来后自动恢复播放；
+    // 用户手动暂停则保持 false，不会在聚焦时被意外恢复
+    autoResume = false;
+    // 用户手动暂停过：blur/切后台时不得再置 autoResume，防止手动暂停被自动恢复撤销
+    userPaused = false;
     btn = null;
     bar = null;
     playBtn = null;
@@ -80,7 +85,8 @@ const { src, title } = Astro.props;
     };
 
     _onVisibility = () => {
-      if (document.hidden && this.playing && this.audio) {
+      if (document.hidden && this.playing && this.audio && !this.userPaused) {
+        this.autoResume = true;
         if (this.fadeTimer) {
           clearInterval(this.fadeTimer);
           this.fadeTimer = null;
@@ -88,18 +94,37 @@ const { src, title } = Astro.props;
         this.audio.pause();
         this.playing = false;
         this.setIcons(false);
+      } else if (!document.hidden && this.autoResume && !this.playing && this.audio) {
+        // 切回本标签页：恢复播放
+        this.autoResume = false;
+        this.play();
       }
     };
 
     // 窗口失焦（切到其他应用）时淡出停止音乐；
     // 注意：后台定时器会被浏览器节流，不能用长淡出，用快速淡出兜底
     _onBlur = () => {
-      if (!this.playing || !this.audio) return;
+      // 手动暂停后的淡出仍在进行（playing 仍为 true），此时失焦不应接管恢复逻辑
+      if (this.userPaused || !this.playing || !this.audio) return;
+      this.autoResume = true;
       this.fadeTo(0, () => {
         this.audio.pause();
         this.playing = false;
         this.setIcons(false);
       }, FADE_STEP_FAST);
+    };
+
+    // 窗口重新获得焦点（切回本窗口）时恢复播放。
+    // 竞态：快速 alt-tab 时 focus 可能在淡出未完成就触发（playing 仍为 true），
+    // fadeTo(1) 会清掉进行中的淡出 timer 并从当前音量回升，无需等暂停完成。
+    _onFocus = () => {
+      if (!this.autoResume || !this.audio) return;
+      this.autoResume = false;
+      if (this.playing) {
+        this.fadeTo(1);
+      } else {
+        this.play();
+      }
     };
 
     _onPageHide = () => {
@@ -178,6 +203,7 @@ const { src, title } = Astro.props;
       // 离开页面（切后台/切标签页/窗口失焦/导航走）时停止音乐
       document.addEventListener("visibilitychange", this._onVisibility);
       window.addEventListener("blur", this._onBlur);
+      window.addEventListener("focus", this._onFocus);
       window.addEventListener("pagehide", this._onPageHide);
     }
 
@@ -194,6 +220,7 @@ const { src, title } = Astro.props;
       this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
       document.removeEventListener("visibilitychange", this._onVisibility);
       window.removeEventListener("blur", this._onBlur);
+      window.removeEventListener("focus", this._onFocus);
       window.removeEventListener("pagehide", this._onPageHide);
       if (this.audio) {
         const audio = this.audio;
@@ -261,8 +288,14 @@ const { src, title } = Astro.props;
     }
 
     toggle() {
-      if (this.playing) this.pause();
-      else this.play();
+      if (this.playing) {
+        this.userPaused = true;
+        this.autoResume = false; // 手动暂停：禁止聚焦时自动恢复
+        this.pause();
+      } else {
+        this.userPaused = false;
+        this.play();
+      }
     }
   }
 
