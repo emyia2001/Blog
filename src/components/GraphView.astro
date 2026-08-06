@@ -25,7 +25,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   <svg
     id="graph-svg"
     viewBox="0 0 800 500"
-    class="h-[70vh] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+    class="h-[26rem] w-full cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] active:cursor-grabbing"
     role="img"
     aria-label="内容关系图谱，支持拖拽缩放"
   >
@@ -168,6 +168,18 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       g.setAttribute("transform", `translate(${n.x},${n.y})`);
     });
   }
+
+  // Fit the viewBox to the visible canvas so the graph fills it (no letterboxing)
+  function fitViewBox() {
+    const w = svg.clientWidth;
+    const h = svg.clientHeight;
+    if (!w || !h) return;
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    simulation.force("center", forceCenter(w / 2, h / 2));
+    simulation.alpha(0.3).restart();
+  }
+  new ResizeObserver(fitViewBox).observe(svg);
+  fitViewBox();
 
   // --- Pan & zoom ---
   let zoom = { k: 1, tx: 0, ty: 0 };
