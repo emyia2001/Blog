@@ -40,150 +40,193 @@ const { src, title } = Astro.props;
 </mini-player>
 
 <script define:vars={{ src, title }}>
+  const FADE_INTERVAL = 50; // ms
+  const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
+
   class MiniPlayer extends HTMLElement {
+    audio = null;
+    fadeTimer = null;
+    playing = false;
+    unlocked = false;
+    btn = null;
+    bar = null;
+    playBtn = null;
+    progress = null;
+    icon = null;
+    unlockEvents = ["pointerdown", "keydown", "scroll", "touchstart"];
+
+    _onUnlock = () => {
+      if (this.unlocked || this.playing) return;
+      this.unlocked = true;
+      this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
+      this.play();
+    };
+
+    _onVisibility = () => {
+      if (document.hidden && this.playing && this.audio) {
+        if (this.fadeTimer) {
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
+        }
+        this.audio.pause();
+        this.playing = false;
+        this.setIcons(false);
+      }
+    };
+
+    _onPageHide = () => {
+      if (this.fadeTimer) {
+        clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
+      if (this.audio) this.audio.pause();
+    };
+
     connectedCallback() {
-      const btn = this.querySelector("#mp-btn");
-      const bar = this.querySelector("#mp-bar");
-      const playBtn = this.querySelector("#mp-play");
-      const progress = this.querySelector("#mp-progress");
-      const icon = this.querySelector("#mp-icon");
+      this.btn = this.querySelector("#mp-btn");
+      this.bar = this.querySelector("#mp-bar");
+      this.playBtn = this.querySelector("#mp-play");
+      this.progress = this.querySelector("#mp-progress");
+      this.icon = this.querySelector("#mp-icon");
 
-      const audio = new Audio(src);
-      audio.loop = true; // 单曲循环
-      let playing = false;
-      let fadeTimer = null;
-      const FADE_INTERVAL = 50; // ms
-      const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
+      this.audio = new Audio(src);
+      this.audio.loop = true; // 单曲循环
 
-      function setIcons(isPlaying) {
-        const glyph = isPlaying ? "&#9632;" : "&#9654;";
-        if (playBtn) playBtn.innerHTML = glyph;
-        if (icon) icon.innerHTML = glyph;
-      }
-
-      function fadeTo(target, onDone) {
-        if (fadeTimer) clearInterval(fadeTimer);
-        const dir = target > audio.volume ? 1 : -1;
-        fadeTimer = setInterval(() => {
-          let v = audio.volume + FADE_STEP * dir;
-          if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
-            v = target;
-            clearInterval(fadeTimer);
-            fadeTimer = null;
-            if (onDone) onDone();
-          }
-          audio.volume = Math.max(0, Math.min(1, v));
-        }, FADE_INTERVAL);
-      }
-
-      function play() {
-        audio.volume = 0;
-        setIcons(true);
-        audio
-          .play()
-          .then(() => {
-            playing = true;
-            fadeTo(1); // 渐入
-          })
-          .catch(() => {
-            // 自动播放被浏览器拦截：保持可见，等待用户点击
-            playing = false;
-            setIcons(false);
-          });
-      }
-
-      function pause() {
-        fadeTo(0, () => {
-          // 渐出完成后真正暂停
-          audio.pause();
-          playing = false;
-          setIcons(false);
-        });
-      }
-
-      function toggle() {
-        if (playing) pause();
-        else play();
-      }
-
-      audio.addEventListener("timeupdate", () => {
-        if (audio.duration) {
-          const pct = (audio.currentTime / audio.duration) * 100;
-          progress.style.width = `${pct}%`;
+      this.audio.addEventListener("timeupdate", () => {
+        if (this.audio.duration) {
+          const pct = (this.audio.currentTime / this.audio.duration) * 100;
+          this.progress.style.width = `${pct}%`;
         }
       });
 
-      audio.addEventListener("error", () => {
-        if (fadeTimer) {
-          clearInterval(fadeTimer);
-          fadeTimer = null;
+      this.audio.addEventListener("error", () => {
+        // disconnect 时清空 src 会异步触发 error 事件，此时 audio 已销毁
+        if (!this.audio) return;
+        if (this.fadeTimer) {
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
         }
-        playing = false;
-        audio.volume = 1;
-        if (btn) {
-          btn.style.display = "flex";
-          btn.innerHTML = "!";
+        this.playing = false;
+        this.audio.volume = 1;
+        if (this.btn) {
+          this.btn.style.display = "flex";
+          this.btn.innerHTML = "!";
         }
-        if (bar) bar.style.display = "none";
-        setIcons(false);
+        if (this.bar) this.bar.style.display = "none";
+        this.setIcons(false);
         setTimeout(() => {
-          if (btn) btn.innerHTML = "&#9654;";
+          if (this.btn) this.btn.innerHTML = "&#9654;";
         }, 1500);
       });
 
-      btn?.addEventListener("click", () => {
-        if (bar) bar.style.display = "flex";
-        btn.style.display = "none";
-        play();
+      this.btn?.addEventListener("click", () => {
+        if (this.bar) this.bar.style.display = "flex";
+        this.btn.style.display = "none";
+        this.play();
       });
 
-      playBtn?.addEventListener("click", toggle);
+      this.playBtn?.addEventListener("click", () => this.toggle());
 
       // Respect prefers-reduced-motion
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        if (bar) bar.style.transition = "none";
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches && this.bar) {
+        this.bar.style.transition = "none";
       }
 
       // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮
-      if (bar) bar.style.display = "flex";
-      if (btn) btn.style.display = "none";
-      setIcons(false);
-      play();
+      if (this.bar) this.bar.style.display = "flex";
+      if (this.btn) this.btn.style.display = "none";
+      this.setIcons(false);
+      this.play();
 
       // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
       // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
       // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
-      let unlocked = false;
-      function unlockAndPlay() {
-        if (unlocked || playing) return;
-        unlocked = true;
-        const events = ["pointerdown", "keydown", "scroll", "touchstart"];
-        events.forEach((evt) => window.removeEventListener(evt, unlockAndPlay));
-        play();
-      }
-      ["pointerdown", "keydown", "scroll", "touchstart"].forEach((evt) =>
-        window.addEventListener(evt, unlockAndPlay, { passive: true })
+      this.unlockEvents.forEach((evt) =>
+        window.addEventListener(evt, this._onUnlock, { passive: true })
       );
 
       // 离开页面（切后台/切标签页/导航走）时立即停止音乐
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden && playing) {
-          if (fadeTimer) {
-            clearInterval(fadeTimer);
-            fadeTimer = null;
-          }
-          audio.pause();
-          playing = false;
-          setIcons(false);
+      document.addEventListener("visibilitychange", this._onVisibility);
+      window.addEventListener("pagehide", this._onPageHide);
+    }
+
+    // ViewTransitions 客户端导航不触发 pagehide，旧元素被移除时
+    // 必须手动暂停并销毁 audio，否则音乐会继续播放（与下一页重复）
+    disconnectedCallback() {
+      if (this.fadeTimer) {
+        clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
+      if (this.audio) {
+        this.audio.pause();
+        this.audio.src = "";
+        this.audio.load();
+        this.audio = null;
+      }
+      this.playing = false;
+      this.unlocked = true;
+      this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
+      document.removeEventListener("visibilitychange", this._onVisibility);
+      window.removeEventListener("pagehide", this._onPageHide);
+    }
+
+    setIcons(isPlaying) {
+      const glyph = isPlaying ? "&#9632;" : "&#9654;";
+      if (this.playBtn) this.playBtn.innerHTML = glyph;
+      if (this.icon) this.icon.innerHTML = glyph;
+    }
+
+    fadeTo(target, onDone) {
+      if (!this.audio) return;
+      if (this.fadeTimer) clearInterval(this.fadeTimer);
+      const dir = target > this.audio.volume ? 1 : -1;
+      this.fadeTimer = setInterval(() => {
+        if (!this.audio) {
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
+          return;
         }
-      });
-      window.addEventListener("pagehide", () => {
-        if (fadeTimer) {
-          clearInterval(fadeTimer);
-          fadeTimer = null;
+        let v = this.audio.volume + FADE_STEP * dir;
+        if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
+          v = target;
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
+          if (onDone) onDone();
         }
-        audio.pause();
+        this.audio.volume = Math.max(0, Math.min(1, v));
+      }, FADE_INTERVAL);
+    }
+
+    play() {
+      if (!this.audio) return;
+      this.audio.volume = 0;
+      this.setIcons(true);
+      this.audio
+        .play()
+        .then(() => {
+          this.playing = true;
+          this.fadeTo(1); // 渐入
+        })
+        .catch(() => {
+          // 自动播放被浏览器拦截：保持可见，等待用户点击
+          this.playing = false;
+          this.setIcons(false);
+        });
+    }
+
+    pause() {
+      if (!this.audio) return;
+      this.fadeTo(0, () => {
+        // 渐出完成后真正暂停
+        this.audio.pause();
+        this.playing = false;
+        this.setIcons(false);
       });
+    }
+
+    toggle() {
+      if (this.playing) this.pause();
+      else this.play();
     }
   }
 
