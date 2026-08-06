@@ -1,0 +1,127 @@
+<!-- Search modal: opens via `open-search` CustomEvent, or Cmd/Ctrl+K -->
+<div
+  id="search-modal"
+  class="fixed inset-0 z-[60] hidden items-start justify-center bg-black/20 px-4 pt-[12vh]"
+  role="dialog"
+  aria-modal="true"
+  aria-label="搜索"
+>
+  <div class="w-full max-w-xl border border-[var(--color-ed-faint)]"
+    style="background: var(--color-ed-bg);"
+  >
+    <input
+      type="search"
+      id="search-input"
+      placeholder="搜索文章…"
+      autocomplete="off"
+      class="w-full border-b border-[var(--color-ed-faint)] bg-transparent px-5 py-4 text-sm text-[var(--color-ed-fg)] placeholder:text-[var(--color-ed-subtle)] focus:outline-none"
+    />
+    <div id="search-results" class="max-h-[50vh] overflow-y-auto px-5 py-2">
+      <p class="py-3 text-sm text-[var(--color-ed-muted)]">
+        输入关键词开始搜索。
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.getElementById("search-modal");
+  const input = document.getElementById("search-input");
+  const results = document.getElementById("search-results");
+  if (!modal || !input || !results) throw new Error("search modal elements missing");
+
+  let pf: any = null;
+  let loaded = false;
+
+  async function loadSearch() {
+    try {
+      // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
+      pf = await import("/pagefind/pagefind.js");
+      await pf.init();
+      loaded = true;
+    } catch {
+      // Pagefind 未构建（dev 模式）
+    }
+  }
+
+  function open() {
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => input.focus());
+    if (!loaded) loadSearch();
+  }
+
+  function close() {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = "";
+    input.value = "";
+    results.innerHTML =
+      '<p class="py-3 text-sm text-[var(--color-ed-muted)]">输入关键词开始搜索。</p>';
+  }
+
+  document.addEventListener("open-search", open);
+
+  // Close on backdrop click
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) close();
+  });
+
+  // Esc closes, Cmd/Ctrl+K opens
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+      close();
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      if (modal.classList.contains("hidden")) {
+        open();
+      } else {
+        close();
+      }
+    }
+  });
+
+  // Debounced search
+  let debounce: ReturnType<typeof setTimeout>;
+  input.addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(async () => {
+      const query = input.value.trim();
+      if (!query || !loaded) {
+        results.innerHTML = "";
+        return;
+      }
+
+      const search = await pf.search(query);
+      if (!search.results.length) {
+        results.innerHTML =
+          '<p class="py-3 text-sm text-[var(--color-ed-muted)]">未找到结果。</p>';
+        return;
+      }
+
+      const html: string[] = [];
+      for (const result of search.results) {
+        const data = await result.data();
+        html.push(
+          `<a href="${data.url}" data-search-result class="block border-b border-[var(--color-ed-faint)] py-4 no-underline group">
+            <h3 class="font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+              ${data.meta?.title || "无标题"}
+            </h3>
+            <p class="mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2">
+              ${data.excerpt || ""}
+            </p>
+          </a>`
+        );
+      }
+      results.innerHTML = html.join("");
+    }, 300);
+  });
+
+  // Close the modal before navigating to a result
+  results.addEventListener("click", (e) => {
+    if ((e.target as Element).closest("a[data-search-result]")) {
+      close();
+    }
+  });
+</script>

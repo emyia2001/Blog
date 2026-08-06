@@ -4,6 +4,7 @@ import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "../consts";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import BackToTop from "../components/BackToTop.astro";
+import SearchModal from "../components/SearchModal.astro";
 import "../styles/editorial.css";
 import "../styles/fonts.css";
 
@@ -72,6 +73,7 @@ const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
       跳至主内容
     </a>
     <Nav />
+    <SearchModal />
     <main id="main-content" class="flex-1">
       <slot />
     </main>
