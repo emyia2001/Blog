@@ -248,48 +248,71 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     { passive: false }
   );
 
-  // --- Drag nodes ---
-  let dragId: string | null = null;
-  let dragOffset = { x: 0, y: 0 };
+  // --- Drag nodes (click vs drag distinguished by movement threshold) ---
+  let pointerId: string | null = null;
+  let dragged = false;
+  let downOnNode = false;
+  let downX = 0;
+  let downY = 0;
+
+  function selectOrToggle(id: string) {
+    if (activeId === id) {
+      clearActive();
+    } else {
+      selectNode(id);
+    }
+  }
 
   svg.addEventListener("pointerdown", (e) => {
     const target = (e.target as Element).closest?.(
       ".graph-node"
     ) as SVGGElement | null;
+    downOnNode = !!target;
+    dragged = false;
+    downX = e.clientX;
+    downY = e.clientY;
     if (!target) {
       clearActive();
       return;
     }
-    const p = svgPoint(e);
-    dragId = target.dataset.id ?? null;
-    if (dragId) {
-      const n = nodeById.get(dragId)!;
+    pointerId = target.dataset.id ?? null;
+    if (pointerId) {
+      const n = nodeById.get(pointerId)!;
+      const p = svgPoint(e);
       dragOffset.x = (p.x - zoom.tx) / zoom.k - (n.x ?? 0);
       dragOffset.y = (p.y - zoom.ty) / zoom.k - (n.y ?? 0);
       target.focus();
-      selectNode(dragId);
     }
   });
 
   window.addEventListener("pointermove", (e) => {
-    if (!dragId) return;
-    const p = svgPoint(e);
-    const n = nodeById.get(dragId);
+    if (!pointerId) return;
+    if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
+      dragged = true;
+    }
+    if (!dragged) return;
+    const n = nodeById.get(pointerId);
     if (!n) return;
+    const p = svgPoint(e);
     n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
     n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
     simulation.alpha(0.3).restart();
   });
 
   window.addEventListener("pointerup", () => {
-    if (dragId) {
-      const n = nodeById.get(dragId);
+    if (pointerId) {
+      const n = nodeById.get(pointerId);
       if (n) {
         n.fx = null;
         n.fy = null;
       }
-      dragId = null;
     }
+    if (downOnNode && !dragged && pointerId) {
+      selectOrToggle(pointerId);
+    }
+    pointerId = null;
+    downOnNode = false;
+    dragged = false;
   });
 
   // --- Active / highlight ---
@@ -366,15 +389,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   }
 
   nodeEls.forEach((g) => {
-    g.addEventListener("click", () => {
-      const id = g.dataset.id;
-      if (!id) return;
-      if (activeId === id) {
-        clearActive();
-      } else {
-        selectNode(id);
-      }
-    });
     g.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
