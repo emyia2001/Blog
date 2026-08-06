@@ -1,7 +1,9 @@
 ---
+import { SITE_DESCRIPTION } from "../consts";
+
 interface GraphNode {
   id: string;
-  kind: "post" | "person" | "event";
+  kind: "post" | "person" | "event" | "self";
   title: string;
   url: string;
   contentIndex: number;
@@ -37,6 +39,15 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   <script type="application/json" id="graph-data" set:html={graphData}></script>
 </figure>
 
+<template id="self-card">
+  <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+    <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">我</h2>
+    <p class="mt-3 max-w-[60ch] text-sm leading-relaxed text-[var(--color-ed-muted)]">
+      {SITE_DESCRIPTION}
+    </p>
+  </article>
+</template>
+
 <style>
   @media (max-width: 767px) {
     .graph-label {
@@ -61,6 +72,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     forceManyBody,
     forceCenter,
     forceCollide,
+    forceX,
+    forceY,
   } = await import("d3-force");
 
   const W = 800;
@@ -103,7 +116,11 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     g.style.cursor = "pointer";
 
     const isEvent = n.kind === "event";
-    const shape = document.createElementNS(NS, isEvent ? "rect" : "circle");
+    const isSelf = n.kind === "self";
+    const shape = document.createElementNS(
+      NS,
+      isEvent ? "rect" : isSelf ? "circle" : "circle"
+    );
     if (isEvent) {
       shape.setAttribute("width", "16");
       shape.setAttribute("height", "16");
@@ -113,6 +130,11 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       shape.setAttribute("fill", "none");
       shape.setAttribute("stroke", "var(--color-ed-muted)");
       shape.setAttribute("stroke-width", "1.5");
+    } else if (isSelf) {
+      shape.setAttribute("r", "11");
+      shape.setAttribute("fill", "var(--color-ed-fg)");
+      shape.setAttribute("stroke", "var(--color-ed-bg)");
+      shape.setAttribute("stroke-width", "3");
     } else {
       shape.setAttribute("r", "7");
       if (n.kind === "post") {
@@ -131,7 +153,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     label.setAttribute("y", "26");
     label.setAttribute(
       "style",
-      "font-family: 'Source Sans 3', sans-serif; font-size: 12px; fill: var(--color-ed-muted);"
+      `font-family: 'Source Sans 3', sans-serif; font-size: 12px; fill: var(--color-ed-muted);${isSelf ? " font-weight: 600;" : ""}`
     );
     label.textContent = n.title;
     g.appendChild(label);
@@ -150,6 +172,9 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force("charge", forceManyBody().strength(-300))
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(34))
+    // "self" is pinned to the center, everything else orbits it
+    .force("x", forceX(W / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
+    .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .on("tick", ticked);
 
   function ticked() {
@@ -176,6 +201,9 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     if (!w || !h) return;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     simulation.force("center", forceCenter(w / 2, h / 2));
+    simulation
+      .force("x", forceX(w / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
+      .force("y", forceY(h / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)));
     simulation.alpha(0.3).restart();
   }
   new ResizeObserver(fitViewBox).observe(svg);
@@ -282,11 +310,22 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   }
 
   function showDetail(contentIndex: number) {
+    const detail = document.getElementById("timeline-detail");
+    if (!detail) return;
+    if (contentIndex < 0) {
+      const selfCard = document.getElementById(
+        "self-card"
+      ) as HTMLTemplateElement | null;
+      if (selfCard) {
+        detail.innerHTML = "";
+        detail.appendChild(selfCard.content.cloneNode(true) as HTMLElement);
+      }
+      return;
+    }
     const template = document.getElementById(
       "content-templates"
     ) as HTMLTemplateElement | null;
-    const detail = document.getElementById("timeline-detail");
-    if (!template || !detail) return;
+    if (!template) return;
     const bodies = template.content.querySelectorAll<HTMLElement>(
       ".content-body"
     );

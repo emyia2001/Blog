@@ -84,7 +84,7 @@ const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
 interface GraphNode {
   id: string;
-  kind: "post" | "person" | "event";
+  kind: "post" | "person" | "event" | "self";
   title: string;
   url: string;
   contentIndex: number;
@@ -95,18 +95,38 @@ interface GraphLink {
   target: string;
 }
 
-const graphNodes: GraphNode[] = renderedAll.map((c) => ({
-  id: c.id,
-  kind: c.kind,
-  title: c.entry.data.title,
-  url: c.kind === "post" ? `/blog/${c.id.replace(/\.mdx$/, "")}` : "",
-  contentIndex: contentIndex.get(c.id)!,
-}));
+const selfNode: GraphNode = {
+  id: "self",
+  kind: "self",
+  title: "我",
+  url: "",
+  contentIndex: -1,
+};
+
+const graphNodes: GraphNode[] = [
+  selfNode,
+  ...renderedAll.map((c) => ({
+    id: c.id,
+    kind: c.kind,
+    title: c.entry.data.title,
+    url: c.kind === "post" ? `/blog/${c.id.replace(/\.mdx$/, "")}` : "",
+    contentIndex: contentIndex.get(c.id)!,
+  })),
+];
 
 const titleToNode = new Map(graphNodes.map((n) => [n.title, n]));
 
 const graphLinks: GraphLink[] = [];
 const seenLinks = new Set<string>();
+
+// every piece of content connects to "self"
+for (const n of graphNodes) {
+  if (n.id === "self") continue;
+  const key = ["self", n.id].sort().join("|");
+  seenLinks.add(key);
+  graphLinks.push({ source: "self", target: n.id });
+}
+
 for (const c of renderedAll) {
   const body = String(c.entry.body ?? "");
   const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
