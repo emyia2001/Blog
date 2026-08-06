@@ -262,6 +262,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   let downOnNode = false;
   let downX = 0;
   let downY = 0;
+  const dragOffset = { x: 0, y: 0 };
 
   function selectOrToggle(id: string) {
     if (activeId === id) {
