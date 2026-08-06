@@ -4,10 +4,13 @@ import Sidebar from "../../layouts/Sidebar.astro";
 
 export async function getStaticPaths() {
   const posts = await getCollection("posts");
-  return posts.map((post) => ({
-    params: { slug: post.id.replace(/\.mdx$/, "") },
-    props: { post },
-  }));
+  // draft 示例仅作写作参考，不生成前端页面
+  return posts
+    .filter((p) => !p.data.draft)
+    .map((post) => ({
+      params: { slug: post.id.replace(/\.mdx$/, "") },
+      props: { post },
+    }));
 }
 
 const { post } = Astro.props;
