@@ -70,6 +70,39 @@ h1, h2, h3, h4, h5, h6 {
   animation: clip-reveal-in 1.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Page transitions (View Transitions API, applied by <ViewTransitions />):
+   new page rises in from below while the old one fades out upward.
+   Same expo-out easing as the rest of the site. */
+::view-transition-old(root) {
+  animation: page-out 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: page-in 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes page-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Article prose styles */
 .prose {
   line-height: 1.8;
@@ -159,6 +192,11 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .clip-reveal {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
     animation: none;
   }
 }
