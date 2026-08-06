@@ -39,6 +39,38 @@ const { src, title } = Astro.props;
   </div>
 </mini-player>
 
+<style>
+  /* 点击反馈：按下缩放 + 松手回弹脉冲 */
+  #mp-btn,
+  #mp-play {
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease;
+  }
+  #mp-btn:active,
+  #mp-play:active {
+    transform: scale(0.85);
+  }
+  .mp-pulse {
+    animation: mp-pulse 0.28s ease;
+  }
+  @keyframes mp-pulse {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(0.78);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mp-pulse {
+      animation: none;
+    }
+  }
+</style>
+
 <script define:vars={{ src, title }}>
   const FADE_INTERVAL = 50; // ms
   const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
@@ -177,7 +209,8 @@ const { src, title } = Astro.props;
       this.btn?.addEventListener("click", () => {
         if (this.bar) this.bar.style.display = "flex";
         this.btn.style.display = "none";
-        this.play();
+        this.pulse();
+        this.play(true); // 用户主动点击：立即出声
       });
 
       this.playBtn?.addEventListener("click", () => this.toggle());
@@ -260,15 +293,50 @@ const { src, title } = Astro.props;
       }, FADE_INTERVAL);
     }
 
-    play() {
+    // 点击脉冲反馈：重新触发 CSS 动画
+    pulse() {
+      const el = this.playBtn || this.btn;
+      if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      el.classList.remove("mp-pulse");
+      void el.offsetWidth; // 强制 reflow，重启动画
+      el.classList.add("mp-pulse");
+      // 动画结束后移除 class，保持 DOM 整洁
+      el.addEventListener(
+        "animationend",
+        () => el.classList.remove("mp-pulse"),
+        { once: true }
+      );
+    }
+
+    // instant=true 用于按钮手动操作：立即出声/立即暂停，不做淡入淡出
+    play(instant = false) {
       if (!this.audio) return;
-      this.audio.volume = 0;
+      if (this.fadeTimer) {
+        clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
       this.setIcons(true);
+      if (instant) {
+        // 立即出声：无需从 0 淡入，直接恢复满音量
+        this.audio.volume = 1;
+        this.audio
+          .play()
+          .then(() => {
+            this.playing = true;
+          })
+          .catch(() => {
+            this.playing = false;
+            this.setIcons(false);
+          });
+        return;
+      }
+      // 自动场景（解锁/聚焦/切回）：从 0 渐入
+      this.audio.volume = 0;
       this.audio
         .play()
         .then(() => {
           this.playing = true;
-          this.fadeTo(1); // 渐入
+          this.fadeTo(1);
         })
         .catch(() => {
           // 自动播放被浏览器拦截：保持可见，等待用户点击
@@ -277,8 +345,19 @@ const { src, title } = Astro.props;
         });
     }
 
-    pause() {
+    pause(instant = false) {
       if (!this.audio) return;
+      if (this.fadeTimer) {
+        clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
+      if (instant) {
+        // 立即暂停，不做渐出
+        this.audio.pause();
+        this.playing = false;
+        this.setIcons(false);
+        return;
+      }
       this.fadeTo(0, () => {
         // 渐出完成后真正暂停
         this.audio.pause();
@@ -288,13 +367,14 @@ const { src, title } = Astro.props;
     }
 
     toggle() {
+      this.pulse();
       if (this.playing) {
         this.userPaused = true;
         this.autoResume = false; // 手动暂停：禁止聚焦时自动恢复
-        this.pause();
+        this.pause(true); // 立即暂停
       } else {
         this.userPaused = false;
-        this.play();
+        this.play(true); // 立即播放
       }
     }
   }
