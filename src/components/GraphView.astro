@@ -114,6 +114,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     g.setAttribute("tabindex", "0");
     g.setAttribute("aria-label", n.title);
     g.style.cursor = "pointer";
+    g.style.outline = "none";
 
     const isEvent = n.kind === "event";
     const isSelf = n.kind === "self";
@@ -177,11 +178,17 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .on("tick", ticked);
 
+  function resolveNode(
+    ref: string | (GraphNode & { x?: number; y?: number })
+  ): (GraphNode & { x?: number; y?: number }) | undefined {
+    return typeof ref === "string" ? nodeById.get(ref) : ref;
+  }
+
   function ticked() {
     linkEls.forEach((line, i) => {
       const l = links[i];
-      const s = nodeById.get(l.source);
-      const t = nodeById.get(l.target);
+      const s = resolveNode(l.source);
+      const t = resolveNode(l.target);
       if (!s || !t) return;
       line.setAttribute("x1", String(s.x));
       line.setAttribute("y1", String(s.y));
@@ -271,6 +278,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     if (!n) return;
     n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
     n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
+    simulation.alpha(0.3).restart();
   });
 
   window.addEventListener("pointerup", () => {
