@@ -258,6 +258,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   // --- Drag nodes (click vs drag distinguished by movement threshold) ---
   let pointerId: string | null = null;
   let dragged = false;
+  let dragActive = false;
   let downOnNode = false;
   let downX = 0;
   let downY = 0;
@@ -296,6 +297,12 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     if (!pointerId) return;
     if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
       dragged = true;
+      // Keep the simulation warm but steady while dragging (official d3 pattern:
+      // alphaTarget holds alpha at 0.3 instead of re-heating on every move)
+      if (!dragActive) {
+        dragActive = true;
+        simulation.alphaTarget(0.3).restart();
+      }
     }
     if (!dragged) return;
     const n = nodeById.get(pointerId);
@@ -303,7 +310,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     const p = svgPoint(e);
     n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
     n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
-    simulation.alpha(0.3).restart();
   });
 
   window.addEventListener("pointerup", () => {
@@ -313,6 +319,10 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
         n.fx = null;
         n.fy = null;
       }
+    }
+    if (dragActive) {
+      dragActive = false;
+      simulation.alphaTarget(0);
     }
     if (downOnNode && !dragged && pointerId) {
       selectOrToggle(pointerId);
