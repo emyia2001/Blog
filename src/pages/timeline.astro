@@ -78,6 +78,51 @@ const entries: TimelineEntry[] = [
 const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
   d.toLocaleDateString("zh-CN", opts);
 
+// --- Graph data: extract [[wiki-links]] from content bodies ---
+const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
+
+interface GraphNode {
+  id: string;
+  kind: "post" | "person" | "event";
+  title: string;
+  url: string;
+  contentIndex: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+}
+
+const graphNodes: GraphNode[] = renderedAll.map((c) => ({
+  id: c.id,
+  kind: c.kind,
+  title: c.entry.data.title,
+  url: c.kind === "post" ? `/blog/${c.id.replace(/\.mdx$/, "")}` : "",
+  contentIndex: contentIndex.get(c.id)!,
+}));
+
+const titleToNode = new Map(graphNodes.map((n) => [n.title, n]));
+
+const graphLinks: GraphLink[] = [];
+const seenLinks = new Set<string>();
+for (const c of renderedAll) {
+  const body = String(c.entry.body ?? "");
+  const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
+  for (const refTitle of refs) {
+    const target = titleToNode.get(refTitle);
+    if (!target) {
+      console.warn(`[graph] unresolved wiki-link "${refTitle}" in "${c.id}"`);
+      continue;
+    }
+    if (target.id === c.id) continue;
+    const key = [c.id, target.id].sort().join("|");
+    if (seenLinks.has(key)) continue;
+    seenLinks.add(key);
+    graphLinks.push({ source: c.id, target: target.id });
+  }
+}
+
 // Index of the first non-post entry, shown by default (posts navigate away)
 const defaultIndex = entries.findIndex((e) => e.kind !== "post");
 const defaultRendered =
