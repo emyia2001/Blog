@@ -42,6 +42,23 @@ const { src, title } = Astro.props;
 <script define:vars={{ src, title }}>
   const FADE_INTERVAL = 50; // ms
   const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
+  const FADE_STEP_FAST = 0.1; // volume per tick (~0.5s fade, for navigation/hide)
+
+  // 独立的淡入淡出：作用于任意 audio 对象，不依赖元素存活。
+  // 用于元素被移除（导航切换）后仍需完成收尾淡出的场景。
+  function fadeAudio(audio, target, step, onDone) {
+    if (!audio) return;
+    const dir = target > audio.volume ? 1 : -1;
+    const timer = setInterval(() => {
+      let v = audio.volume + step * dir;
+      if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
+        v = target;
+        clearInterval(timer);
+        if (onDone) onDone();
+      }
+      audio.volume = Math.max(0, Math.min(1, v));
+    }, FADE_INTERVAL);
+  }
 
   class MiniPlayer extends HTMLElement {
     audio = null;
@@ -74,6 +91,17 @@ const { src, title } = Astro.props;
       }
     };
 
+    // 窗口失焦（切到其他应用）时淡出停止音乐；
+    // 注意：后台定时器会被浏览器节流，不能用长淡出，用快速淡出兜底
+    _onBlur = () => {
+      if (!this.playing || !this.audio) return;
+      this.fadeTo(0, () => {
+        this.audio.pause();
+        this.playing = false;
+        this.setIcons(false);
+      }, FADE_STEP_FAST);
+    };
+
     _onPageHide = () => {
       if (this.fadeTimer) {
         clearInterval(this.fadeTimer);
@@ -93,6 +121,8 @@ const { src, title } = Astro.props;
       this.audio.loop = true; // 单曲循环
 
       this.audio.addEventListener("timeupdate", () => {
+        // disconnect 后淡出期间仍会触发 timeupdate，此时 audio 已置 null
+        if (!this.audio) return;
         if (this.audio.duration) {
           const pct = (this.audio.currentTime / this.audio.duration) * 100;
           this.progress.style.width = `${pct}%`;
@@ -145,29 +175,35 @@ const { src, title } = Astro.props;
         window.addEventListener(evt, this._onUnlock, { passive: true })
       );
 
-      // 离开页面（切后台/切标签页/导航走）时立即停止音乐
+      // 离开页面（切后台/切标签页/窗口失焦/导航走）时停止音乐
       document.addEventListener("visibilitychange", this._onVisibility);
+      window.addEventListener("blur", this._onBlur);
       window.addEventListener("pagehide", this._onPageHide);
     }
 
     // ViewTransitions 客户端导航不触发 pagehide，旧元素被移除时
-    // 必须手动暂停并销毁 audio，否则音乐会继续播放（与下一页重复）
+    // 必须手动淡出并销毁 audio，否则音乐会继续播放（与下一页重复）。
+    // 用 fadeAudio 快速淡出而不是硬切，配合新页面的淡入形成交叉淡化。
     disconnectedCallback() {
       if (this.fadeTimer) {
         clearInterval(this.fadeTimer);
         this.fadeTimer = null;
       }
-      if (this.audio) {
-        this.audio.pause();
-        this.audio.src = "";
-        this.audio.load();
-        this.audio = null;
-      }
       this.playing = false;
       this.unlocked = true;
       this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
       document.removeEventListener("visibilitychange", this._onVisibility);
+      window.removeEventListener("blur", this._onBlur);
       window.removeEventListener("pagehide", this._onPageHide);
+      if (this.audio) {
+        const audio = this.audio;
+        this.audio = null;
+        fadeAudio(audio, 0, FADE_STEP_FAST, () => {
+          audio.pause();
+          audio.src = "";
+          audio.load();
+        });
+      }
     }
 
     setIcons(isPlaying) {
@@ -176,7 +212,7 @@ const { src, title } = Astro.props;
       if (this.icon) this.icon.innerHTML = glyph;
     }
 
-    fadeTo(target, onDone) {
+    fadeTo(target, onDone, step = FADE_STEP) {
       if (!this.audio) return;
       if (this.fadeTimer) clearInterval(this.fadeTimer);
       const dir = target > this.audio.volume ? 1 : -1;
@@ -186,7 +222,7 @@ const { src, title } = Astro.props;
           this.fadeTimer = null;
           return;
         }
-        let v = this.audio.volume + FADE_STEP * dir;
+        let v = this.audio.volume + step * dir;
         if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
           v = target;
           clearInterval(this.fadeTimer);
