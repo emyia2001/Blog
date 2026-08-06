@@ -2,6 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
+import GraphView from "../components/GraphView.astro";
 import { SITE_BGM } from "../consts";
 
 const [allPosts, allMoments] = await Promise.all([
@@ -138,6 +139,16 @@ const defaultRendered =
 
       {entries.length > 0 ? (
         <div>
+          <div class="mb-10 flex items-center gap-1" role="tablist" aria-label="视图切换">
+            <button data-view-toggle="timeline" type="button" class="rounded-full border px-4 py-1.5 text-sm transition-colors" style="border-color: var(--color-ed-faint); color: var(--color-ed-muted); background: transparent;">
+              时间线
+            </button>
+            <button data-view-toggle="graph" type="button" class="rounded-full border px-4 py-1.5 text-sm transition-colors" style="border-color: var(--color-ed-faint); color: var(--color-ed-muted); background: transparent;">
+              图谱
+            </button>
+          </div>
+
+          <div id="view-timeline">
           <!-- Horizontal axis: person above, event/post below -->
           <div class="relative">
             <div class="absolute left-0 right-0 top-[calc(7rem-0.5px)] h-px bg-[var(--color-ed-faint)]" aria-hidden="true"></div>
@@ -217,6 +228,11 @@ const defaultRendered =
                 );
               })}
             </div>
+          </div>
+          </div>
+
+          <div id="view-graph" hidden>
+            <GraphView nodes={graphNodes} links={graphLinks} />
           </div>
 
           <!-- Detail area: first entry pre-rendered, others shown on click -->
@@ -298,6 +314,33 @@ const defaultRendered =
 </BaseLayout>
 
 <script>
+  const VIEW_KEY = "snark-timeline-view";
+  const viewTimeline = document.getElementById("view-timeline");
+  const viewGraph = document.getElementById("view-graph");
+  const viewToggles = Array.from(document.querySelectorAll("[data-view-toggle]"));
+
+  function setView(view: "timeline" | "graph") {
+    if (viewTimeline) viewTimeline.hidden = view !== "timeline";
+    if (viewGraph) viewGraph.hidden = view !== "graph";
+    viewToggles.forEach((b) => {
+      const on = b.getAttribute("data-view-toggle") === view;
+      b.classList.toggle("is-active", on);
+      b.style.color = on ? "var(--color-ed-fg)" : "var(--color-ed-muted)";
+      b.style.borderColor = on ? "var(--color-ed-fg)" : "var(--color-ed-faint)";
+    });
+    localStorage.setItem(VIEW_KEY, view);
+  }
+
+  const savedView = localStorage.getItem(VIEW_KEY);
+  setView(savedView === "graph" ? "graph" : "timeline");
+
+  viewToggles.forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = b.getAttribute("data-view-toggle") as "timeline" | "graph";
+      setView(v);
+    });
+  });
+
   const points = Array.from(
     document.querySelectorAll<HTMLElement>(".timeline-point")
   );
@@ -341,6 +384,8 @@ const defaultRendered =
     }
     activeIndex = index;
     setActive(index);
+
+    window.dispatchEvent(new CustomEvent("timeline:select"));
 
     const kind = el.dataset.kind;
     if (kind === "post") {
