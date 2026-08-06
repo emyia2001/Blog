@@ -1,0 +1,37 @@
+---
+# 文章格式示例（sidebar 布局）
+# draft: true —— 默认隐藏：不出现在首页/归档/时间线/标签页/RSS，
+# 但仍保留可访问的预览 URL：/blog/example-post
+# 写新文章时复制本文件，替换字段与正文即可。
+
+title: "文章格式示例"
+date: 2026-01-01
+excerpt: "这是 sidebar 布局的格式示例：展示目录、引语、标签、背景音乐等所有可选字段的写法。"
+heroImage: "/images/example-hero.jpg"
+articleLayout: sidebar
+tags: ["example", "format"]
+draft: true
+featured: false
+pullQuote: "此处展示 pullQuote 字段——文章开头会渲染为独立的引语块。"
+bgm:
+  src: "https://example.com/your-track.mp3"
+  title: "示例曲目 - 替换为真实音频地址"
+---
+
+## 目录是怎么生成的
+
+正文中的 `## 二级标题` 会自动出现在右侧目录。侧边栏还包含标签与相关文章区块。
+
+首段会自动下沉首字（drop cap），其余段落缩进两字。这段文字就是演示。
+
+## 可选字段速查
+
+- `heroImage`：文章头图，指向 `/public/images/` 下的图片
+- `pullQuote`：引语块，显示在头图下方
+- `bgm`：右下角迷你播放器（循环播放 + 淡入淡出 + 切页交叉淡化）
+- `featured: true`：在首页顶部大图区置顶展示
+- `tags`：标签列表，自动生成标签页
+
+## 写作建议
+
+保持标题层级清晰（`##` 一级、`###` 二级），正文控制在 800~1500 字为宜。复制本文件为新的 `.mdx` 后，记得把 `date` 改为当天日期、`draft` 改为 `false` 或删除。
