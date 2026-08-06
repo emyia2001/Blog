@@ -119,19 +119,22 @@ const related = published
 
           <!-- Table of Contents -->
           {headings.length > 0 && (
-            <div>
-              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
+            <div class="border-t border-[var(--color-ed-faint)] pt-6">
+              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-5">
                 目录
               </h3>
-              <ul class="space-y-2" id="toc-list">
+              <ul class="space-y-2.5" id="toc-list">
                 {headings.map((h, i) => (
                   <li>
                     <a
                       href={`#${h.id}`}
                       data-toc={h.id}
-                      class="block text-sm text-[var(--color-ed-muted)] hover:text-[var(--color-ed-fg)] transition-colors no-underline leading-relaxed border-l-2 border-transparent pl-3 -ml-3"
+                      class="toc-link group flex items-baseline gap-3 text-sm leading-snug no-underline"
                     >
-                      {h.text}
+                      <span class="toc-num text-[11px] tabular-nums tracking-[0.08em]">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span class="toc-text">{h.text}</span>
                     </a>
                   </li>
                 ))}
@@ -182,15 +185,9 @@ const related = published
   const tocLinks = document.querySelectorAll("[data-toc]");
   if (headings.length && tocLinks.length) {
     const activate = (id) => {
-      tocLinks.forEach((l) => {
-        l.style.color = "";
-        l.style.borderLeftColor = "transparent";
-      });
+      tocLinks.forEach((l) => l.classList.remove("toc-active"));
       const link = document.querySelector(`[data-toc="${id}"]`);
-      if (link) {
-        link.style.color = "var(--color-ed-fg)";
-        link.style.borderLeftColor = "var(--color-ed-fg)";
-      }
+      if (link) link.classList.add("toc-active");
     };
 
     // Click: activate immediately
@@ -215,3 +212,33 @@ const related = published
     headings.forEach((h) => observer.observe(h));
   }
 </script>
+
+<style>
+  /* 目录：与正文明确区分——编号索引 + 左侧指示线，激活项高亮 */
+  .toc-link {
+    color: var(--color-ed-muted);
+    border-left: 2px solid transparent;
+    padding-left: 0.75rem;
+    margin-left: -0.75rem;
+    transition:
+      color 200ms ease,
+      border-color 200ms ease;
+  }
+  .toc-num {
+    color: var(--color-ed-subtle);
+    transition: color 200ms ease;
+  }
+  .toc-link:hover {
+    color: var(--color-ed-fg);
+  }
+  .toc-link:hover .toc-num {
+    color: var(--color-ed-fg);
+  }
+  .toc-link.toc-active {
+    color: var(--color-ed-fg);
+    border-left-color: var(--color-ed-fg);
+  }
+  .toc-link.toc-active .toc-num {
+    color: var(--color-ed-fg);
+  }
+</style>
