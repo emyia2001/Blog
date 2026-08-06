@@ -116,6 +116,13 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     g.style.cursor = "pointer";
     g.style.outline = "none";
 
+    // Large transparent hit area: forgiving click/drag targets
+    const hit = document.createElementNS(NS, "circle");
+    hit.setAttribute("r", "24");
+    hit.setAttribute("fill", "transparent");
+    hit.style.pointerEvents = "all";
+    g.appendChild(hit);
+
     const isEvent = n.kind === "event";
     const isSelf = n.kind === "self";
     const shape = document.createElementNS(
