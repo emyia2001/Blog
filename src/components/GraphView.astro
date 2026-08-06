@@ -318,11 +318,18 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   // --- Active / highlight ---
   let activeId: string | null = null;
 
+  function linkEndIds(l: GraphLink): [string, string] {
+    const s = resolveNode(l.source as never);
+    const t = resolveNode(l.target as never);
+    return [s?.id ?? "", t?.id ?? ""];
+  }
+
   function neighborsOf(id: string): Set<string> {
     const out = new Set<string>([id]);
     for (const l of links) {
-      if (l.source === id) out.add(l.target);
-      if (l.target === id) out.add(l.source);
+      const [sid, tid] = linkEndIds(l);
+      if (sid === id) out.add(tid);
+      if (tid === id) out.add(sid);
     }
     return out;
   }
@@ -380,8 +387,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       g.classList.toggle("is-active", g.dataset.id === id);
     });
     linkEls.forEach((line, i) => {
-      const l = links[i];
-      const on = nb.has(l.source) && nb.has(l.target);
+      const [sid, tid] = linkEndIds(links[i]);
+      const on = nb.has(sid) && nb.has(tid);
       line.setAttribute("opacity", on ? "1" : "0.1");
     });
     showDetail(n.contentIndex);
