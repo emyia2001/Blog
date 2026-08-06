@@ -1,0 +1,336 @@
+---
+interface GraphNode {
+  id: string;
+  kind: "post" | "person" | "event";
+  title: string;
+  url: string;
+  contentIndex: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+}
+
+interface Props {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+const { nodes, links } = Astro.props;
+const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
+---
+
+<figure id="graph-view" aria-label="关系图谱">
+  <svg
+    id="graph-svg"
+    viewBox="0 0 800 500"
+    class="h-[70vh] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+    role="img"
+    aria-label="内容关系图谱，支持拖拽缩放"
+  >
+    <g id="graph-zoom">
+      <g id="graph-links" stroke="var(--color-ed-faint)" stroke-width="1.2"></g>
+      <g id="graph-nodes"></g>
+    </g>
+  </svg>
+  <script type="application/json" id="graph-data" set:html={graphData}></script>
+</figure>
+
+<style>
+  @media (max-width: 767px) {
+    .graph-label {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const svg = document.getElementById("graph-svg") as SVGSVGElement;
+  const zoomG = document.getElementById("graph-zoom") as SVGGElement;
+  const linksG = document.getElementById("graph-links") as SVGGElement;
+  const nodesG = document.getElementById("graph-nodes") as SVGGElement;
+  const data = JSON.parse(
+    (document.getElementById("graph-data") as HTMLScriptElement).textContent ??
+      "{}"
+  ) as { nodes: GraphNode[]; links: GraphLink[] };
+
+  const {
+    forceSimulation,
+    forceLink,
+    forceManyBody,
+    forceCenter,
+    forceCollide,
+  } = await import("d3-force");
+
+  const W = 800;
+  const H = 500;
+  const nodes = data.nodes.map((n) => ({ ...n })) as Array<
+    GraphNode & {
+      x?: number;
+      y?: number;
+      fx?: number | null;
+      fy?: number | null;
+    }
+  >;
+  const links = data.links.map((l) => ({ ...l }));
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  nodes.forEach((n, i) => {
+    const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
+    n.x = W / 2 + Math.cos(angle) * 120;
+    n.y = H / 2 + Math.sin(angle) * 120;
+  });
+
+  const NS = "http://www.w3.org/2000/svg";
+
+  const linkEls = links.map((l) => {
+    const line = document.createElementNS(NS, "line");
+    linksG.appendChild(line);
+    return line;
+  });
+
+  const nodeEls = nodes.map((n) => {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "graph-node");
+    g.dataset.id = n.id;
+    g.dataset.kind = n.kind;
+    g.dataset.contentIndex = String(n.contentIndex);
+    g.dataset.url = n.url;
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+    g.setAttribute("aria-label", n.title);
+    g.style.cursor = "pointer";
+
+    const isEvent = n.kind === "event";
+    const shape = document.createElementNS(NS, isEvent ? "rect" : "circle");
+    if (isEvent) {
+      shape.setAttribute("width", "16");
+      shape.setAttribute("height", "16");
+      shape.setAttribute("x", "-8");
+      shape.setAttribute("y", "-8");
+      shape.setAttribute("rx", "3");
+      shape.setAttribute("fill", "none");
+      shape.setAttribute("stroke", "var(--color-ed-muted)");
+      shape.setAttribute("stroke-width", "1.5");
+    } else {
+      shape.setAttribute("r", "7");
+      if (n.kind === "post") {
+        shape.setAttribute("fill", "var(--color-ed-fg)");
+      } else {
+        shape.setAttribute("fill", "var(--color-ed-bg)");
+        shape.setAttribute("stroke", "var(--color-ed-muted)");
+        shape.setAttribute("stroke-width", "1.5");
+      }
+    }
+    g.appendChild(shape);
+
+    const label = document.createElementNS(NS, "text");
+    label.setAttribute("class", "graph-label");
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("y", "26");
+    label.setAttribute(
+      "style",
+      "font-family: 'Source Sans 3', sans-serif; font-size: 12px; fill: var(--color-ed-muted);"
+    );
+    label.textContent = n.title;
+    g.appendChild(label);
+
+    nodesG.appendChild(g);
+    return g;
+  });
+
+  const simulation = forceSimulation(nodes as never)
+    .force(
+      "link",
+      forceLink(links as never)
+        .id((d) => (d as GraphNode).id)
+        .distance(110)
+    )
+    .force("charge", forceManyBody().strength(-300))
+    .force("center", forceCenter(W / 2, H / 2))
+    .force("collide", forceCollide().radius(34))
+    .on("tick", ticked);
+
+  function ticked() {
+    linkEls.forEach((line, i) => {
+      const l = links[i];
+      const s = nodeById.get(l.source);
+      const t = nodeById.get(l.target);
+      if (!s || !t) return;
+      line.setAttribute("x1", String(s.x));
+      line.setAttribute("y1", String(s.y));
+      line.setAttribute("x2", String(t.x));
+      line.setAttribute("y2", String(t.y));
+    });
+    nodeEls.forEach((g, i) => {
+      const n = nodes[i];
+      g.setAttribute("transform", `translate(${n.x},${n.y})`);
+    });
+  }
+
+  // --- Pan & zoom ---
+  let zoom = { k: 1, tx: 0, ty: 0 };
+  function applyZoom() {
+    zoomG.setAttribute(
+      "transform",
+      `translate(${zoom.tx},${zoom.ty}) scale(${zoom.k})`
+    );
+  }
+  applyZoom();
+
+  function svgPoint(e: PointerEvent | WheelEvent | Touch) {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM()!.inverse());
+  }
+
+  svg.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const p = svgPoint(e);
+      const factor = Math.exp(-e.deltaY * 0.001);
+      const newK = Math.min(4, Math.max(0.4, zoom.k * factor));
+      zoom.tx = p.x - ((p.x - zoom.tx) / zoom.k) * newK;
+      zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
+      zoom.k = newK;
+      applyZoom();
+    },
+    { passive: false }
+  );
+
+  // --- Drag nodes ---
+  let dragId: string | null = null;
+  let dragOffset = { x: 0, y: 0 };
+
+  svg.addEventListener("pointerdown", (e) => {
+    const target = (e.target as Element).closest?.(
+      ".graph-node"
+    ) as SVGGElement | null;
+    if (!target) {
+      clearActive();
+      return;
+    }
+    const p = svgPoint(e);
+    dragId = target.dataset.id ?? null;
+    if (dragId) {
+      const n = nodeById.get(dragId)!;
+      dragOffset.x = (p.x - zoom.tx) / zoom.k - (n.x ?? 0);
+      dragOffset.y = (p.y - zoom.ty) / zoom.k - (n.y ?? 0);
+      target.focus();
+      selectNode(dragId);
+    }
+  });
+
+  window.addEventListener("pointermove", (e) => {
+    if (!dragId) return;
+    const p = svgPoint(e);
+    const n = nodeById.get(dragId);
+    if (!n) return;
+    n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
+    n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (dragId) {
+      const n = nodeById.get(dragId);
+      if (n) {
+        n.fx = null;
+        n.fy = null;
+      }
+      dragId = null;
+    }
+  });
+
+  // --- Active / highlight ---
+  let activeId: string | null = null;
+
+  function neighborsOf(id: string): Set<string> {
+    const out = new Set<string>([id]);
+    for (const l of links) {
+      if (l.source === id) out.add(l.target);
+      if (l.target === id) out.add(l.source);
+    }
+    return out;
+  }
+
+  function clearActive() {
+    activeId = null;
+    nodeEls.forEach((g) => {
+      g.style.opacity = "1";
+      g.classList.remove("is-active");
+    });
+    linkEls.forEach((line) => {
+      line.setAttribute("opacity", "1");
+    });
+    const detail = document.getElementById("timeline-detail");
+    if (detail) detail.innerHTML = "";
+  }
+
+  function showDetail(contentIndex: number) {
+    const template = document.getElementById(
+      "content-templates"
+    ) as HTMLTemplateElement | null;
+    const detail = document.getElementById("timeline-detail");
+    if (!template || !detail) return;
+    const bodies = template.content.querySelectorAll<HTMLElement>(
+      ".content-body"
+    );
+    const body = Array.from(bodies).find(
+      (b) => b.dataset.contentIndex === String(contentIndex)
+    );
+    if (body) {
+      detail.innerHTML = "";
+      detail.appendChild(body.cloneNode(true) as HTMLElement);
+    }
+  }
+
+  function selectNode(id: string) {
+    const n = nodeById.get(id);
+    if (!n) return;
+    const nb = neighborsOf(id);
+    activeId = id;
+    nodeEls.forEach((g) => {
+      const on = nb.has(g.dataset.id ?? "");
+      g.style.opacity = on ? "1" : "0.25";
+      g.classList.toggle("is-active", g.dataset.id === id);
+    });
+    linkEls.forEach((line, i) => {
+      const l = links[i];
+      const on = nb.has(l.source) && nb.has(l.target);
+      line.setAttribute("opacity", on ? "1" : "0.1");
+    });
+    showDetail(n.contentIndex);
+    window.dispatchEvent(new CustomEvent("graph:select"));
+  }
+
+  nodeEls.forEach((g) => {
+    g.addEventListener("click", () => {
+      const id = g.dataset.id;
+      if (!id) return;
+      if (activeId === id) {
+        clearActive();
+      } else {
+        selectNode(id);
+      }
+    });
+    g.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const id = g.dataset.id;
+        if (!id) return;
+        if (activeId === id) clearActive();
+        else selectNode(id);
+      }
+    });
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") clearActive();
+  });
+
+  // timeline selected something -> clear graph highlight
+  window.addEventListener("timeline:select", clearActive);
+</script>
