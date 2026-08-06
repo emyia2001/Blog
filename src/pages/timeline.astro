@@ -1,0 +1,327 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import MiniPlayer from "../components/MiniPlayer.astro";
+import { SITE_BGM } from "../consts";
+
+const [allPosts, allMoments] = await Promise.all([
+  getCollection("posts"),
+  getCollection("moments"),
+]);
+
+const publishedPosts = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const publishedMoments = allMoments
+  .filter((m) => !m.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+type RenderedContent = Awaited<
+  ReturnType<CollectionEntry<"posts">["render"]>
+>["Content"];
+
+// 所有内容统一预渲染全文（posts + moments）
+interface RenderedAll {
+  id: string;
+  kind: "post" | "person" | "event";
+  entry: CollectionEntry<"posts"> | CollectionEntry<"moments">;
+  Content: RenderedContent;
+}
+
+const renderedAll = await Promise.all([
+  ...publishedPosts.map(async (p) => ({
+    id: p.id,
+    kind: "post" as const,
+    entry: p,
+    Content: (await p.render()).Content,
+  })),
+  ...publishedMoments.map(async (m) => ({
+    id: m.id,
+    kind: m.data.type as "person" | "event",
+    entry: m,
+    Content: (await m.render()).Content,
+  })),
+]);
+
+const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
+
+// Unify both collections into one timeline, newest first
+interface TimelineEntry {
+  date: Date;
+  kind: "post" | "person" | "event";
+  title: string;
+  excerpt: string;
+  url: string;
+  contentIndex: number; // index into renderedAll
+}
+
+const entries: TimelineEntry[] = [
+  ...publishedPosts.map((p) => ({
+    date: p.data.date,
+    kind: "post" as const,
+    title: p.data.title,
+    excerpt: p.data.excerpt,
+    url: `/blog/${p.id.replace(/\.mdx$/, "")}`,
+    contentIndex: contentIndex.get(p.id)!,
+  })),
+  ...publishedMoments.map((m) => ({
+    date: m.data.date,
+    kind: m.data.type as "person" | "event",
+    title: m.data.title,
+    excerpt: m.data.excerpt,
+    url: "",
+    contentIndex: contentIndex.get(m.id)!,
+  })),
+].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+  d.toLocaleDateString("zh-CN", opts);
+
+// Index of the first non-post entry, shown by default (posts navigate away)
+const defaultIndex = entries.findIndex((e) => e.kind !== "post");
+const defaultRendered =
+  defaultIndex >= 0 ? renderedAll[entries[defaultIndex].contentIndex] : null;
+---
+
+<BaseLayout title="时间线">
+  <section class="py-24 md:py-32 px-6">
+    <div class="mx-auto max-w-5xl">
+      <h1 class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-16">
+        时间线
+      </h1>
+
+      {entries.length > 0 ? (
+        <div>
+          <!-- Horizontal axis: person above, event/post below -->
+          <div class="relative">
+            <div class="absolute left-0 right-0 top-[calc(7rem-0.5px)] h-px bg-[var(--color-ed-faint)]" aria-hidden="true"></div>
+            <div class="relative flex flex-wrap justify-between gap-y-12">
+              {entries.map((entry, i) => {
+                const isAbove = entry.kind === "person";
+                return (
+                  <div
+                    class="timeline-point group grid w-32 cursor-pointer grid-rows-[1fr_2rem_1fr]"
+                    data-kind={entry.kind}
+                    data-index={i}
+                    data-url={entry.url}
+                    data-content-index={entry.contentIndex}
+                    role="button"
+                    tabindex="0"
+                    aria-expanded="false"
+                  >
+                    <!-- Upper cell (person) -->
+                    <div
+                      class={`flex min-h-24 flex-col items-center justify-end text-center ${
+                        isAbove ? "" : "invisible"
+                      }`}
+                    >
+                      <time
+                        datetime={entry.date.toISOString()}
+                        class="text-[11px] tabular-nums text-[var(--color-ed-subtle)]"
+                      >
+                        {formatDate(entry.date, { year: "numeric", month: "short" })}
+                      </time>
+                      <span class="mt-1 font-serif text-sm leading-snug text-[var(--color-ed-fg)] line-clamp-2">
+                        {entry.title}
+                      </span>
+                      <span class="mt-1 text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
+                        {entry.kind === "person" ? "人物" : entry.kind === "post" ? "文章" : "事件"}
+                      </span>
+                    </div>
+
+                    <!-- Node on the axis -->
+                    <div class="flex items-center justify-center">
+                      <div
+                        class={`flex h-4 w-4 items-center justify-center rounded-full border bg-[var(--color-ed-bg)] transition-all duration-300 ${
+                          entry.kind === "post"
+                            ? "border-[var(--color-ed-fg)] group-hover:scale-125"
+                            : "border-[var(--color-ed-muted)] group-hover:scale-125"
+                        }`}
+                      >
+                        <span
+                          class={`block h-1.5 w-1.5 rounded-full ${
+                            entry.kind === "post"
+                              ? "bg-[var(--color-ed-fg)]"
+                              : "bg-[var(--color-ed-muted)]"
+                          }`}
+                        ></span>
+                      </div>
+                    </div>
+
+                    <!-- Lower cell (event / post) -->
+                    <div
+                      class={`flex min-h-24 flex-col items-center justify-start text-center ${
+                        isAbove ? "invisible" : ""
+                      }`}
+                    >
+                      <time
+                        datetime={entry.date.toISOString()}
+                        class="text-[11px] tabular-nums text-[var(--color-ed-subtle)]"
+                      >
+                        {formatDate(entry.date, { year: "numeric", month: "short" })}
+                      </time>
+                      <span class="mt-1 font-serif text-sm leading-snug text-[var(--color-ed-fg)] line-clamp-2">
+                        {entry.title}
+                      </span>
+                      <span class="mt-1 text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
+                        {entry.kind === "person" ? "人物" : entry.kind === "post" ? "文章" : "事件"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <!-- Detail area: first entry pre-rendered, others shown on click -->
+          <div id="timeline-detail" class="mt-16 min-h-40" aria-live="polite" data-default-index={defaultIndex}>
+            {defaultRendered && (
+              <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                  {defaultRendered.entry.data.title}
+                </h2>
+                <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                  {formatDate(defaultRendered.entry.data.date, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+                {defaultRendered.kind === "post" && (
+                  <a
+                    href={`/blog/${defaultRendered.id.replace(/\.mdx$/, "")}`}
+                    class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+                  >
+                    阅读全文
+                  </a>
+                )}
+                {defaultRendered.kind === "person" && (
+                  <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                    人物
+                  </span>
+                )}
+                <div class="prose mt-6">
+                  <defaultRendered.Content />
+                </div>
+              </article>
+            )}
+          </div>
+
+          <!-- Hidden full-text contents (posts + moments), shared by both views -->
+          <template id="content-templates">
+            {renderedAll.map((c, idx) => (
+              <div class="content-body" data-content-index={idx}>
+                <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                    {c.entry.data.title}
+                  </h2>
+                  <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                    {formatDate(c.entry.data.date, {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                  {c.kind === "post" && (
+                    <a
+                      href={`/blog/${c.id.replace(/\.mdx$/, "")}`}
+                      class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+                    >
+                      阅读全文
+                    </a>
+                  )}
+                  {c.kind === "person" && (
+                    <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                      人物
+                    </span>
+                  )}
+                  <div class="prose mt-6">
+                    <c.Content />
+                  </div>
+                </article>
+              </div>
+            ))}
+          </template>
+        </div>
+      ) : (
+        <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
+      )}
+    </div>
+  </section>
+  <MiniPlayer src={SITE_BGM.src} title={SITE_BGM.title} />
+</BaseLayout>
+
+<script>
+  const points = Array.from(
+    document.querySelectorAll<HTMLElement>(".timeline-point")
+  );
+  const detail = document.getElementById("timeline-detail");
+  const template = document.getElementById(
+    "content-templates"
+  ) as HTMLTemplateElement | null;
+  if (!detail || !template) throw new Error("timeline elements missing");
+
+  const contentBodies = Array.from(
+    template.content.querySelectorAll<HTMLElement>(".content-body")
+  );
+
+  let activeIndex: number | null = null;
+
+  // First entry (non-post) is shown server-side; keep its point highlighted
+  const initialIndex = Number(detail.dataset.defaultIndex ?? "-1");
+  if (initialIndex >= 0) {
+    activeIndex = initialIndex;
+    setActive(initialIndex);
+  }
+
+  function renderPlaceholder() {
+    detail.innerHTML = "";
+  }
+
+  function setActive(i: number | null) {
+    points.forEach((p, idx) => {
+      const on = idx === i;
+      p.setAttribute("aria-expanded", String(on));
+      p.classList.toggle("is-active", on);
+    });
+  }
+
+  function selectPoint(el: HTMLElement, index: number) {
+    if (activeIndex === index) {
+      activeIndex = null;
+      setActive(null);
+      renderPlaceholder();
+      return;
+    }
+    activeIndex = index;
+    setActive(index);
+
+    const kind = el.dataset.kind;
+    if (kind === "post") {
+      const url = el.dataset.url;
+      if (url) window.location.href = url;
+      return;
+    }
+
+    // moment: clone its pre-rendered body into the detail area
+    const contentIdx = Number(el.dataset.contentIndex);
+    const body = contentBodies.find(
+      (b) => b.dataset.contentIndex === String(contentIdx)
+    );
+    if (body) {
+      detail.innerHTML = "";
+      detail.appendChild(body.cloneNode(true) as HTMLElement);
+    }
+  }
+
+  points.forEach((el, i) => {
+    el.addEventListener("click", () => selectPoint(el, i));
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectPoint(el, i);
+      }
+    });
+  });
+</script>
