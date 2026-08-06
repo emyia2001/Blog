@@ -188,16 +188,48 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     return typeof ref === "string" ? nodeById.get(ref) : ref;
   }
 
+  // Distance from a node center to its shape edge along a unit direction.
+  // Circles are constant-radius; the diamond is an L1 ball (R = 9).
+  function radial(n: GraphNode, ux: number, uy: number): number {
+    if (n.kind === "event") {
+      return 9 / (Math.abs(ux) + Math.abs(uy));
+    }
+    if (n.kind === "self") return 11;
+    return 7; // post, person
+  }
+
+  // Shorten each link so it touches the node edges instead of crossing to centers
+  function edgePoints(
+    a: GraphNode & { x?: number; y?: number },
+    b: GraphNode & { x?: number; y?: number }
+  ): [number, number, number, number] {
+    const dx = (b.x ?? 0) - (a.x ?? 0);
+    const dy = (b.y ?? 0) - (a.y ?? 0);
+    const d = Math.hypot(dx, dy);
+    if (d === 0) return [a.x ?? 0, a.y ?? 0, b.x ?? 0, b.y ?? 0];
+    const ux = dx / d;
+    const uy = dy / d;
+    const r1 = radial(a, ux, uy);
+    const r2 = radial(b, -ux, -uy);
+    return [
+      (a.x ?? 0) + ux * r1,
+      (a.y ?? 0) + uy * r1,
+      (b.x ?? 0) - ux * r2,
+      (b.y ?? 0) - uy * r2,
+    ];
+  }
+
   function ticked() {
     linkEls.forEach((line, i) => {
       const l = links[i];
       const s = resolveNode(l.source);
       const t = resolveNode(l.target);
       if (!s || !t) return;
-      line.setAttribute("x1", String(s.x));
-      line.setAttribute("y1", String(s.y));
-      line.setAttribute("x2", String(t.x));
-      line.setAttribute("y2", String(t.y));
+      const [x1, y1, x2, y2] = edgePoints(s, t);
+      line.setAttribute("x1", String(x1));
+      line.setAttribute("y1", String(y1));
+      line.setAttribute("x2", String(x2));
+      line.setAttribute("y2", String(y2));
     });
     nodeEls.forEach((g, i) => {
       const n = nodes[i];
