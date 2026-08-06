@@ -36,7 +36,10 @@
   async function loadSearch() {
     try {
       // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
-      pf = await import("/pagefind/pagefind.js");
+      // 变量形式动态 import：避免 Vite 编译期解析（dev 下索引尚未生成，
+      // postbuild 才产出），改由运行时加载——404 由下方 catch 优雅处理
+      const pagefindUrl = "/pagefind/pagefind.js";
+      pf = await import(pagefindUrl);
       await pf.init();
       loaded = true;
     } catch {
