@@ -164,6 +164,26 @@ const { src, title } = Astro.props;
       ["pointerdown", "keydown", "scroll", "touchstart"].forEach((evt) =>
         window.addEventListener(evt, unlockAndPlay, { passive: true })
       );
+
+      // 离开页面（切后台/切标签页/导航走）时立即停止音乐
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && playing) {
+          if (fadeTimer) {
+            clearInterval(fadeTimer);
+            fadeTimer = null;
+          }
+          audio.pause();
+          playing = false;
+          setIcons(false);
+        }
+      });
+      window.addEventListener("pagehide", () => {
+        if (fadeTimer) {
+          clearInterval(fadeTimer);
+          fadeTimer = null;
+        }
+        audio.pause();
+      });
     }
   }
 

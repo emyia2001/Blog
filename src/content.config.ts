@@ -23,4 +23,16 @@ const posts = defineCollection({
   }),
 });
 
-export const collections = { posts };
+const moments = defineCollection({
+  type: "content",
+  schema: z.object({
+    title: z.string(),
+    date: z.date(),
+    excerpt: z.string(),
+    type: z.enum(["person", "event"]).default("event"),
+    heroImage: z.string().optional(),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = { posts, moments };

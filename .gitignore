@@ -6,3 +6,4 @@ public/pagefind/
 .env
 .env.*
 .playwright-mcp/
+.superpowers/
