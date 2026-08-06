@@ -127,14 +127,11 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     const isSelf = n.kind === "self";
     const shape = document.createElementNS(
       NS,
-      isEvent ? "rect" : isSelf ? "circle" : "circle"
+      isEvent ? "polygon" : isSelf ? "circle" : "circle"
     );
     if (isEvent) {
-      shape.setAttribute("width", "16");
-      shape.setAttribute("height", "16");
-      shape.setAttribute("x", "-8");
-      shape.setAttribute("y", "-8");
-      shape.setAttribute("rx", "3");
+      // diamond outline to keep it distinct from post (dot) and person (ring)
+      shape.setAttribute("points", "0,-9 9,0 0,9 -9,0");
       shape.setAttribute("fill", "none");
       shape.setAttribute("stroke", "var(--color-ed-muted)");
       shape.setAttribute("stroke-width", "1.5");
