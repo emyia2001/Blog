@@ -1,14 +1,35 @@
 ---
+import { execSync } from "node:child_process";
+
 interface Props {
   class?: string;
 }
 
 const { class: className = "" } = Astro.props;
+
+// 自动取 src/styles/giscus-theme.css 最后一次被提交的 commit hash，
+// 拼成 jsDelivr 直链。改主题 CSS 并提交后，下次构建自动指向新版本，
+// 无需手动更新 hash。jsDelivr 对精确 commit hash 不走普通缓存，立即生效。
+// 构建环境若不是 git 仓库（如 shallow clone 且无历史）则回退到已知有效 hash。
+function getThemeHash(): string {
+  const fallback = "6e91f4f53d4fbe0e56780f13a774797f4d3ee56a";
+  try {
+    const hash = execSync(
+      "git log -1 --format=%H -- src/styles/giscus-theme.css",
+      { encoding: "utf-8" }
+    ).trim();
+    return hash || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const themeUrl = `https://cdn.jsdelivr.net/gh/emyia2001/Blog@${getThemeHash()}/src/styles/giscus-theme.css`;
 ---
 
 <div id="giscus" class={className} data-pagefind-ignore></div>
 
-<script>
+<script define:vars={{ themeUrl }}>
   const GISCUS_CONFIG = {
     src: "https://giscus.app/client.js",
     "data-repo": "emyia2001/comment",
@@ -30,18 +51,10 @@ const { class: className = "" } = Astro.props;
     const container = document.getElementById("giscus");
     if (!container || container.dataset.loaded === "1") return;
 
-    // 自定义主题：经 jsDelivr CDN 加载。giscus 在 giscus.app 同源外 iframe 内以
-    // <link crossorigin="anonymous"> (CORS 模式) 拉取主题 CSS。
-    // 本地/预览用 Astro 服务器执行 endpoint 会带 CORS 头，但静态托管直接提供
-    // dist/giscus-theme.css 文件时没有 CORS 头，会被浏览器静默拦截（字体透明/
-    // 边框不可见）。jsDelivr 对所有文件固定返回 Access-Control-Allow-Origin:*，
-    // 因此改为 CDN 直链，与本站音频资源（cdn.jsdelivr.net/gh/...）一致。
-    // 引用固定的 commit hash（6e91f4f，含最新主题 CSS 且已 push）。jsDelivr 对
-    // 精确 commit hash 不走普通 CDN 缓存，首次即生效。将来修改 giscus-theme.css
-    // 后，需把下方 hash 换成新提交的完整 hash，否则会一直取旧版样式。
-    const themeUrl =
-      "https://cdn.jsdelivr.net/gh/emyia2001/Blog@6e91f4f53d4fbe0e56780f13a774797f4d3ee56a/src/styles/giscus-theme.css";
-
+    // 自定义主题：经 jsDelivr CDN 加载。giscus 在 giscus.app 跨域 iframe 内以
+    // <link crossorigin="anonymous"> (CORS 模式) 拉取主题 CSS。jsDelivr 对所有
+    // 文件固定返回 Access-Control-Allow-Origin:*，静态托管下也不会被拦截。
+    // themeUrl 由构建时按 giscus-theme.css 的最新 commit hash 自动生成。
     const script = document.createElement("script");
     script.async = true;
     script.crossOrigin = GISCUS_CONFIG.crossorigin;
