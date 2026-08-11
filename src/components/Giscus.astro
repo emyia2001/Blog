@@ -30,8 +30,17 @@ const { class: className = "" } = Astro.props;
     const container = document.getElementById("giscus");
     if (!container || container.dataset.loaded === "1") return;
 
-    // 自定义主题：用当前 origin 拼绝对 URL，适配本地与任何部署域名
-    const themeUrl = `${location.origin}/giscus-theme.css`;
+    // 自定义主题：经 jsDelivr CDN 加载。giscus 在 giscus.app 同源外 iframe 内以
+    // <link crossorigin="anonymous"> (CORS 模式) 拉取主题 CSS。
+    // 本地/预览用 Astro 服务器执行 endpoint 会带 CORS 头，但静态托管直接提供
+    // dist/giscus-theme.css 文件时没有 CORS 头，会被浏览器静默拦截（字体透明/
+    // 边框不可见）。jsDelivr 对所有文件固定返回 Access-Control-Allow-Origin:*，
+    // 因此改为 CDN 直链，与本站音频资源（cdn.jsdelivr.net/gh/...）一致。
+    // 引用固定的 commit hash（6e91f4f，含最新主题 CSS 且已 push）。jsDelivr 对
+    // 精确 commit hash 不走普通 CDN 缓存，首次即生效。将来修改 giscus-theme.css
+    // 后，需把下方 hash 换成新提交的完整 hash，否则会一直取旧版样式。
+    const themeUrl =
+      "https://cdn.jsdelivr.net/gh/emyia2001/Blog@6e91f4f53d4fbe0e56780f13a774797f4d3ee56a/src/styles/giscus-theme.css";
 
     const script = document.createElement("script");
     script.async = true;
