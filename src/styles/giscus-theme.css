@@ -1,0 +1,108 @@
+/*!
+ * Editorial giscus theme — maps giscus/GitHub Primer variables
+ * onto the blog's design tokens (editorial.css):
+ *   bg #F9F8F6 · fg #1C1C1C · muted 60% · subtle 40% · faint 10%
+ * Base structure from giscus styles/themes/light.css (MIT, GitHub Inc.)
+ */
+
+main {
+  /* Syntax (kept monochrome-leaning, matches editorial restraint) */
+  --color-prettylights-syntax-comment: #8a8a8a;
+  --color-prettylights-syntax-constant: #4a4a4a;
+  --color-prettylights-syntax-entity: #4a4a4a;
+  --color-prettylights-syntax-storage-modifier-import: #1c1c1c;
+  --color-prettylights-syntax-entity-tag: #1c1c1c;
+  --color-prettylights-syntax-keyword: #1c1c1c;
+  --color-prettylights-syntax-string: #4a4a4a;
+  --color-prettylights-syntax-variable: #1c1c1c;
+  --color-prettylights-syntax-brackethighlighter-unmatched: #1c1c1c;
+  --color-prettylights-syntax-invalid-illegal-text: #f9f8f6;
+  --color-prettylights-syntax-invalid-illegal-bg: #1c1c1c;
+  --color-prettylights-syntax-carriage-return-text: #f9f8f6;
+  --color-prettylights-syntax-carriage-return-bg: #1c1c1c;
+  --color-prettylights-syntax-string-regexp: #4a4a4a;
+  --color-prettylights-syntax-markup-list: #1c1c1c;
+  --color-prettylights-syntax-markup-heading: #1c1c1c;
+  --color-prettylights-syntax-markup-italic: #1c1c1c;
+  --color-prettylights-syntax-markup-bold: #1c1c1c;
+  --color-prettylights-syntax-markup-deleted-text: #8a8a8a;
+  --color-prettylights-syntax-markup-deleted-bg: transparent;
+  --color-prettylights-syntax-markup-inserted-text: #1c1c1c;
+  --color-prettylights-syntax-markup-inserted-bg: transparent;
+  --color-prettylights-syntax-markup-changed-text: #1c1c1c;
+  --color-prettylights-syntax-markup-changed-bg: transparent;
+  --color-prettylights-syntax-markup-ignored-text: #f9f8f6;
+  --color-prettylights-syntax-markup-ignored-bg: #1c1c1c;
+  --color-prettylights-syntax-meta-diff-range: #1c1c1c;
+  --color-prettylights-syntax-brackethighlighter-angle: #8a8a8a;
+  --color-prettylights-syntax-sublimelinter-gutter-mark: #8a8a8a;
+  --color-prettylights-syntax-constant-other-reference-link: #4a4a4a;
+
+  /* Buttons */
+  --color-btn-text: #1c1c1c;
+  --color-btn-bg: transparent;
+  --color-btn-border: rgb(28 28 28 / 10%);
+  --color-btn-shadow: none;
+  --color-btn-inset-shadow: none;
+  --color-btn-hover-bg: rgb(28 28 28 / 5%);
+  --color-btn-hover-border: rgb(28 28 28 / 20%);
+  --color-btn-active-bg: rgb(28 28 28 / 8%);
+  --color-btn-active-border: rgb(28 28 28 / 20%);
+  --color-btn-selected-bg: rgb(28 28 28 / 8%);
+  --color-btn-primary-text: #f9f8f6;
+  --color-btn-primary-bg: #1c1c1c;
+  --color-btn-primary-border: #1c1c1c;
+  --color-btn-primary-shadow: none;
+  --color-btn-primary-inset-shadow: none;
+  --color-btn-primary-hover-bg: #000000;
+  --color-btn-primary-hover-border: #000000;
+  --color-btn-primary-selected-bg: #000000;
+  --color-btn-primary-selected-shadow: none;
+  --color-btn-primary-disabled-text: rgb(249 248 246 / 60%);
+  --color-btn-primary-disabled-bg: rgb(28 28 28 / 40%);
+  --color-btn-primary-disabled-border: transparent;
+  --color-action-list-item-default-hover-bg: rgb(28 28 28 / 5%);
+  --color-segmented-control-bg: rgb(28 28 28 / 6%);
+  --color-segmented-control-button-bg: transparent;
+  --color-segmented-control-button-selected-border: rgb(28 28 28 / 20%);
+
+  /* Foreground / canvas */
+  --color-fg-default: #1c1c1c;
+  --color-fg-muted: rgb(28 28 28 / 60%);
+  --color-fg-subtle: rgb(28 28 28 / 40%);
+  --color-canvas-default: transparent;
+  --color-canvas-overlay: transparent;
+  --color-canvas-inset: rgb(28 28 28 / 4%);
+  --color-canvas-subtle: rgb(28 28 28 / 4%);
+  --color-border-default: rgb(28 28 28 / 10%);
+  --color-border-muted: rgb(28 28 28 / 10%);
+  --color-neutral-muted: rgb(28 28 28 / 8%);
+
+  /* Accent (no colored accent — editorial uses fg for emphasis) */
+  --color-accent-fg: #1c1c1c;
+  --color-accent-emphasis: #1c1c1c;
+  --color-accent-muted: rgb(28 28 28 / 20%);
+  --color-accent-subtle: rgb(28 28 28 / 6%);
+  --color-success-fg: #1c1c1c;
+  --color-attention-fg: #1c1c1c;
+  --color-attention-muted: rgb(28 28 28 / 20%);
+  --color-attention-subtle: rgb(28 28 28 / 6%);
+  --color-danger-fg: #1c1c1c;
+  --color-danger-muted: rgb(28 28 28 / 20%);
+  --color-danger-subtle: rgb(28 28 28 / 6%);
+  --color-primer-shadow-inset: none;
+  --color-scale-gray-1: rgb(28 28 28 / 8%);
+  --color-scale-blue-1: rgb(28 28 28 / 8%);
+
+  /* Font — match the site's sans (Source Sans 3) */
+  font-family: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+main .pagination-loader-container {
+  background-image: none;
+}
+
+main .gsc-loading-image {
+  background-image: none;
+}

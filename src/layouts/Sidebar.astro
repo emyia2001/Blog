@@ -5,6 +5,7 @@ import { Image } from "astro:assets";
 import BaseLayout from "./BaseLayout.astro";
 import PrevNext from "../components/PrevNext.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
+import Giscus from "../components/Giscus.astro";
 import { readingTime } from "../utils/readingTime";
 
 interface Props {
@@ -90,6 +91,11 @@ const related = published
 
         <div class="prose drop-cap max-w-none">
           <Content />
+        </div>
+
+        <div class="mt-16 pt-10 border-t border-[var(--color-ed-faint)]">
+          <h2 class="font-serif text-2xl text-[var(--color-ed-fg)] mb-6">评论</h2>
+          <Giscus />
         </div>
 
         <PrevNext prev={prev} next={next} />
