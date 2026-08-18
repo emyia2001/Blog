@@ -1,0 +1,102 @@
+---
+// 刊首插图：韵律线条构图（按 variant 轮换）+ 波浪微动效 + 网站简介
+interface Props {
+  variant?: number; // 0 波浪 · 1 涟漪 · 2 等高线
+  days?: string; // 水印大数字：创站坚持天数
+  number?: string; // 小标注：期号
+  intro?: string[]; // 简介正文（按行）
+}
+
+const { variant = 0, days = "01", number = "01", intro } = Astro.props;
+const v = ((variant % 3) + 3) % 3;
+
+const NOTES = ["—— 慢慢写。", "—— 一期一文。", "—— 写给多年后的自己。", "—— 记录，然后遗忘。"];
+const note = NOTES[Math.floor(Math.random() * NOTES.length)];
+
+const lines = intro ?? [
+  "这是一个个人博客，记录随笔、笔记",
+  "与生活里那些浮光。写给多年后的自",
+  "己，也写给现在的自己。关于写作、",
+  "技术，以及缝隙之间的反思。",
+];
+---
+
+<figure class="clip-reveal">
+  <div class="border border-[var(--color-ed-faint)] p-2 md:p-3">
+    <div class="flex flex-col md:flex-row items-stretch bg-[#F9F8F6]">
+      <!-- 左：韵律线条 -->
+      <div class="relative flex-1 min-w-0 aspect-[16/9] md:aspect-auto md:h-[420px] overflow-hidden">
+        <div class="absolute bottom-5 md:bottom-6 inset-x-0 flex justify-center pointer-events-none z-10" aria-hidden="true">
+          <p class="font-serif text-xs md:text-sm tracking-[0.25em] text-[var(--color-ed-subtle)]">
+            第 {number} 期 · 创站第 {days} 天
+          </p>
+        </div>
+        {v === 0 && (
+          <svg class="absolute inset-0 w-full h-full" viewBox="0 0 2100 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect width="2100" height="900" fill="#F9F8F6"/>
+            <g class="wave-drift" fill="none" stroke="#1C1C1C">
+              <path d="M 0 620 Q 225 560 450 620 T 900 620 T 1350 620" stroke-opacity="0.3"/>
+              <path d="M 0 520 Q 225 420 450 520 T 900 520 T 1350 520" stroke-opacity="0.45"/>
+              <path d="M 0 420 Q 225 345 450 420 T 900 420 T 1350 420" stroke-opacity="0.55"/>
+              <path d="M 0 320 Q 225 265 450 320 T 900 320 T 1350 320" stroke-opacity="0.65"/>
+              <path d="M 0 220 Q 225 185 450 220 T 900 220 T 1350 220" stroke-opacity="0.5"/>
+              <path d="M 0 120 Q 225 100 450 120 T 900 120 T 1350 120" stroke-opacity="0.32"/>
+            </g>
+            <text x="550" y="800" font-family="Georgia, 'Songti SC', 'Noto Serif SC', serif" font-style="italic" font-size="330" text-anchor="middle" fill="#1C1C1C" fill-opacity="0.16">{number}</text>
+          </svg>
+        )}
+        {v === 1 && (
+          <svg class="absolute inset-0 w-full h-full" viewBox="0 0 2100 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect width="2100" height="900" fill="#F9F8F6"/>
+            <g fill="none" stroke="#1C1C1C">
+              <circle cx="1480" cy="-160" r="780" stroke-opacity="0.85"/>
+              <circle cx="1480" cy="-160" r="980" stroke-opacity="0.55"/>
+              <circle cx="1480" cy="-160" r="1190" stroke-opacity="0.35"/>
+              <circle cx="1480" cy="-160" r="1410" stroke-opacity="0.2"/>
+              <circle cx="1480" cy="-160" r="1640" stroke-opacity="0.12"/>
+            </g>
+            <text x="550" y="800" font-family="Georgia, 'Songti SC', 'Noto Serif SC', serif" font-style="italic" font-size="330" text-anchor="middle" fill="#1C1C1C" fill-opacity="0.16">{number}</text>
+            <line x1="0" y1="780" x2="2100" y2="780" stroke="#1C1C1C" stroke-opacity="0.2"/>
+          </svg>
+        )}
+        {v === 2 && (
+          <svg class="absolute inset-0 w-full h-full" viewBox="0 0 2100 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect width="2100" height="900" fill="#F9F8F6"/>
+            <g fill="none" stroke="#1C1C1C">
+              <path d="M 0 640 C 260 600 430 660 690 630 C 950 600 1120 680 1380 640 C 1640 600 1810 660 2100 630" stroke-opacity="0.8"/>
+              <path d="M 0 560 C 310 510 520 590 780 550 C 1040 510 1250 600 1510 555 C 1770 515 1940 580 2100 560" stroke-opacity="0.55"/>
+              <path d="M 0 480 C 270 420 520 510 780 465 C 1040 425 1290 520 1550 470 C 1810 435 1960 500 2100 480" stroke-opacity="0.4"/>
+              <path d="M 0 400 C 340 340 560 430 820 385 C 1080 345 1330 440 1590 390 C 1850 360 1990 420 2100 400" stroke-opacity="0.28"/>
+              <path d="M 0 320 C 300 270 580 350 840 305 C 1100 265 1360 350 1620 310 C 1880 292 2010 330 2100 320" stroke-opacity="0.18"/>
+            </g>
+            <text x="550" y="800" font-family="Georgia, 'Songti SC', 'Noto Serif SC', serif" font-style="italic" font-size="330" text-anchor="middle" fill="#1C1C1C" fill-opacity="0.16">{number}</text>
+            <line x1="0" y1="700" x2="2100" y2="700" stroke="#1C1C1C" stroke-opacity="0.35"/>
+          </svg>
+        )}
+      </div>
+
+      <!-- 右：网站简介 -->
+      <div class="md:w-[400px] lg:w-[460px] shrink-0 border-t md:border-t-0 md:border-l border-[var(--color-ed-faint)] p-8 lg:p-10 flex flex-col justify-between gap-8">
+        <div>
+          <p class="text-[10px] tracking-[0.3em] text-[var(--color-ed-subtle)] mb-6">
+            关于本站 · ABOUT
+          </p>
+          <div class="space-y-3">
+            {lines.map((l) => (
+              <p class="font-serif text-base text-[var(--color-ed-fg)]/60 leading-relaxed">{l}</p>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p class="font-serif italic text-sm text-[var(--color-ed-muted)] mb-6">{note}</p>
+          <p class="text-[10px] tracking-[0.2em] text-[var(--color-ed-subtle)]">
+            SNARK — 随笔 · 技术 · 生活
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <figcaption class="mt-3 text-[10px] tracking-[0.25em] text-[var(--color-ed-subtle)]">
+    Fig. 01 — 刊首插图
+  </figcaption>
+</figure>

@@ -78,6 +78,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   const W = 800;
   const H = 500;
+  const cleanupController = new AbortController();
   const nodes = data.nodes.map((n) => ({ ...n })) as Array<
     GraphNode & {
       x?: number;
@@ -182,6 +183,24 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .on("tick", ticked);
 
+  let resizeObserver: ResizeObserver | null = null;
+
+  function cleanup() {
+    cleanupController.abort();
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    simulation.stop();
+  }
+
+  document.addEventListener("astro:before-swap", cleanup, {
+    once: true,
+    signal: cleanupController.signal,
+  });
+  window.addEventListener("pagehide", cleanup, {
+    once: true,
+    signal: cleanupController.signal,
+  });
+
   function resolveNode(
     ref: string | (GraphNode & { x?: number; y?: number })
   ): (GraphNode & { x?: number; y?: number }) | undefined {
@@ -249,7 +268,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       .force("y", forceY(h / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)));
     simulation.alpha(0.3).restart();
   }
-  new ResizeObserver(fitViewBox).observe(svg);
+  resizeObserver = new ResizeObserver(fitViewBox);
+  resizeObserver.observe(svg);
   fitViewBox();
 
   // --- Pan & zoom ---
@@ -281,7 +301,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       zoom.k = newK;
       applyZoom();
     },
-    { passive: false }
+    { passive: false, signal: cleanupController.signal }
   );
 
   // --- Drag nodes (click vs drag distinguished by movement threshold) ---
@@ -340,7 +360,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     const p = svgPoint(e);
     n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
     n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
-  });
+  }, { signal: cleanupController.signal });
 
   window.addEventListener("pointerup", () => {
     if (pointerId) {
@@ -360,7 +380,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     pointerId = null;
     downOnNode = false;
     dragged = false;
-  });
+  }, { signal: cleanupController.signal });
 
   // --- Active / highlight ---
   let activeId: string | null = null;
@@ -456,8 +476,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") clearActive();
-  });
+  }, { signal: cleanupController.signal });
 
   // timeline selected something -> clear graph highlight
-  window.addEventListener("timeline:select", clearActive);
+  window.addEventListener("timeline:select", clearActive, { signal: cleanupController.signal });
 </script>

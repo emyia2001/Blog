@@ -1,12 +1,13 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import { getCollection } from "astro:content";
-import { Image } from "astro:assets";
 import BaseLayout from "./BaseLayout.astro";
+import CoverPlate from "../components/CoverPlate.astro";
 import PrevNext from "../components/PrevNext.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 import Giscus from "../components/Giscus.astro";
 import { readingTime } from "../utils/readingTime";
+import { coverVariant } from "../utils/coverVariant";
 
 interface Props {
   post: CollectionEntry<"posts">;
@@ -14,22 +15,13 @@ interface Props {
 
 const { post } = Astro.props;
 const { title, date, excerpt, heroImage, pullQuote, bgm, tags } = post.data;
-const { Content } = await post.render();
+const { Content, headings: renderedHeadings } = await post.render();
 const bodyText = String(post.body || "");
 const readMin = readingTime(bodyText);
 
-// Extract ## headings for table of contents
-const headings = bodyText
-  .split("\n")
-  .filter((line) => line.startsWith("## "))
-  .map((line) => {
-    const text = line.replace(/^## /, "").trim();
-    const id = text
-      .toLowerCase()
-      .replace(/[^\w\u4e00-\u9fff\s-]/g, "")
-      .replace(/\s+/g, "-");
-    return { text, id };
-  });
+const headings = renderedHeadings
+  .filter((heading) => heading.depth === 2)
+  .map((heading) => ({ text: heading.text, id: heading.slug }));
 
 const allPosts = await getCollection("posts");
 const published = allPosts
@@ -51,11 +43,14 @@ const related = published
 
 <BaseLayout title={title} description={excerpt} image={heroImage}>
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
-    <div class="flex flex-col lg:flex-row gap-16">
+    <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.7fr)_14rem] gap-10 lg:gap-12">
       <!-- Main article -->
-      <article class="flex-1 min-w-0" data-pagefind-body>
+      <article class="min-w-0" data-pagefind-body>
         <header class="mb-12">
-          <h1 class="font-serif text-3xl md:text-5xl tracking-tighter leading-tight text-[var(--color-ed-fg)]">
+          <p class="page-kicker mb-4">
+            ARTICLE · {tags[0] || "随笔"}
+          </p>
+          <h1 class="font-serif text-3xl md:text-5xl leading-tight text-[var(--color-ed-fg)]">
             {title}
           </h1>
           <div class="mt-4 flex items-center gap-3 text-xs text-[var(--color-ed-subtle)]">
@@ -71,17 +66,20 @@ const related = published
           </div>
         </header>
 
-        {heroImage && (
-          <figure class="mb-12">
-            <Image
-              src={heroImage}
-              alt={title}
-              width={1200}
-              height={675}
-              class="w-full"
-            />
-          </figure>
-        )}
+        <figure class="mb-12">
+          <CoverPlate
+            title={title}
+            eyebrow={tags[0] || "随笔"}
+            date={date.toLocaleDateString("zh-CN", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+            image={heroImage}
+            variant={coverVariant(post.id)}
+            ratioClass="aspect-[16/9]"
+          />
+        </figure>
 
         {pullQuote && (
           <div class="pull-quote max-w-[45ch] mb-12">
@@ -102,8 +100,8 @@ const related = published
       </article>
 
       <!-- Sidebar -->
-      <aside class="lg:w-72 shrink-0">
-        <div class="lg:sticky lg:top-24 space-y-12">
+      <aside class="shrink-0">
+        <div class="lg:sticky lg:top-24 space-y-10">
           <!-- Tags -->
           {tags.length > 0 && (
             <div>

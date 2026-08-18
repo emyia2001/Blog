@@ -1,44 +1,291 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import HeroFeatured from "../components/HeroFeatured.astro";
-import ArticleListItem from "../components/ArticleListItem.astro";
-import TagCloud from "../components/TagCloud.astro";
-import { SITE_NAME } from "../consts";
+import CoverPlate from "../components/CoverPlate.astro";
+import BannerPlate from "../components/BannerPlate.astro";
+import { readingTime } from "../utils/readingTime";
+import { coverVariant } from "../utils/coverVariant";
+import { SITE_NAME, SITE_CREATED } from "../consts";
 
-const allPosts = await getCollection("posts");
+const [allPosts, allMoments] = await Promise.all([
+  getCollection("posts"),
+  getCollection("moments"),
+]);
+
 const published = allPosts
   .filter((p) => !p.data.draft)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
+const moments = allMoments
+  .filter((m) => !m.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 6);
+
 const heroPost = published.find((p) => p.data.featured) || published[0];
 const listPosts = published.filter((p) => p.id !== heroPost?.id);
+
+// 刊首插图构图：按日期轮换（0 波浪 / 1 涟漪 / 2 等高线）
+const now = new Date();
+const bannerVariant = ((now.getFullYear() * 372 + (now.getMonth() + 1) * 31 + now.getDate()) % 3 + 3) % 3;
+// 创站坚持天数（水印大数字）
+const daysStr = String(Math.floor((now.getTime() - SITE_CREATED.getTime()) / 86400000) + 1).padStart(2, "0");
+
+// --- journal helpers ---
+const postUrl = (id: string) => `/blog/${id.replace(/\.mdx$/, "")}`;
+const fmtShort = (d: Date) =>
+  d.toLocaleDateString("zh-CN", { year: "numeric", month: "short", day: "numeric" });
+const fmtMonth = (d: Date) => d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+
+// Issue numbering: this blog is one long journal, each article is one issue
+const vol = String(Math.max(published.length, 1)).padStart(2, "0");
+
+// Tag counts for the inline typographic tag list
+const tagCounts = new Map<string, number>();
+for (const p of published) for (const t of p.data.tags) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+const sortedTags = [...tagCounts.entries()].sort(
+  (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+);
 ---
 
-<BaseLayout title={SITE_NAME}>
-  {heroPost && <HeroFeatured post={heroPost} />}
+<script is:inline>
+  // Must run before .reveal / .char-reveal / .mask-reveal elements render
+  document.documentElement.classList.add("js");
+</script>
 
-  {listPosts.length > 0 && (
-    <section class="py-16 px-6">
-      <div class="mx-auto max-w-3xl">
-        <h2 class="text-xs tracking-[0.05em] text-[var(--color-ed-muted)] mb-8">
-          更多文章
-        </h2>
-        <ol>
-          {listPosts.map((post, i) => (
-            <ArticleListItem post={post} index={i + 1} />
-          ))}
-        </ol>
+<BaseLayout title="首页">
+  <!-- ===== 刊首插图（动态：构图按日期轮换 + 波浪微动效） ===== -->
+  <div class="px-6 pt-16 md:pt-24 pb-6">
+    <div class="mx-auto max-w-6xl">
+      <BannerPlate variant={bannerVariant} days={daysStr} number={vol} />
+    </div>
+  </div>
+
+  <!-- ===== 本期（current issue，书封构图） ===== -->
+  {heroPost && (
+    <section class="py-20 md:py-28 px-6">
+      <div class="mx-auto max-w-6xl">
+        <div class="mask-reveal flex items-baseline justify-between border-b border-[var(--color-ed-faint)] pb-5 mb-10 md:mb-14">
+          <h2 class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)]">本期 · CURRENT</h2>
+          <a href="/archive" class="hover-underline text-xs tracking-[0.15em] text-[var(--color-ed-subtle)] no-underline">
+            全部文章
+          </a>
+        </div>
+
+        <div class="grid md:grid-cols-12 gap-10 md:gap-16 items-start">
+          <!-- 封面 -->
+          <div class="md:col-span-5 reveal">
+            <a href={postUrl(heroPost.id)} class="group block no-underline">
+              <div class="relative">
+                <div class="cover-frame">
+                  <CoverPlate
+                    title={heroPost.data.title}
+                    eyebrow={heroPost.data.tags[0] || "随笔"}
+                    date={fmtShort(heroPost.data.date)}
+                    image={heroPost.data.heroImage}
+                    variant={coverVariant(heroPost.id)}
+                    ratioClass="aspect-[3/4]"
+                    class="img-settle"
+                  />
+                </div>
+                <span class="vol-label absolute top-0 left-0 px-3 py-1.5 text-[10px] tracking-[0.3em]">
+                  VOL. {vol}
+                </span>
+              </div>
+            </a>
+          </div>
+
+          <!-- 题文 -->
+          <div class="md:col-span-7 reveal" style="--reveal-delay: 120ms">
+            <p class="text-[10px] tracking-[0.3em] text-[var(--color-ed-subtle)] mb-6">
+              第 {vol} 期 · {fmtShort(heroPost.data.date)}
+            </p>
+            <a href={postUrl(heroPost.id)} class="group block no-underline">
+              <h2 class="font-serif text-4xl md:text-6xl tracking-tighter text-[var(--color-ed-fg)] leading-tight italic">
+                {heroPost.data.title}
+              </h2>
+              {heroPost.data.excerpt && (
+                <p class="mt-6 text-sm md:text-base leading-relaxed text-[var(--color-ed-muted)] max-w-[52ch]">
+                  {heroPost.data.excerpt}
+                </p>
+              )}
+            </a>
+            <div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--color-ed-subtle)]">
+              <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
+              <span class="w-px h-3 bg-[var(--color-ed-faint)]" aria-hidden="true"></span>
+              <span>{heroPost.data.tags.join(" · ") || "随笔"}</span>
+            </div>
+            <a
+              href={postUrl(heroPost.id)}
+              class="hover-underline mt-10 inline-block text-sm text-[var(--color-ed-fg)] no-underline"
+            >
+              阅读本期 →
+            </a>
+          </div>
+        </div>
       </div>
     </section>
   )}
 
-  <section class="py-16 px-6 border-t border-[var(--color-ed-faint)]">
-    <div class="mx-auto max-w-3xl">
-      <h2 class="text-xs tracking-[0.05em] text-[var(--color-ed-muted)] mb-8">
-        标签
-      </h2>
-      <TagCloud />
+  <!-- ===== 目录（contents，点线目录行） ===== -->
+  {listPosts.length > 0 && (
+    <section class="pb-20 md:pb-28 px-6">
+      <div class="mx-auto max-w-6xl">
+        <div class="mask-reveal flex items-baseline justify-between border-b border-[var(--color-ed-faint)] pb-5 mb-8">
+          <h2 class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)]">目录 · CONTENTS</h2>
+        </div>
+
+        {listPosts.map((post, i) => {
+          const readMin = readingTime(String(post.body || ""));
+          return (
+            <a
+              href={postUrl(post.id)}
+              class="group flex items-center gap-5 md:gap-8 py-5 md:py-6 border-b border-[var(--color-ed-faint)] no-underline"
+            >
+              <span class="font-serif text-lg md:text-xl text-[var(--color-ed-fg)] tracking-tight shrink-0">
+                {String(i + 2).padStart(2, "0")}
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-4">
+                  <h3 class="font-serif text-xl md:text-2xl tracking-tight text-[var(--color-ed-fg)] leading-snug truncate italic">
+                    {post.data.title}
+                  </h3>
+                  <span class="leader" aria-hidden="true"></span>
+                  <span class="shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                    {readMin} 分钟
+                  </span>
+                </div>
+                <div class="toc-excerpt">
+                  <div>
+                    {post.data.excerpt && (
+                      <p class="pt-2 text-sm leading-relaxed text-[var(--color-ed-muted)] line-clamp-2">
+                        {post.data.excerpt}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <CoverPlate
+                title={post.data.title}
+                image={post.data.heroImage}
+                variant={coverVariant(post.id)}
+                ratioClass="aspect-square"
+                caption={false}
+                class="block w-12 h-12 md:w-14 md:h-14 shrink-0"
+              />
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  )}
+
+  <!-- ===== 浮光（moments，横向胶片条） ===== -->
+  {moments.length > 0 && (
+    <section class="py-20 md:py-28 px-6 border-t border-[var(--color-ed-faint)]">
+      <div class="mx-auto max-w-6xl">
+        <div class="mask-reveal flex items-baseline justify-between border-b border-[var(--color-ed-faint)] pb-5 mb-8">
+          <h2 class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)]">浮光 · MOMENTS</h2>
+          <a href="/timeline" class="hover-underline text-xs tracking-[0.15em] text-[var(--color-ed-subtle)] no-underline">
+            时间线
+          </a>
+        </div>
+
+        <div class="filmstrip flex gap-6 md:gap-10 pb-2 -mx-6 px-6">
+          {moments.map((m) => (
+            <a href="/timeline" class="filmstrip-item group snap-start shrink-0 w-44 md:w-56 no-underline">
+              <CoverPlate
+                title={m.data.title}
+                image={m.data.heroImage}
+                variant={coverVariant(m.id)}
+                ratioClass="aspect-square"
+                caption={false}
+                class="block"
+              />
+              <span class="mt-3 flex items-baseline justify-between gap-3">
+                <span class="font-serif text-sm text-[var(--color-ed-fg)] leading-snug truncate transition-colors duration-300 group-hover:text-[var(--color-ed-muted)]">
+                  {m.data.title}
+                </span>
+                <time datetime={m.data.date.toISOString()} class="shrink-0 text-[10px] text-[var(--color-ed-subtle)] tabular-nums">
+                  {fmtMonth(m.data.date)}
+                </time>
+              </span>
+              <span class="mt-1 block text-[10px] tracking-[0.2em] uppercase text-[var(--color-ed-subtle)]">
+                {m.data.type === "person" ? "人物" : "事件"}
+              </span>
+            </a>
+          ))}
+        </div>
+        <p class="mt-4 text-[10px] tracking-[0.2em] text-[var(--color-ed-subtle)]">
+          左右滑动浏览 →
+        </p>
+      </div>
+    </section>
+  )}
+
+  <!-- ===== 标签（索引式：每标签 + 名下的文章） ===== -->
+  <section class="py-20 md:py-28 px-6">
+    <div class="mx-auto max-w-4xl">
+      <div class="double-rule-top pt-14 md:pt-20">
+        <div class="flex items-end justify-between border-b border-[var(--color-ed-faint)] pb-5 mb-8">
+          <h2 class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)]">标签 · TAGS</h2>
+          <span class="text-[10px] tracking-[0.2em] text-[var(--color-ed-subtle)] tabular-nums">
+            {sortedTags.length} 个标签
+          </span>
+        </div>
+
+        {sortedTags.length > 0 ? (
+          <div>
+            {sortedTags.map(([tag, count], i) => {
+              const posts = published
+                .filter((p) => p.data.tags.includes(tag))
+                .slice(0, 2);
+              return (
+                <div class="group border-b border-[var(--color-ed-faint)] py-5">
+                  <div class="flex items-baseline gap-5">
+                    <span class="font-mono text-[11px] text-[var(--color-ed-subtle)] tabular-nums shrink-0">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <a
+                      href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                      class="hover-underline no-underline"
+                    >
+                      <span class="font-serif text-lg md:text-xl tracking-tight text-[var(--color-ed-fg)]">
+                        {tag}
+                      </span>
+                    </a>
+                    <span class="leader" aria-hidden="true"></span>
+                    <span class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
+                      {count} 篇
+                    </span>
+                  </div>
+                  {posts.length > 0 && (
+                    <ul class="mt-3 ml-[3.4rem] space-y-1.5">
+                      {posts.map((p) => (
+                        <li>
+                          <a href={postUrl(p.id)} class="group/t flex items-baseline gap-4 no-underline">
+                            <span class="text-sm text-[var(--color-ed-muted)] leading-snug transition-colors duration-200 group-hover/t:text-[var(--color-ed-fg)]">
+                              {p.data.title}
+                            </span>
+                            <time datetime={p.data.date.toISOString()} class="shrink-0 text-[10px] text-[var(--color-ed-subtle)] tabular-nums">
+                              {fmtShort(p.data.date)}
+                            </time>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p class="text-sm text-[var(--color-ed-muted)]">暂无标签。</p>
+        )}
+
+        <p class="mt-14 md:mt-16 text-center font-serif italic text-base text-[var(--color-ed-muted)]">
+          —— 慢慢写。
+        </p>
+      </div>
     </div>
   </section>
 
@@ -50,3 +297,24 @@ const listPosts = published.filter((p) => p.id !== heroPost?.id);
     </section>
   )}
 </BaseLayout>
+
+<script>
+  // Scroll reveal: fades (.reveal) and clip wipes (.mask-reveal) on enter
+  const revealEls = document.querySelectorAll(".reveal, .mask-reveal");
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 }
+    );
+    revealEls.forEach((el) => io.observe(el));
+  } else {
+    revealEls.forEach((el) => el.classList.add("is-visible"));
+  }
+</script>

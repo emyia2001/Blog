@@ -32,19 +32,33 @@
 
   let pf: any = null;
   let loaded = false;
+  let loadPromise: Promise<void> | null = null;
+
+  function setMessage(message: string) {
+    const p = document.createElement("p");
+    p.className = "py-3 text-sm text-[var(--color-ed-muted)]";
+    p.textContent = message;
+    results.replaceChildren(p);
+  }
 
   async function loadSearch() {
-    try {
-      // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
-      // 变量形式动态 import：避免 Vite 编译期解析（dev 下索引尚未生成，
-      // postbuild 才产出），改由运行时加载——404 由下方 catch 优雅处理
-      const pagefindUrl = "/pagefind/pagefind.js";
-      pf = await import(pagefindUrl);
-      await pf.init();
-      loaded = true;
-    } catch {
-      // Pagefind 未构建（dev 模式）
-    }
+    if (loadPromise) return loadPromise;
+    loadPromise = (async () => {
+      try {
+        // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
+        // 变量形式动态 import：避免 Vite 编译期解析（dev 下索引尚未生成，
+        // postbuild 才产出），改由运行时加载——404 由下方 catch 优雅处理
+        const pagefindUrl = "/pagefind/pagefind.js";
+        pf = await import(pagefindUrl);
+        await pf.init();
+        loaded = true;
+      } catch {
+        // Pagefind 未构建（dev 模式）
+        loaded = false;
+        loadPromise = null;
+      }
+    })();
+    return loadPromise;
   }
 
   function open() {
@@ -52,7 +66,7 @@
     modal.classList.add("flex");
     document.body.style.overflow = "hidden";
     requestAnimationFrame(() => input.focus());
-    if (!loaded) loadSearch();
+    if (!loaded) void loadSearch();
   }
 
   function close() {
@@ -60,8 +74,7 @@
     modal.classList.remove("flex");
     document.body.style.overflow = "";
     input.value = "";
-    results.innerHTML =
-      '<p class="py-3 text-sm text-[var(--color-ed-muted)]">输入关键词开始搜索。</p>';
+    setMessage("输入关键词开始搜索。");
   }
 
   document.addEventListener("open-search", open);
@@ -91,33 +104,46 @@
     clearTimeout(debounce);
     debounce = setTimeout(async () => {
       const query = input.value.trim();
-      if (!query || !loaded) {
-        results.innerHTML = "";
+      if (!query) {
+        setMessage("输入关键词开始搜索。");
+        return;
+      }
+
+      if (!loaded) await loadSearch();
+      if (!loaded || !pf) {
+        setMessage("搜索索引尚未生成，请先构建站点。");
         return;
       }
 
       const search = await pf.search(query);
       if (!search.results.length) {
-        results.innerHTML =
-          '<p class="py-3 text-sm text-[var(--color-ed-muted)]">未找到结果。</p>';
+        setMessage("未找到结果。");
         return;
       }
 
-      const html: string[] = [];
+      const fragment = document.createDocumentFragment();
       for (const result of search.results) {
         const data = await result.data();
-        html.push(
-          `<a href="${data.url}" data-search-result class="block border-b border-[var(--color-ed-faint)] py-4 no-underline group">
-            <h3 class="font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-              ${data.meta?.title || "无标题"}
-            </h3>
-            <p class="mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2">
-              ${data.excerpt || ""}
-            </p>
-          </a>`
-        );
+        const link = document.createElement("a");
+        link.href = data.url;
+        link.dataset.searchResult = "";
+        link.className =
+          "block border-b border-[var(--color-ed-faint)] py-4 no-underline group";
+
+        const title = document.createElement("h3");
+        title.className =
+          "font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors";
+        title.textContent = data.meta?.title || "无标题";
+
+        const excerpt = document.createElement("p");
+        excerpt.className =
+          "mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2";
+        excerpt.textContent = data.excerpt || "";
+
+        link.append(title, excerpt);
+        fragment.appendChild(link);
       }
-      results.innerHTML = html.join("");
+      results.replaceChildren(fragment);
     }, 300);
   });
 

@@ -6,32 +6,45 @@ const navLinks = [
   { href: "/archive", label: "归档" },
   { href: "/about", label: "关于" },
 ];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 ---
 
 <nav
   class="sticky top-0 z-40 border-b border-[var(--color-ed-faint)]"
   style="background: var(--color-ed-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"
 >
+  <div class="h-0.5 w-full bg-[var(--color-ed-accent)] opacity-70" aria-hidden="true"></div>
   <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
     <a
       href="/"
-      class="font-serif text-lg tracking-[0.08em] text-[var(--color-ed-fg)] no-underline"
+      class="flex items-baseline gap-3 font-serif text-lg tracking-[0.08em] text-[var(--color-ed-fg)] no-underline"
     >
-      Snark
+      <span>Snark</span>
+      <span class="hidden sm:inline font-sans text-[10px] tracking-[0.28em] text-[var(--color-ed-subtle)]">
+        JOURNAL
+      </span>
     </a>
 
     <!-- Desktop nav -->
     <ul class="hidden md:flex items-center gap-8">
-      {navLinks.map((link) => (
-        <li>
-          <a
-            href={link.href}
-            class="hover-underline text-xs tracking-[0.05em] text-[var(--color-ed-muted)]"
-          >
-            {link.label}
-          </a>
-        </li>
-      ))}
+      {navLinks.map((link) => {
+        const isActive = currentPath === link.href || (link.href !== "/" && currentPath.startsWith(link.href));
+        return (
+          <li>
+            <a
+              href={link.href}
+              class={`text-xs tracking-[0.05em] no-underline transition-colors duration-200 ${
+                isActive
+                  ? "text-[var(--color-ed-accent)]"
+                  : "text-[var(--color-ed-muted)] hover-underline"
+              }`}
+            >
+              {link.label}
+            </a>
+          </li>
+        );
+      })}
       <li>
         <button
           type="button"
