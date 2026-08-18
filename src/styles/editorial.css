@@ -386,10 +386,6 @@ h1, h2, h3, h4, h5, h6 {
   to { transform: translateX(22px); }
 }
 
-.wave-drift {
-  animation: wave-sway 9s ease-in-out infinite alternate;
-}
-
 /* --- CoverPlate: 韵律线条封面 --- */
 .cover-root {
   container-type: inline-size;
@@ -639,12 +635,13 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
   border-right: 2px solid var(--color-ed-muted);
   white-space: nowrap;
+  max-width: 0;
   animation: typing 3s steps(20) forwards, blink-caret 0.75s step-end infinite;
 }
 
 @keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
+  from { max-width: 0; }
+  to { max-width: 20ch; }
 }
 
 @keyframes blink-caret {

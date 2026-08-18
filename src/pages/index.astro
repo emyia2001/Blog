@@ -52,17 +52,14 @@ for (const post of postsWithImages.slice(0, 5)) {
   });
 }
 
-// 如果不足 3 张，补充固定图片
-const fallbackImages = [
-  'https://img.snark.casa/photo/IMG_0132.webp',
-  'https://img.snark.casa/photo/IMG_0132.webp',
-  'https://img.snark.casa/photo/IMG_0132.webp'
-];
-
-for (let i = 0; bannerSlides.length < 3 && i < fallbackImages.length; i++) {
-  bannerSlides.push({
-    image: fallbackImages[i]
-  });
+// 如果不足 3 张，使用默认图片
+if (bannerSlides.length < 3) {
+  const defaultImage = 'https://img.snark.casa/photo/IMG_0132.webp';
+  while (bannerSlides.length < 3) {
+    bannerSlides.push({
+      image: defaultImage
+    });
+  }
 }
 
 // Tag counts for the inline typographic tag list
