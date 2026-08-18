@@ -133,3 +133,49 @@ const lines = intro ?? [
     Fig. 01 — 刊首插图
   </figcaption>
 </figure>
+
+<script>
+  // Banner carousel with pause on hover
+  const bannerLeft = document.querySelector('.banner-left');
+  const slides = document.querySelectorAll('.banner-slide');
+  
+  if (slides.length > 1) {
+    let currentIndex = 0;
+    let intervalId: ReturnType<typeof setInterval>;
+    let isPaused = false;
+
+    function showSlide(index: number) {
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('opacity-100', i === index);
+        slide.classList.toggle('opacity-0', i !== index);
+      });
+    }
+
+    function nextSlide() {
+      if (!isPaused) {
+        currentIndex = (currentIndex + 1) % slides.length;
+        showSlide(currentIndex);
+      }
+    }
+
+    function startAutoplay() {
+      intervalId = setInterval(nextSlide, 5000);
+    }
+
+    function stopAutoplay() {
+      clearInterval(intervalId);
+    }
+
+    // Pause on hover
+    bannerLeft?.addEventListener('mouseenter', () => {
+      isPaused = true;
+    });
+
+    bannerLeft?.addEventListener('mouseleave', () => {
+      isPaused = false;
+    });
+
+    // Start autoplay
+    startAutoplay();
+  }
+</script>
