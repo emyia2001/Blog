@@ -551,8 +551,17 @@ h1, h2, h3, h4, h5, h6 {
 
   .wave-drift,
   .ripple-drift,
-  .contour-drift {
+  .contour-drift,
+  .banner-wave-drift {
     animation: none;
+  }
+
+  .typewriter {
+    animation: none;
+  }
+
+  .intro-card:hover {
+    transform: none;
   }
   .hover-underline::after {
     transition: none;
@@ -595,7 +604,7 @@ h1, h2, h3, h4, h5, h6 {
   50% { transform: translateY(-5px) scaleX(1.01); }
 }
 
-.wave-drift {
+.banner-wave-drift {
   animation: line-drift 8s ease-in-out infinite;
 }
 
@@ -626,6 +635,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Typewriter effect */
 .typewriter {
+  display: inline-block;
   overflow: hidden;
   border-right: 2px solid var(--color-ed-muted);
   white-space: nowrap;
