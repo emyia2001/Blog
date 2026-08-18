@@ -4,8 +4,11 @@ const year = new Date().getFullYear();
 const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
 ---
 
-<footer class="border-t border-[var(--color-ed-faint)] py-6">
+<footer class="border-t border-[var(--color-ed-faint)] py-8">
   <div class="mx-auto flex max-w-7xl flex-col items-center px-6 text-center">
+    <p class="mb-4 text-[10px] tracking-[0.32em] text-[var(--color-ed-accent)]">
+      SNARK ARCHIVE
+    </p>
     <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
       <span class="text-[var(--color-ed-subtle)]">
         &copy; {year} {SITE_NAME}
@@ -26,5 +29,6 @@ const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
         </>
       ))}
     </div>
+
   </div>
 </footer>
