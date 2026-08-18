@@ -39,6 +39,32 @@ const fmtMonth = (d: Date) => d.toLocaleDateString("zh-CN", { month: "short", da
 // Issue numbering: this blog is one long journal, each article is one issue
 const vol = String(Math.max(published.length, 1)).padStart(2, "0");
 
+// 轮播图片：优先使用文章封面，不足时用固定图片补充
+const bannerSlides = [];
+const postsWithImages = published.filter(p => p.data.heroImage);
+
+// 添加文章封面
+for (const post of postsWithImages.slice(0, 5)) {
+  bannerSlides.push({
+    image: post.data.heroImage,
+    title: post.data.title,
+    link: postUrl(post.id)
+  });
+}
+
+// 如果不足 3 张，补充固定图片
+const fallbackImages = [
+  '/images/banner/fallback-1.jpg',
+  '/images/banner/fallback-2.jpg',
+  '/images/banner/fallback-3.jpg'
+];
+
+for (let i = 0; bannerSlides.length < 3 && i < fallbackImages.length; i++) {
+  bannerSlides.push({
+    image: fallbackImages[i]
+  });
+}
+
 // Tag counts for the inline typographic tag list
 const tagCounts = new Map<string, number>();
 for (const p of published) for (const t of p.data.tags) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
@@ -56,7 +82,12 @@ const sortedTags = [...tagCounts.entries()].sort(
   <!-- ===== 刊首插图（动态：构图按日期轮换 + 波浪微动效） ===== -->
   <div class="px-6 pt-16 md:pt-24 pb-6">
     <div class="mx-auto max-w-6xl">
-      <BannerPlate variant={bannerVariant} days={daysStr} number={vol} />
+      <BannerPlate
+  variant={bannerVariant}
+  days={daysStr}
+  number={vol}
+  slides={bannerSlides}
+/>
     </div>
   </div>
 
