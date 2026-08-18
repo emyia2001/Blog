@@ -3,6 +3,7 @@
 @theme {
   --color-ed-bg: #F9F8F6;
   --color-ed-fg: #1C1C1C;
+  --color-ed-accent: #A63A2B;
   --color-ed-muted: rgba(28, 28, 28, 0.6);
   --color-ed-subtle: rgba(28, 28, 28, 0.4);
   --color-ed-faint: rgba(28, 28, 28, 0.1);
@@ -18,15 +19,61 @@ body {
   font-optical-sizing: auto;
 }
 
+@media (min-width: 1024px) {
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0.875rem;
+    z-index: 30;
+    pointer-events: none;
+    border: 1px solid var(--color-ed-faint);
+    border-top-color: rgba(166, 58, 43, 0.5);
+    box-shadow: inset 0 0 0 4px rgba(249, 248, 246, 0.65);
+  }
+}
+
+@media (min-width: 1280px) {
+  body::after {
+    content: 'SNARK · EDITORIAL JOURNAL';
+    position: fixed;
+    left: 1.35rem;
+    top: 50%;
+    z-index: 31;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    font-size: 0.625rem;
+    letter-spacing: 0.28em;
+    color: rgba(166, 58, 43, 0.52);
+    pointer-events: none;
+  }
+}
+
 ::selection {
-  background: var(--color-ed-fg);
+  background: var(--color-ed-accent);
   color: var(--color-ed-bg);
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
+}
+
+.page-kicker {
+  font-size: 0.625rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-ed-accent);
+}
+
+.page-kicker::after {
+  content: '';
+  display: inline-block;
+  width: 1.5rem;
+  height: 1px;
+  margin-left: 0.65rem;
+  background: rgba(166, 58, 43, 0.45);
+  vertical-align: middle;
 }
 
 /* hover-underline: animated underline on hover via ::after pseudo-element */
@@ -41,8 +88,8 @@ h1, h2, h3, h4, h5, h6 {
   left: 0;
   bottom: -0.1em;
   width: 100%;
-  height: 1px;
-  background: currentColor;
+  height: 2px;
+  background: var(--color-ed-accent);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -108,27 +155,32 @@ h1, h2, h3, h4, h5, h6 {
 /* 标题层级：与正文明确区分——更大字号、700 字重、间距与分隔线 */
 .prose h2 {
   scroll-margin-top: 5rem;
-  font-size: 1.6rem;
-  line-height: 1.4;
+  font-size: 1.9rem;
+  line-height: 1.3;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 2.5em 0 1em;
-  padding-bottom: 0.35em;
+  margin: 2.8em 0 1em;
+  padding-left: 0.8rem;
+  border-left: 3px solid rgba(166, 58, 43, 0.55);
   border-bottom: 1px solid var(--color-ed-faint);
+  padding-bottom: 0.45em;
 }
 
 .prose h3 {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1.5;
   font-weight: 700;
-  margin: 2em 0 0.75em;
+  margin: 1.9em 0 0.65em;
+  color: var(--color-ed-fg);
 }
 
 .prose h4 {
-  font-size: 1.0625rem;
+  font-size: 0.98rem;
   line-height: 1.6;
   font-weight: 700;
-  margin: 1.5em 0 0.5em;
+  margin: 1.5em 0 0.45em;
+  color: var(--color-ed-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .prose h3 + .prose h3,
@@ -154,11 +206,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .prose blockquote {
-  border-left: 2px solid var(--color-ed-faint);
+  border-left: 3px solid rgba(166, 58, 43, 0.35);
   padding-left: 1.5em;
   margin: 2em 0;
   font-family: var(--font-serif);
-  color: var(--color-ed-muted);
+  color: var(--color-ed-fg);
+  font-size: 1.08em;
 }
 
 .prose img {
@@ -212,14 +265,308 @@ h1, h2, h3, h4, h5, h6 {
   text-align: center;
 }
 
-/* Reduce motion */
+/* --- Editorial ornament: subtle horizontal rule with center dot --- */
+.hr-ornament {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--color-ed-faint);
+}
+.hr-ornament::before,
+.hr-ornament::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-ed-faint);
+}
+.hr-ornament::before {
+  margin-right: 0.5rem;
+}
+.hr-ornament::after {
+  margin-left: 0.5rem;
+}
+
+/* --- Fade-up entrance for sections --- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger children */
+.stagger-fade-up > * {
+  animation: fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger-fade-up > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-fade-up > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-fade-up > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-fade-up > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-fade-up > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-fade-up > *:nth-child(6) { animation-delay: 400ms; }
+.stagger-fade-up > *:nth-child(7) { animation-delay: 480ms; }
+.stagger-fade-up > *:nth-child(8) { animation-delay: 560ms; }
+
+/* --- Subtle border-bottom hover for inline links --- */
+.link-underline {
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0% 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  transition: background-size 300ms ease;
+}
+.link-underline:hover {
+  background-size: 100% 1px;
+}
+
+/* --- Scroll reveal: .js gate prevents invisible content when JS is off.
+   IntersectionObserver (in page scripts) adds .is-visible. --- */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 800ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* --- Hero image settle: 1.2x -> 1x after clip reveal --- */
+@keyframes img-settle {
+  from { transform: scale(1.2); }
+  to { transform: scale(1); }
+}
+
+.img-settle {
+  animation: img-settle 1.5s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+/* --- Double hairline rule (editorial section divider) --- */
+.double-rule-top {
+  border-top: 1px solid rgba(166, 58, 43, 0.36);
+  position: relative;
+}
+
+.double-rule-top::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-ed-faint);
+}
+
+.mask-reveal h2::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.8rem;
+  border: 1px solid rgba(166, 58, 43, 0.68);
+  background: rgba(166, 58, 43, 0.12);
+  vertical-align: -0.03em;
+}
+
+/* --- BannerPlate: 波浪缓慢摆动（让插图“活”起来） --- */
+@keyframes wave-sway {
+  from { transform: translateX(-22px); }
+  to { transform: translateX(22px); }
+}
+
+.wave-drift {
+  animation: wave-sway 9s ease-in-out infinite alternate;
+}
+
+/* --- CoverPlate: 韵律线条封面 --- */
+.cover-root {
+  container-type: inline-size;
+}
+
+.cover-title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  font-size: 6.2cqw;
+}
+
+.cover-eyebrow {
+  font-size: 2.4cqw;
+  letter-spacing: 0.35em;
+}
+
+.cover-date {
+  font-size: 2.4cqw;
+  letter-spacing: 0.25em;
+  white-space: nowrap;
+}
+
+/* --- Vertical text (masthead edge) --- */
+.vertical-rl {
+  writing-mode: vertical-rl;
+}
+
+/* --- Hero title: per-character wipe reveal --- */
+@keyframes char-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.js .char-reveal {
+  display: inline-block;
+  clip-path: inset(0 100% 0 0);
+  animation: char-wipe 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(200ms + var(--char-i, 0) * 70ms);
+}
+
+/* --- Section headers: left-to-right clip wipe on scroll --- */
+.js .mask-reveal {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.js .mask-reveal.is-visible {
+  clip-path: inset(0 0 0 0);
+}
+
+/* --- Contents rows: dotted leader that fills on hover --- */
+.leader {
+  flex: 1;
+  min-width: 2rem;
+  border-bottom: 1px dotted var(--color-ed-subtle);
+  margin-bottom: 0.4em;
+  transition: border-color 300ms ease;
+}
+
+.group:hover .leader {
+  border-color: var(--color-ed-fg);
+}
+
+/* --- Contents rows: excerpt expands under the title on hover --- */
+.toc-excerpt {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 450ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toc-excerpt > div {
+  overflow: hidden;
+}
+
+.group:hover .toc-excerpt {
+  grid-template-rows: 1fr;
+}
+
+/* --- Current-issue cover: frame line + inverted issue label --- */
+.cover-frame {
+  border: 1px solid var(--color-ed-faint);
+  transition: border-color 300ms ease;
+}
+
+.group:hover .cover-frame {
+  border-color: var(--color-ed-fg);
+}
+
+.cover-frame img {
+  transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.group:hover .cover-frame img {
+  transform: scale(1.04);
+}
+
+.vol-label {
+  border: 1px solid var(--color-ed-accent);
+  color: var(--color-ed-accent);
+  transition:
+    background-color 300ms ease,
+    color 300ms ease;
+}
+
+.group:hover .vol-label {
+  background: var(--color-ed-accent);
+  color: var(--color-ed-bg);
+}
+
+/* --- Moments: horizontal film strip --- */
+.filmstrip {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.filmstrip::-webkit-scrollbar {
+  display: none;
+}
+
+.filmstrip-item {
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filmstrip-item:hover {
+  transform: translateY(-4px);
+}
+
+/* --- Reduce motion --- */
 @media (prefers-reduced-motion: reduce) {
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .js .char-reveal {
+    animation: none;
+    clip-path: none;
+  }
+
+  .js .mask-reveal {
+    clip-path: none;
+  }
+
+  .img-settle {
+    animation: none;
+  }
+
+  .toc-excerpt {
+    transition: none;
+  }
+
+  .filmstrip-item {
+    transition: none;
+  }
+
+  .wave-drift {
+    animation: none;
+  }
   .hover-underline::after {
     transition: none;
   }
 
   .clip-reveal {
     animation: none;
+  }
+
+  .animate-fade-up,
+  .stagger-fade-up > * {
+    animation: none;
+  }
+
+  .link-underline {
+    transition: none;
   }
 
   ::view-transition-old(root),
