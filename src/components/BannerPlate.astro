@@ -162,10 +162,6 @@ const lines = intro ?? [
       intervalId = setInterval(nextSlide, 5000);
     }
 
-    function stopAutoplay() {
-      clearInterval(intervalId);
-    }
-
     // Pause on hover
     bannerLeft?.addEventListener('mouseenter', () => {
       isPaused = true;
