@@ -37,8 +37,9 @@ const lines = intro ?? [
             {slides.map((slide, i) => (
               <a
                 href={slide.link || "#"}
-                class={`banner-slide absolute inset-0 transition-opacity duration-800 ${i === 0 ? 'opacity-100' : 'opacity-0'}`}
+                class={`banner-slide absolute inset-0 ${i === 0 ? 'opacity-100' : 'opacity-0'}`}
                 data-index={i}
+                aria-hidden={i === 0 ? 'false' : 'true'}
               >
                 <img
                   src={slide.image}
@@ -51,6 +52,17 @@ const lines = intro ?? [
             ))}
           </div>
         )}
+
+        <!-- noscript fallback -->
+        <noscript>
+          <div class="absolute inset-0 z-0">
+            <img
+              src={slides[0]?.image || ""}
+              alt={slides[0]?.title || ""}
+              class="w-full h-full object-cover"
+            />
+          </div>
+        </noscript>
 
         <!-- 线条动画层（叠加在轮播上） -->
         <div class="banner-lines absolute inset-0 z-10 pointer-events-none">
@@ -148,6 +160,7 @@ const lines = intro ?? [
       slides.forEach((slide, i) => {
         slide.classList.toggle('opacity-100', i === index);
         slide.classList.toggle('opacity-0', i !== index);
+        slide.setAttribute('aria-hidden', i === index ? 'false' : 'true');
       });
     }
 
