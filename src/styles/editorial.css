@@ -549,7 +549,9 @@ h1, h2, h3, h4, h5, h6 {
     transition: none;
   }
 
-  .wave-drift {
+  .wave-drift,
+  .ripple-drift,
+  .contour-drift {
     animation: none;
   }
   .hover-underline::after {
@@ -573,4 +575,80 @@ h1, h2, h3, h4, h5, h6 {
   ::view-transition-new(root) {
     animation: none;
   }
+}
+
+/* ===== Banner Carousel Animations ===== */
+
+/* Line drift animations */
+@keyframes line-drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes ripple-drift {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes contour-drift {
+  0%, 100% { transform: translateY(0) scaleX(1); }
+  50% { transform: translateY(-5px) scaleX(1.01); }
+}
+
+.wave-drift {
+  animation: line-drift 8s ease-in-out infinite;
+}
+
+.ripple-drift {
+  animation: ripple-drift 10s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+.contour-drift {
+  animation: contour-drift 12s ease-in-out infinite;
+}
+
+/* Banner slide transitions */
+.banner-slide {
+  transition: opacity 0.8s ease-in-out;
+}
+
+/* Intro card hover effect */
+.intro-card {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.intro-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Typewriter effect */
+.typewriter {
+  overflow: hidden;
+  border-right: 2px solid var(--color-ed-muted);
+  white-space: nowrap;
+  animation: typing 3s steps(20) forwards, blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: var(--color-ed-muted); }
+}
+
+/* Paper texture overlay */
+.banner-left::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 5;
 }
