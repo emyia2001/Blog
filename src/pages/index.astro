@@ -165,7 +165,8 @@ const sortedTags = [...tagCounts.entries()].sort(
           <h2 class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)]">目录 · CONTENTS</h2>
         </div>
 
-        {listPosts.map((post, i) => {
+        <!-- 前 3 篇始终显示 -->
+        {listPosts.slice(0, 3).map((post, i) => {
           const readMin = readingTime(String(post.body || ""));
           return (
             <a
@@ -206,6 +207,63 @@ const sortedTags = [...tagCounts.entries()].sort(
             </a>
           );
         })}
+
+        <!-- 超过 3 篇时显示展开按钮 -->
+        {listPosts.length > 3 && (
+          <details class="group/list">
+            <summary class="flex items-center justify-center gap-2 py-4 cursor-pointer text-xs tracking-[0.2em] text-[var(--color-ed-subtle)] hover:text-[var(--color-ed-fg)] transition-colors">
+              <span class="group-open/list:hidden">展开全部 {listPosts.length - 3} 篇</span>
+              <span class="hidden group-open/list:inline">收起</span>
+              <svg class="w-4 h-4 transition-transform group-open/list:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </summary>
+
+            <div class="hidden group-open/list:block">
+              {listPosts.slice(3).map((post, i) => {
+                const readMin = readingTime(String(post.body || ""));
+                return (
+                  <a
+                    href={postUrl(post.id)}
+                    class="group flex items-center gap-5 md:gap-8 py-5 md:py-6 border-b border-[var(--color-ed-faint)] no-underline"
+                  >
+                    <span class="font-serif text-lg md:text-xl text-[var(--color-ed-fg)] tracking-tight shrink-0">
+                      {String(i + 5).padStart(2, "0")}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-baseline gap-4">
+                        <h3 class="font-serif text-xl md:text-2xl tracking-tight text-[var(--color-ed-fg)] leading-snug truncate italic">
+                          {post.data.title}
+                        </h3>
+                        <span class="leader" aria-hidden="true"></span>
+                        <span class="shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                          {readMin} 分钟
+                        </span>
+                      </div>
+                      <div class="toc-excerpt">
+                        <div>
+                          {post.data.excerpt && (
+                            <p class="pt-2 text-sm leading-relaxed text-[var(--color-ed-muted)] line-clamp-2">
+                              {post.data.excerpt}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <CoverPlate
+                      title={post.data.title}
+                      image={post.data.heroImage}
+                      variant={coverVariant(post.id)}
+                      ratioClass="aspect-square"
+                      caption={false}
+                      class="block w-12 h-12 md:w-14 md:h-14 shrink-0"
+                    />
+                  </a>
+                );
+              })}
+            </div>
+          </details>
+        )}
       </div>
     </section>
   )}
