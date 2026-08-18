@@ -311,7 +311,7 @@ const sortedTags = [...tagCounts.entries()].sort(
     </section>
   )}
 
-  <!-- ===== 标签（索引式：每标签 + 名下的文章） ===== -->
+  <!-- ===== 标签云（横向标签云，按文章数调整大小） ===== -->
   <section class="py-20 md:py-28 px-6">
     <div class="mx-auto max-w-4xl">
       <div class="double-rule-top pt-14 md:pt-20">
@@ -323,47 +323,25 @@ const sortedTags = [...tagCounts.entries()].sort(
         </div>
 
         {sortedTags.length > 0 ? (
-          <div>
-            {sortedTags.map(([tag, count], i) => {
-              const posts = published
-                .filter((p) => p.data.tags.includes(tag))
-                .slice(0, 2);
+          <div class="flex flex-wrap gap-3 md:gap-4">
+            {sortedTags.map(([tag, count]) => {
+              const maxCount = Math.max(...sortedTags.map(t => t[1]));
+              const ratio = count / maxCount;
+              const fontSize = 12 + Math.floor(ratio * 8);
+              const opacity = 0.5 + ratio * 0.5;
               return (
-                <div class="group border-b border-[var(--color-ed-faint)] py-5">
-                  <div class="flex items-baseline gap-5">
-                    <span class="font-mono text-[11px] text-[var(--color-ed-subtle)] tabular-nums shrink-0">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <a
-                      href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
-                      class="hover-underline no-underline"
-                    >
-                      <span class="font-serif text-lg md:text-xl tracking-tight text-[var(--color-ed-fg)]">
-                        {tag}
-                      </span>
-                    </a>
-                    <span class="leader" aria-hidden="true"></span>
-                    <span class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
-                      {count} 篇
-                    </span>
-                  </div>
-                  {posts.length > 0 && (
-                    <ul class="mt-3 ml-[3.4rem] space-y-1.5">
-                      {posts.map((p) => (
-                        <li>
-                          <a href={postUrl(p.id)} class="group/t flex items-baseline gap-4 no-underline">
-                            <span class="text-sm text-[var(--color-ed-muted)] leading-snug transition-colors duration-200 group-hover/t:text-[var(--color-ed-fg)]">
-                              {p.data.title}
-                            </span>
-                            <time datetime={p.data.date.toISOString()} class="shrink-0 text-[10px] text-[var(--color-ed-subtle)] tabular-nums">
-                              {fmtShort(p.data.date)}
-                            </time>
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <a
+                  href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                  class="group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--color-ed-faint)] hover:border-[var(--color-ed-muted)] transition-colors no-underline"
+                  style={`font-size: ${fontSize}px; opacity: ${opacity};`}
+                >
+                  <span class="font-serif text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                    {tag}
+                  </span>
+                  <span class="text-[10px] text-[var(--color-ed-subtle)] tabular-nums">
+                    {count}
+                  </span>
+                </a>
               );
             })}
           </div>
