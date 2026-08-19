@@ -1,7 +1,111 @@
 ---
+import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { SITE_NAME } from "../consts";
 import PersonalCard from "../components/PersonalCard.astro";
+import GraphView from "../components/GraphView.astro";
+import { SITE_NAME, SITE_DESCRIPTION } from "../consts";
+
+const [allPosts, allMoments] = await Promise.all([
+  getCollection("posts"),
+  getCollection("moments"),
+]);
+
+const publishedPosts = allPosts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const publishedMoments = allMoments
+  .filter((m) => !m.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+type RenderedContent = Awaited<
+  ReturnType<CollectionEntry<"posts">["render"]>
+>["Content"];
+
+interface RenderedAll {
+  id: string;
+  kind: "post" | "person" | "event";
+  entry: CollectionEntry<"posts"> | CollectionEntry<"moments">;
+  Content: RenderedContent;
+}
+
+const renderedAll = await Promise.all([
+  ...publishedPosts.map(async (p) => ({
+    id: p.id,
+    kind: "post" as const,
+    entry: p,
+    Content: (await p.render()).Content,
+  })),
+  ...publishedMoments.map(async (m) => ({
+    id: m.id,
+    kind: m.data.type as "person" | "event",
+    entry: m,
+    Content: (await m.render()).Content,
+  })),
+]);
+
+const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
+
+// Graph data
+const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
+
+interface GraphNode {
+  id: string;
+  kind: "post" | "person" | "event" | "self";
+  title: string;
+  url: string;
+  contentIndex: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+}
+
+const selfNode: GraphNode = {
+  id: "self",
+  kind: "self",
+  title: "我",
+  url: "",
+  contentIndex: -1,
+};
+
+const graphNodes: GraphNode[] = [
+  selfNode,
+  ...renderedAll.map((c) => ({
+    id: c.id,
+    kind: c.kind,
+    title: c.entry.data.title,
+    url: c.kind === "post" ? `/blog/${c.id.replace(/\.mdx$/, "")}` : "",
+    contentIndex: contentIndex.get(c.id)!,
+  })),
+];
+
+const titleToNode = new Map(graphNodes.map((n) => [n.title, n]));
+
+const graphLinks: GraphLink[] = [];
+const seenLinks = new Set<string>();
+
+for (const n of graphNodes) {
+  if (n.id === "self") continue;
+  const key = ["self", n.id].sort().join("|");
+  seenLinks.add(key);
+  graphLinks.push({ source: "self", target: n.id });
+}
+
+for (const c of renderedAll) {
+  const body = String(c.entry.body ?? "");
+  const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
+  for (const refTitle of refs) {
+    const target = titleToNode.get(refTitle);
+    if (!target) continue;
+    if (target.id === c.id) continue;
+    const key = [c.id, target.id].sort().join("|");
+    if (seenLinks.has(key)) continue;
+    seenLinks.add(key);
+    graphLinks.push({ source: c.id, target: target.id });
+  }
+}
 ---
 
 <BaseLayout title="关于">
@@ -34,6 +138,47 @@ import PersonalCard from "../components/PersonalCard.astro";
           </div>
         </div>
       </div>
+
+      <!-- 关系图谱 -->
+      {graphNodes.length > 1 && (
+        <div class="mt-24 pt-12 border-t border-[var(--color-ed-faint)]">
+          <h2 class="font-serif text-2xl text-[var(--color-ed-fg)] mb-8">关系图谱</h2>
+          <GraphView nodes={graphNodes} links={graphLinks} />
+          <div id="timeline-detail" class="mt-8 min-h-20"></div>
+          <template id="self-card">
+            <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+              <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">我</h2>
+              <p class="mt-3 max-w-[60ch] text-sm leading-relaxed text-[var(--color-ed-muted)]">
+                {SITE_DESCRIPTION}
+              </p>
+            </article>
+          </template>
+          <template id="content-templates">
+            {renderedAll.map((c, idx) => (
+              <div class="content-body" data-content-index={idx}>
+                <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                    {c.entry.data.title}
+                  </h2>
+                  {c.kind === "post" && (
+                    <a
+                      href={`/blog/${c.id.replace(/\.mdx$/, "")}`}
+                      class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+                    >
+                      阅读全文
+                    </a>
+                  )}
+                  {c.kind === "person" && (
+                    <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                      人物
+                    </span>
+                  )}
+                </article>
+              </div>
+            ))}
+          </template>
+        </div>
+      )}
 
       <div class="mt-24 pt-12 border-t border-[var(--color-ed-faint)] text-center">
         <p class="text-xs text-[var(--color-ed-subtle)]">
