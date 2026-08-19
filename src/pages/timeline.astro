@@ -2,7 +2,6 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
-import GraphView from "../components/GraphView.astro";
 import { SITE_BGM } from "../consts";
 
 const [allPosts, allMoments] = await Promise.all([
@@ -79,71 +78,6 @@ const entries: TimelineEntry[] = [
 const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
   d.toLocaleDateString("zh-CN", opts);
 
-// --- Graph data: extract [[wiki-links]] from content bodies ---
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
-
-interface GraphNode {
-  id: string;
-  kind: "post" | "person" | "event" | "self";
-  title: string;
-  url: string;
-  contentIndex: number;
-}
-
-interface GraphLink {
-  source: string;
-  target: string;
-}
-
-const selfNode: GraphNode = {
-  id: "self",
-  kind: "self",
-  title: "我",
-  url: "",
-  contentIndex: -1,
-};
-
-const graphNodes: GraphNode[] = [
-  selfNode,
-  ...renderedAll.map((c) => ({
-    id: c.id,
-    kind: c.kind,
-    title: c.entry.data.title,
-    url: c.kind === "post" ? `/blog/${c.id.replace(/\.mdx$/, "")}` : "",
-    contentIndex: contentIndex.get(c.id)!,
-  })),
-];
-
-const titleToNode = new Map(graphNodes.map((n) => [n.title, n]));
-
-const graphLinks: GraphLink[] = [];
-const seenLinks = new Set<string>();
-
-// every piece of content connects to "self"
-for (const n of graphNodes) {
-  if (n.id === "self") continue;
-  const key = ["self", n.id].sort().join("|");
-  seenLinks.add(key);
-  graphLinks.push({ source: "self", target: n.id });
-}
-
-for (const c of renderedAll) {
-  const body = String(c.entry.body ?? "");
-  const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
-  for (const refTitle of refs) {
-    const target = titleToNode.get(refTitle);
-    if (!target) {
-      console.warn(`[graph] unresolved wiki-link "${refTitle}" in "${c.id}"`);
-      continue;
-    }
-    if (target.id === c.id) continue;
-    const key = [c.id, target.id].sort().join("|");
-    if (seenLinks.has(key)) continue;
-    seenLinks.add(key);
-    graphLinks.push({ source: c.id, target: target.id });
-  }
-}
-
 // Index of the first non-post entry, shown by default (posts navigate away)
 const defaultIndex = entries.findIndex((e) => e.kind !== "post");
 const defaultRendered =
@@ -159,15 +93,6 @@ const defaultRendered =
 
       {entries.length > 0 ? (
         <div>
-          <div class="mb-10 flex items-center gap-1" role="tablist" aria-label="视图切换">
-            <button data-view-toggle="timeline" type="button" class="rounded-full border px-4 py-1.5 text-sm transition-colors" style="border-color: var(--color-ed-faint); color: var(--color-ed-muted); background: transparent;">
-              时间线
-            </button>
-            <button data-view-toggle="graph" type="button" class="rounded-full border px-4 py-1.5 text-sm transition-colors" style="border-color: var(--color-ed-faint); color: var(--color-ed-muted); background: transparent;">
-              图谱
-            </button>
-          </div>
-
           <div id="view-timeline">
           <!-- Horizontal axis: person above, event/post below -->
           <div class="relative">
@@ -251,10 +176,6 @@ const defaultRendered =
           </div>
           </div>
 
-          <div id="view-graph" hidden>
-            <GraphView nodes={graphNodes} links={graphLinks} />
-          </div>
-
           <!-- Detail area: first entry pre-rendered, others shown on click -->
           <div id="timeline-detail" class="mt-16 min-h-40" aria-live="polite" data-default-index={defaultIndex}>
             {defaultRendered && (
@@ -334,33 +255,6 @@ const defaultRendered =
 </BaseLayout>
 
 <script>
-  const VIEW_KEY = "snark-timeline-view";
-  const viewTimeline = document.getElementById("view-timeline");
-  const viewGraph = document.getElementById("view-graph");
-  const viewToggles = Array.from(document.querySelectorAll("[data-view-toggle]"));
-
-  function setView(view: "timeline" | "graph") {
-    if (viewTimeline) viewTimeline.hidden = view !== "timeline";
-    if (viewGraph) viewGraph.hidden = view !== "graph";
-    viewToggles.forEach((b) => {
-      const on = b.getAttribute("data-view-toggle") === view;
-      b.classList.toggle("is-active", on);
-      b.style.color = on ? "var(--color-ed-fg)" : "var(--color-ed-muted)";
-      b.style.borderColor = on ? "var(--color-ed-fg)" : "var(--color-ed-faint)";
-    });
-    localStorage.setItem(VIEW_KEY, view);
-  }
-
-  const savedView = localStorage.getItem(VIEW_KEY);
-  setView(savedView === "graph" ? "graph" : "timeline");
-
-  viewToggles.forEach((b) => {
-    b.addEventListener("click", () => {
-      const v = b.getAttribute("data-view-toggle") as "timeline" | "graph";
-      setView(v);
-    });
-  });
-
   const points = Array.from(
     document.querySelectorAll<HTMLElement>(".timeline-point")
   );
