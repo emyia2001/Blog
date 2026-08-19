@@ -37,9 +37,10 @@ const lines = intro ?? [
             {slides.map((slide, i) => (
               <a
                 href={slide.link || "#"}
-                class={`banner-slide absolute inset-0 ${i === 0 ? 'opacity-100' : 'opacity-0'}`}
+                class={`banner-slide absolute inset-0 ${i === 0 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 data-index={i}
                 aria-hidden={i === 0 ? 'false' : 'true'}
+                tabindex={i === 0 ? '0' : '-1'}
               >
                 <img
                   src={slide.image}
@@ -160,7 +161,10 @@ const lines = intro ?? [
       slides.forEach((slide, i) => {
         slide.classList.toggle('opacity-100', i === index);
         slide.classList.toggle('opacity-0', i !== index);
+        slide.classList.toggle('pointer-events-auto', i === index);
+        slide.classList.toggle('pointer-events-none', i !== index);
         slide.setAttribute('aria-hidden', i === index ? 'false' : 'true');
+        slide.setAttribute('tabindex', i === index ? '0' : '-1');
       });
     }
 

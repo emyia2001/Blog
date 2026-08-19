@@ -45,7 +45,7 @@ const related = published
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
     <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.7fr)_14rem] gap-10 lg:gap-12">
       <!-- Main article -->
-      <article class="min-w-0" data-pagefind-body>
+      <article class="min-w-0 order-2 lg:order-1" data-pagefind-body>
         <header class="mb-12">
           <p class="page-kicker mb-4">
             ARTICLE · {tags[0] || "随笔"}
@@ -100,11 +100,11 @@ const related = published
       </article>
 
       <!-- Sidebar -->
-      <aside class="shrink-0">
+      <aside class="shrink-0 order-1 lg:order-2 flex flex-col">
         <div class="lg:sticky lg:top-24 space-y-10">
           <!-- Tags -->
           {tags.length > 0 && (
-            <div>
+            <div class="max-lg:order-2">
               <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
                 标签
               </h3>
@@ -123,10 +123,19 @@ const related = published
 
           <!-- Table of Contents -->
           {headings.length > 0 && (
-            <div class="border-t border-[var(--color-ed-faint)] pt-6">
-              <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-5">
-                目录
-              </h3>
+            <div
+              id="toc-panel"
+              class="border-t border-[var(--color-ed-faint)] pt-6
+                     max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:w-72
+                     max-lg:border-l max-lg:border-[var(--color-ed-faint)]
+                     max-lg:bg-[var(--color-ed-bg)] max-lg:p-8 max-lg:pt-12 max-lg:overflow-y-auto"
+            >
+              <div class="mb-5 flex items-center justify-between">
+                <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)]">目录</h3>
+                <button id="toc-close" class="hidden max-lg:block p-1 -mr-2" aria-label="关闭目录">
+                  <span class="block font-serif text-2xl leading-none">&times;</span>
+                </button>
+              </div>
               <ul class="space-y-2.5" id="toc-list">
                 {headings.map((h, i) => (
                   <li>
@@ -148,7 +157,7 @@ const related = published
 
           {/* Related posts */}
           {related.length > 0 && (
-            <div>
+            <div class="max-lg:order-3">
               <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
                 相关文章
               </h3>
@@ -181,6 +190,23 @@ const related = published
   </div>
 
   {bgm?.src && <MiniPlayer src={bgm.src} title={bgm.title} />}
+
+  <!-- Mobile TOC toggle (floating, opens a side drawer) -->
+  <button
+    id="toc-toggle"
+    class="hidden max-lg:fixed max-lg:bottom-6 max-lg:right-6 max-lg:z-50 max-lg:inline-flex max-lg:h-11 max-lg:items-center max-lg:justify-center max-lg:gap-1.5 max-lg:rounded-full max-lg:px-4 max-lg:font-sans max-lg:text-sm max-lg:tracking-wide"
+    style="background: var(--color-ed-fg); color: var(--color-ed-bg);"
+    aria-label="打开目录"
+  >
+    目录
+  </button>
+
+  <!-- Mobile TOC backdrop -->
+  <div
+    id="toc-backdrop"
+    class="hidden max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:bg-black/20"
+    aria-hidden="true"
+  ></div>
 </BaseLayout>
 
 <script>
@@ -215,6 +241,33 @@ const related = published
     );
     headings.forEach((h) => observer.observe(h));
   }
+
+  // Mobile TOC side drawer
+  const tocToggle = document.getElementById("toc-toggle");
+  const tocPanel = document.getElementById("toc-panel");
+  const tocBackdrop = document.getElementById("toc-backdrop");
+  const tocClose = document.getElementById("toc-close");
+
+  function openToc() {
+    tocPanel?.classList.add("toc-open");
+    tocBackdrop?.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+  function closeToc() {
+    tocPanel?.classList.remove("toc-open");
+    tocBackdrop?.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  tocToggle?.addEventListener("click", () => {
+    const isOpen = tocPanel?.classList.contains("toc-open");
+    isOpen ? closeToc() : openToc();
+  });
+  tocClose?.addEventListener("click", closeToc);
+  tocBackdrop?.addEventListener("click", closeToc);
+  tocPanel?.querySelectorAll("[data-toc]").forEach((l) =>
+    l.addEventListener("click", closeToc)
+  );
 </script>
 
 <style>
@@ -244,5 +297,16 @@ const related = published
   }
   .toc-link.toc-active .toc-num {
     color: var(--color-ed-fg);
+  }
+
+  /* Mobile: TOC becomes a slide-in drawer from the right */
+  @media (max-width: 1023px) {
+    #toc-panel {
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    #toc-panel.toc-open {
+      transform: translateX(0);
+    }
   }
 </style>

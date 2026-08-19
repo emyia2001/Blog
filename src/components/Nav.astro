@@ -68,10 +68,11 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
     </button>
   </div>
+</nav>
 
   <!-- Mobile drawer -->
-  <div
-    id="nav-drawer"
+    <div
+      id="nav-drawer"
     class="fixed inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-faint)] p-8 transition-transform duration-300 md:hidden"
     style="background: var(--color-ed-bg);"
     aria-hidden="true"
@@ -111,7 +112,6 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     aria-hidden="true"
   >
   </div>
-</nav>
 
 <script>
   const toggle = document.getElementById("nav-toggle");
