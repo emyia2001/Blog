@@ -1,12 +1,23 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { SITE_NAME } from "../consts";
+import PersonalCard from "../components/PersonalCard.astro";
 ---
 
 <BaseLayout title="关于">
   <section class="py-24 md:py-32 px-6">
     <div class="mx-auto max-w-3xl">
-      <blockquote class="font-serif text-3xl md:text-5xl italic text-[var(--color-ed-muted)] leading-snug mb-16">
+      <PersonalCard
+        name="SNARK"
+        bio="随笔 · 技术 · 生活"
+        socialLinks={{
+          github: "https://github.com/emyia2001",
+          wechat: "wechat",
+          netease: "netease"
+        }}
+      />
+
+      <blockquote class="font-serif text-3xl md:text-5xl italic text-[var(--color-ed-muted)] leading-snug mb-16 mt-16">
         "留给自己的孤岛。"
       </blockquote>
 
