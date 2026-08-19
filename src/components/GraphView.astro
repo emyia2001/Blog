@@ -7,6 +7,7 @@ interface GraphNode {
   title: string;
   url: string;
   contentIndex: number;
+  avatar?: string;
 }
 
 interface GraphLink {
@@ -27,7 +28,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   <svg
     id="graph-svg"
     viewBox="0 0 800 500"
-    class="h-[26rem] w-full cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] active:cursor-grabbing"
+    class="h-[26rem] w-full cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
     role="img"
     aria-label="内容关系图谱，支持拖拽缩放"
   >
@@ -104,7 +105,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     return line;
   });
 
-  const nodeEls = nodes.map((n) => {
+  const nodeEls = nodes.map((n, ni) => {
     const g = document.createElementNS(NS, "g");
     g.setAttribute("class", "graph-node");
     g.dataset.id = n.id;
@@ -126,32 +127,68 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
     const isEvent = n.kind === "event";
     const isSelf = n.kind === "self";
-    const shape = document.createElementNS(
-      NS,
-      isEvent ? "polygon" : isSelf ? "circle" : "circle"
-    );
-    if (isEvent) {
-      // diamond outline to keep it distinct from post (dot) and person (ring)
-      shape.setAttribute("points", "0,-9 9,0 0,9 -9,0");
-      shape.setAttribute("fill", "none");
-      shape.setAttribute("stroke", "var(--color-ed-muted)");
-      shape.setAttribute("stroke-width", "1.5");
-    } else if (isSelf) {
-      shape.setAttribute("r", "11");
-      shape.setAttribute("fill", "var(--color-ed-fg)");
-      shape.setAttribute("stroke", "var(--color-ed-bg)");
-      shape.setAttribute("stroke-width", "3");
+
+    if (n.avatar) {
+      const r = isSelf ? 13 : 10;
+      const clipId = `graph-clip-${ni}`;
+      const defs = document.createElementNS(NS, "defs");
+      const clip = document.createElementNS(NS, "clipPath");
+      clip.setAttribute("id", clipId);
+      const cc = document.createElementNS(NS, "circle");
+      cc.setAttribute("r", String(r));
+      clip.appendChild(cc);
+      defs.appendChild(clip);
+      g.appendChild(defs);
+
+      const img = document.createElementNS(NS, "image");
+      img.setAttribute("href", n.avatar);
+      img.setAttributeNS(
+        "http://www.w3.org/1999/xlink",
+        "xlink:href",
+        n.avatar
+      );
+      img.setAttribute("width", String(r * 2));
+      img.setAttribute("height", String(r * 2));
+      img.setAttribute("x", String(-r));
+      img.setAttribute("y", String(-r));
+      img.setAttribute("clip-path", `url(#${clipId})`);
+      img.setAttribute("preserveAspectRatio", "xMidYMid slice");
+      g.appendChild(img);
+
+      const ring = document.createElementNS(NS, "circle");
+      ring.setAttribute("r", String(r));
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", "var(--color-ed-faint)");
+      ring.setAttribute("stroke-width", "1.5");
+      g.appendChild(ring);
     } else {
-      shape.setAttribute("r", "7");
-      if (n.kind === "post") {
-        shape.setAttribute("fill", "var(--color-ed-fg)");
-      } else {
-        shape.setAttribute("fill", "var(--color-ed-bg)");
+      const shape = document.createElementNS(
+        NS,
+        isEvent ? "polygon" : "circle"
+      );
+      if (isEvent) {
+        // diamond outline to keep it distinct from post (dot) and person (ring)
+        shape.setAttribute("points", "0,-9 9,0 0,9 -9,0");
+        shape.setAttribute("fill", "none");
         shape.setAttribute("stroke", "var(--color-ed-muted)");
         shape.setAttribute("stroke-width", "1.5");
+      } else if (isSelf) {
+        shape.setAttribute("r", "11");
+        shape.setAttribute("fill", "var(--color-ed-fg)");
+        shape.setAttribute("stroke", "var(--color-ed-bg)");
+        shape.setAttribute("stroke-width", "3");
+      } else {
+        shape.setAttribute("r", "7");
+        if (n.kind === "post") {
+          shape.setAttribute("fill", "var(--color-ed-fg)");
+        } else {
+          shape.setAttribute("fill", "var(--color-ed-bg)");
+          shape.setAttribute("stroke", "var(--color-ed-muted)");
+          shape.setAttribute("stroke-width", "1.5");
+        }
       }
+      g.appendChild(shape);
     }
-    g.appendChild(shape);
 
     const label = document.createElementNS(NS, "text");
     label.setAttribute("class", "graph-label");
@@ -257,10 +294,20 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   }
 
   // Fit the viewBox to the visible canvas so the graph fills it (no letterboxing)
+  let fitTries = 0;
   function fitViewBox() {
+    if (!svg.isConnected) {
+      fitTries = 0;
+      return;
+    }
     const w = svg.clientWidth;
     const h = svg.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h) {
+      // Layout not ready yet (cold load / font swap / mid-transition): retry next frame.
+      if (fitTries++ < 120) requestAnimationFrame(fitViewBox);
+      return;
+    }
+    fitTries = 0;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     simulation.force("center", forceCenter(w / 2, h / 2));
     simulation
@@ -270,7 +317,12 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);
+  // Run once immediately, then re-fit after layout settles so a stale/zero initial
+  // size (cold load, client-side nav, late web fonts) can't leave a broken viewBox.
   fitViewBox();
+  requestAnimationFrame(() => requestAnimationFrame(fitViewBox));
+  window.addEventListener("load", fitViewBox);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitViewBox);
 
   // --- Pan & zoom ---
   let zoom = { k: 1, tx: 0, ty: 0 };

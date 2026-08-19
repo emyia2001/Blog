@@ -1,6 +1,10 @@
 export const SITE_NAME = "Snark";
 export const SITE_DESCRIPTION =
   "一个个人博客 — 关于写作、技术，以及那些缝隙之间的随笔与反思。";
+
+// 关于页头像：同时用于「个人信息卡」和「关系图谱」的中心节点（self）。
+// 放到 public/images/ 下，支持 svg / png / webp 等任意浏览器可解码格式；留空则不显示头像。
+export const SITE_AVATAR = "/images/touxiang.webp";
 export const SITE_URL = "https://example.com";
 
 // 创站日：水印数字（坚持天数）以此为起点
