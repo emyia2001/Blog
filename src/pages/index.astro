@@ -6,7 +6,6 @@ import BannerPlate from "../components/BannerPlate.astro";
 import { readingTime } from "../utils/readingTime";
 import { coverVariant } from "../utils/coverVariant";
 import { SITE_NAME, SITE_CREATED } from "../consts";
-import PersonalCard from "../components/PersonalCard.astro";
 
 const [allPosts, allMoments] = await Promise.all([
   getCollection("posts"),
@@ -89,18 +88,6 @@ const sortedTags = [...tagCounts.entries()].sort(
         />
       </div>
       
-      <!-- 侧边栏 -->
-      <aside class="hidden lg:block w-64 shrink-0 sticky top-24 self-start">
-        <PersonalCard
-          name="SNARK"
-          bio="随笔 · 技术 · 生活"
-          socialLinks={{
-            github: "https://github.com/emyia2001",
-            wechat: "wechat",
-            netease: "netease"
-          }}
-        />
-      </aside>
     </div>
   </div>
 
