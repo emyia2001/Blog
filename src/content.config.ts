@@ -1,5 +1,12 @@
 import { defineCollection, z } from "astro:content";
 
+const graphConfig = z
+  .object({
+    avatar: z.string().optional(),
+    enabled: z.boolean().optional().default(true),
+  })
+  .optional();
+
 const posts = defineCollection({
   type: "content",
   schema: z.object({
@@ -20,6 +27,7 @@ const posts = defineCollection({
         title: z.string().optional(),
       })
       .optional(),
+    graph: graphConfig,
   }),
 });
 
@@ -32,6 +40,7 @@ const moments = defineCollection({
     type: z.enum(["person", "event"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
+    graph: graphConfig,
   }),
 });
 
