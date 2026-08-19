@@ -37,6 +37,25 @@ const initial = name.charAt(0).toUpperCase();
   
   <p class="text-sm text-[var(--color-ed-muted)] mb-4 leading-relaxed">{bio}</p>
   
+  <!-- 
+    社交链接图标自定义说明：
+    
+    替换图标的方法：
+    1. 使用 <img> 标签加载在线图标（推荐）：
+       <img src="https://api.iconify.design/{icon-set}/{icon-name}.svg" class="w-4 h-4" />
+       
+    2. 使用内联 SVG 代码：
+       <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+         <path d="M..."/>
+       </svg>
+    
+    图标资源网站：
+    - Iconify: https://icones.js.org/
+    - Heroicons: https://heroicons.com/
+    - Lucide: https://lucide.dev/
+    
+    注意：保持 class="w-4 h-4" 不变以维持图标大小一致
+  -->
   <div class="flex gap-2">
     {socialLinks?.github && (
       <a 
