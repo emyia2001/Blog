@@ -61,20 +61,15 @@ const rendered = await Promise.all(
 
       {rendered.length > 0 ? (
         <div class="space-y-12">
-          {rendered.map(({ data, Content, datetime, display }) => (
+          {rendered.map(({ Content, datetime, display }) => (
             <article class="border-b border-[var(--color-ed-faint)] pb-10">
-              <div class="flex items-baseline gap-4 mb-4">
+              <div class="mb-4">
                 <time
                   datetime={datetime}
-                  class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0"
+                  class="text-xs text-[var(--color-ed-subtle)] tabular-nums"
                 >
                   {display}
                 </time>
-                {data.title && (
-                  <h2 class="font-serif text-xl text-[var(--color-ed-fg)] leading-snug">
-                    {data.title}
-                  </h2>
-                )}
               </div>
               <div class="prose notes-prose">
                 <Content />
