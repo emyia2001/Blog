@@ -3,7 +3,7 @@ import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PersonalCard from "../components/PersonalCard.astro";
 import GraphView from "../components/GraphView.astro";
-import { SITE_NAME, SITE_DESCRIPTION, SITE_AVATAR } from "../consts";
+import { SITE_NAME, SITE_DESCRIPTION, SITE_AVATAR, SITE_SOCIAL } from "../consts";
 
 const [allPosts, allMoments] = await Promise.all([
   getCollection("posts"),
@@ -136,11 +136,7 @@ for (const c of graphContent) {
             name="SNARK"
             bio="随笔 · 技术 · 生活"
             avatar={SITE_AVATAR}
-            socialLinks={{
-              github: "https://github.com/emyia2001",
-              wechat: "wechat",
-              netease: "netease"
-            }}
+            socialLinks={SITE_SOCIAL}
           />
         </div>
 

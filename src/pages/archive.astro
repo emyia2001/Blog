@@ -4,20 +4,47 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import TagCloud from "../components/TagCloud.astro";
 
 const allPosts = await getCollection("posts");
-const published = allPosts.filter((p) => !p.data.draft);
+const allMoments = await getCollection("moments");
+const publishedPosts = allPosts.filter((p) => !p.data.draft);
+const publishedMoments = allMoments.filter((m) => !m.data.draft);
 
-// Group posts by year, sorted newest first
-const byYear = new Map<number, typeof published>();
-for (const post of published) {
-  const year = post.data.date.getFullYear();
+type Entry = {
+  kind: "post" | "person" | "event";
+  title: string;
+  date: Date;
+  url: string;
+};
+
+const entries: Entry[] = [
+  ...publishedPosts.map((p) => ({
+    kind: "post" as const,
+    title: p.data.title,
+    date: p.data.date,
+    url: `/blog/${p.id.replace(/\.mdx$/, "")}`,
+  })),
+  ...publishedMoments.map((m) => ({
+    kind: m.data.type as "person" | "event",
+    title: m.data.title,
+    date: m.data.date,
+    url: "/timeline",
+  })),
+].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+// Group by year, sorted newest first
+const byYear = new Map<number, Entry[]>();
+for (const e of entries) {
+  const year = e.date.getFullYear();
   if (!byYear.has(year)) byYear.set(year, []);
-  byYear.get(year)!.push(post);
+  byYear.get(year)!.push(e);
 }
 
 const years = [...byYear.keys()].sort((a, b) => b - a);
 for (const year of years) {
-  byYear.get(year)!.sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+  byYear.get(year)!.sort((a, b) => b.date.getTime() - a.date.getTime());
 }
+
+const kindLabel = (k: Entry["kind"]) =>
+  k === "post" ? "文章" : k === "person" ? "人物" : "事件";
 ---
 
 <BaseLayout title="归档">
@@ -37,11 +64,11 @@ for (const year of years) {
       </div>
 
       <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-10">
-        全部文章
+        全部内容
       </h2>
 
       {years.length === 0 ? (
-        <p class="text-[var(--color-ed-muted)]">暂无文章。</p>
+        <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
       ) : (
         years.map((year) => (
           <div class="mb-14">
@@ -49,20 +76,23 @@ for (const year of years) {
               {year}
             </div>
             <ol>
-              {byYear.get(year)!.map((post, i) => (
+              {byYear.get(year)!.map((e, i) => (
                 <li class="border-b border-[var(--color-ed-faint)] py-6 first:border-t">
                   <a
-                    href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+                    href={e.url}
                     class="group flex items-baseline gap-6 no-underline"
                   >
                     <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
                       NO.{String(i + 1).padStart(2, "0")}
                     </span>
                     <span class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-                      {post.data.title}
+                      {e.title}
+                    </span>
+                    <span class="shrink-0 text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
+                      {kindLabel(e.kind)}
                     </span>
                     <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                      {post.data.date.toLocaleDateString("zh-CN", {
+                      {e.date.toLocaleDateString("zh-CN", {
                         month: "short",
                         day: "numeric",
                       })}

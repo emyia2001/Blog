@@ -52,7 +52,7 @@ const moments = defineCollection({
   }),
 });
 
-// 随感：只写一段话的短想法，独立于时间线与首页，单独成区（/notes）
+// 随感：只写一段话的短想法，独立于纪事与首页，单独成区（/notes）
 const notes = defineCollection({
   type: "content",
   schema: z.object({
