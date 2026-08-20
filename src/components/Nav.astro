@@ -70,47 +70,48 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
   </div>
 </nav>
 
-  <!-- Mobile drawer -->
+  <!-- Mobile drawer + backdrop, clipped to the viewport so the off-canvas
+       drawer never creates horizontal scroll on mobile -->
+  <div class="fixed inset-0 z-50 overflow-hidden pointer-events-none md:hidden">
+    <div
+      id="nav-backdrop"
+      class="absolute inset-0 z-40 hidden bg-black/20 pointer-events-auto"
+      aria-hidden="true"
+    ></div>
+
     <div
       id="nav-drawer"
-    class="fixed inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-faint)] p-8 transition-transform duration-300 md:hidden"
-    style="background: var(--color-ed-bg);"
-    aria-hidden="true"
-  >
-    <div class="flex justify-end mb-12">
-      <button id="nav-close" class="p-2" aria-label="关闭菜单">
-        <span class="block font-serif text-2xl leading-none">&times;</span>
-      </button>
-    </div>
-    <ul class="flex flex-col gap-6">
-      {navLinks.map((link) => (
-        <li>
-          <a
-            href={link.href}
-            class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
-          >
-            {link.label}
-          </a>
-        </li>
-      ))}
-      <li>
-        <button
-          type="button"
-          data-open-search
-          class="font-serif text-xl text-[var(--color-ed-fg)]"
-        >
-          搜索
+      class="absolute inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-faint)] p-8 transition-transform duration-300 pointer-events-auto"
+      style="background: var(--color-ed-bg);"
+      aria-hidden="true"
+    >
+      <div class="flex justify-end mb-12">
+        <button id="nav-close" class="p-2" aria-label="关闭菜单">
+          <span class="block font-serif text-2xl leading-none">&times;</span>
         </button>
-      </li>
-    </ul>
-  </div>
-
-  <!-- Backdrop -->
-  <div
-    id="nav-backdrop"
-    class="fixed inset-0 z-40 hidden bg-black/20 md:hidden"
-    aria-hidden="true"
-  >
+      </div>
+      <ul class="flex flex-col gap-6">
+        {navLinks.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+        <li>
+          <button
+            type="button"
+            data-open-search
+            class="font-serif text-xl text-[var(--color-ed-fg)]"
+          >
+            搜索
+          </button>
+        </li>
+      </ul>
+    </div>
   </div>
 
 <script>

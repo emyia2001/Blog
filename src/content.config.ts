@@ -2,6 +2,7 @@ import { defineCollection, z } from "astro:content";
 
 const graphConfig = z
   .object({
+    name: z.string().optional(),
     avatar: z.string().optional(),
     enabled: z.boolean().optional().default(true),
   })
