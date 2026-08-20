@@ -1,65 +1,78 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import TagCloud from "../components/TagCloud.astro";
 
 const allPosts = await getCollection("posts");
-const published = allPosts
-  .filter((p) => !p.data.draft)
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const published = allPosts.filter((p) => !p.data.draft);
 
-// Group by year
+// Group posts by year, sorted newest first
 const byYear = new Map<number, typeof published>();
 for (const post of published) {
-  const y = post.data.date.getFullYear();
-  if (!byYear.has(y)) byYear.set(y, []);
-  byYear.get(y)!.push(post);
+  const year = post.data.date.getFullYear();
+  if (!byYear.has(year)) byYear.set(year, []);
+  byYear.get(year)!.push(post);
 }
 
 const years = [...byYear.keys()].sort((a, b) => b - a);
+for (const year of years) {
+  byYear.get(year)!.sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+}
 ---
 
 <BaseLayout title="归档">
   <section class="py-24 md:py-32 px-6">
-    <div class="mx-auto max-w-3xl">
-      <h1 class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-12">
+    <div class="mx-auto max-w-2xl">
+      <h1
+        class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-16"
+      >
         归档
       </h1>
 
-      {years.length > 0 ? (
-        <div class="space-y-12">
-          {years.map((year) => (
-            <section>
-              <h2 class="font-serif text-2xl text-[var(--color-ed-fg)] mb-6">
-                {year}
-              </h2>
-              <ul class="space-y-1">
-                {byYear.get(year)!.map((post) => (
-                  <li class="border-b border-[var(--color-ed-faint)] py-4">
-                    <a
-                      href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
-                      class="flex items-baseline gap-6 no-underline group"
-                    >
-                      <time
-                        datetime={post.data.date.toISOString()}
-                        class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0 w-24"
-                      >
-                        {post.data.date.toLocaleDateString("zh-CN", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </time>
-                      <span class="font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-                        {post.data.title}
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-      ) : (
+      <div class="mb-20">
+        <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-6">
+          标签
+        </h2>
+        <TagCloud />
+      </div>
+
+      <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-10">
+        全部文章
+      </h2>
+
+      {years.length === 0 ? (
         <p class="text-[var(--color-ed-muted)]">暂无文章。</p>
+      ) : (
+        years.map((year) => (
+          <div class="mb-14">
+            <div class="font-mono text-xs text-[var(--color-ed-subtle)] mb-6 tabular-nums">
+              {year}
+            </div>
+            <ol>
+              {byYear.get(year)!.map((post, i) => (
+                <li class="border-b border-[var(--color-ed-faint)] py-6 first:border-t">
+                  <a
+                    href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+                    class="group flex items-baseline gap-6 no-underline"
+                  >
+                    <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
+                      NO.{String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                      {post.data.title}
+                    </span>
+                    <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                      {post.data.date.toLocaleDateString("zh-CN", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))
       )}
     </div>
   </section>
