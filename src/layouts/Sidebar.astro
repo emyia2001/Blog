@@ -97,14 +97,33 @@ const related = published
         </div>
 
         <PrevNext prev={prev} next={next} />
+
+        <!-- Tags (mobile only, at article end) -->
+        {tags.length > 0 && (
+          <div class="mt-16 pt-10 border-t border-[var(--color-ed-faint)] lg:hidden">
+            <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
+              标签
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <a
+                  href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                  class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
+                >
+                  #{tag}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </article>
 
       <!-- Sidebar -->
       <aside class="shrink-0 order-1 lg:order-2 flex flex-col">
         <div class="lg:sticky lg:top-24 space-y-10">
-          <!-- Tags -->
+          <!-- Tags (desktop sidebar only; mobile version is at article end) -->
           {tags.length > 0 && (
-            <div class="max-lg:order-2">
+            <div class="max-lg:hidden">
               <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
                 标签
               </h3>
