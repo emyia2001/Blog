@@ -30,7 +30,7 @@ const v = ((Math.abs(Math.trunc(variant)) % 3) + 3) % 3;
 ---
 
 {image ? (
-  <div class={`cover-root relative w-full overflow-hidden bg-[#EDEAE4] ${ratioClass} ${className}`}>
+  <div class={`cover-root relative overflow-hidden bg-[#EDEAE4] ${ratioClass} ${className}`}>
     <img src={image} alt={alt} class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
     {caption && (
       <>
@@ -43,7 +43,7 @@ const v = ((Math.abs(Math.trunc(variant)) % 3) + 3) % 3;
     )}
   </div>
 ) : (
-  <div class={`cover-root relative w-full overflow-hidden bg-[#F9F8F6] ${ratioClass} ${className}`}>
+  <div class={`cover-root relative overflow-hidden bg-[#F9F8F6] ${ratioClass} ${className}`}>
     {v === 0 && (
       <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <rect width="1200" height="900" fill="#F9F8F6"/>

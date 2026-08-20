@@ -8,6 +8,8 @@ interface GraphNode {
   url: string;
   contentIndex: number;
   avatar?: string;
+  excerpt?: string;
+  heroImage?: string;
 }
 
 interface GraphLink {
@@ -25,32 +27,98 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 ---
 
 <figure id="graph-view" aria-label="关系图谱">
-  <svg
-    id="graph-svg"
-    viewBox="0 0 800 500"
-    class="h-[26rem] w-full cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
-    role="img"
-    aria-label="内容关系图谱，支持拖拽缩放"
-  >
-    <g id="graph-zoom">
-      <g id="graph-links" stroke="var(--color-ed-faint)" stroke-width="1.2"></g>
-      <g id="graph-nodes"></g>
-    </g>
-  </svg>
+  <div class="graph-layout">
+    <svg
+      id="graph-svg"
+      viewBox="0 0 800 500"
+      class="graph-svg h-[26rem] flex-1 min-w-0 cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
+      role="img"
+      aria-label="内容关系图谱，支持拖拽缩放"
+    >
+      <g id="graph-zoom">
+        <g id="graph-links" stroke="var(--color-ed-faint)" stroke-width="1.2"></g>
+        <g id="graph-nodes"></g>
+      </g>
+    </svg>
+
+    <aside id="graph-detail" class="graph-detail" aria-live="polite"></aside>
+  </div>
   <script type="application/json" id="graph-data" set:html={graphData}></script>
 </figure>
 
-<template id="self-card">
-  <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
-    <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">我</h2>
-    <p class="mt-3 max-w-[60ch] text-sm leading-relaxed text-[var(--color-ed-muted)]">
-      {SITE_DESCRIPTION}
-    </p>
-  </article>
-</template>
-
 <style>
+  .graph-layout {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .graph-detail {
+    flex: 0 0 auto;
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--color-ed-faint);
+    transition:
+      width 0.35s ease,
+      opacity 0.35s ease,
+      padding 0.35s ease;
+  }
+  .graph-detail.is-open {
+    width: 20rem;
+    opacity: 1;
+    padding-left: 1.5rem;
+  }
+
+  .graph-preview-img {
+    width: 100%;
+    height: 9rem;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+  }
+  .graph-preview-kind {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-muted);
+    border: 1px solid var(--color-ed-faint);
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-bottom: 0.5rem;
+  }
+  .graph-preview-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    color: var(--color-ed-fg);
+    line-height: 1.3;
+  }
+  .graph-preview-excerpt {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
+  }
+  .graph-preview-link {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-ed-fg);
+  }
+
   @media (max-width: 767px) {
+    .graph-layout {
+      flex-direction: column;
+    }
+    .graph-detail {
+      border-left: none;
+      border-top: 1px solid var(--color-ed-faint);
+    }
+    .graph-detail.is-open {
+      width: 100%;
+      padding-left: 0;
+      padding-top: 1.5rem;
+    }
     .graph-label {
       display: none;
     }
@@ -154,13 +222,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       img.setAttribute("clip-path", `url(#${clipId})`);
       img.setAttribute("preserveAspectRatio", "xMidYMid slice");
       g.appendChild(img);
-
-      const ring = document.createElementNS(NS, "circle");
-      ring.setAttribute("r", String(r));
-      ring.setAttribute("fill", "none");
-      ring.setAttribute("stroke", "var(--color-ed-faint)");
-      ring.setAttribute("stroke-width", "1.5");
-      g.appendChild(ring);
     } else {
       const shape = document.createElementNS(
         NS,
@@ -462,37 +523,70 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     linkEls.forEach((line) => {
       line.setAttribute("opacity", "1");
     });
-    const detail = document.getElementById("timeline-detail");
-    if (detail) detail.innerHTML = "";
+    const panel = document.getElementById("graph-detail");
+    if (panel) {
+      panel.classList.remove("is-open");
+      panel.innerHTML = "";
+    }
   }
 
-  function showDetail(contentIndex: number) {
-    const detail = document.getElementById("timeline-detail");
-    if (!detail) return;
-    if (contentIndex < 0) {
-      const selfCard = document.getElementById(
-        "self-card"
-      ) as HTMLTemplateElement | null;
-      if (selfCard) {
-        detail.innerHTML = "";
-        detail.appendChild(selfCard.content.cloneNode(true) as HTMLElement);
-      }
-      return;
+  function buildPreview(n: GraphNode & { x?: number; y?: number }) {
+    const wrap = document.createElement("div");
+    wrap.className = "graph-preview";
+
+    const imgSrc = n.heroImage || n.avatar;
+    if (imgSrc) {
+      const img = document.createElement("img");
+      img.src = imgSrc;
+      img.alt = n.title;
+      img.className = "graph-preview-img";
+      wrap.appendChild(img);
     }
-    const template = document.getElementById(
-      "content-templates"
-    ) as HTMLTemplateElement | null;
-    if (!template) return;
-    const bodies = template.content.querySelectorAll<HTMLElement>(
-      ".content-body"
-    );
-    const body = Array.from(bodies).find(
-      (b) => b.dataset.contentIndex === String(contentIndex)
-    );
-    if (body) {
-      detail.innerHTML = "";
-      detail.appendChild(body.cloneNode(true) as HTMLElement);
+
+    const head = document.createElement("div");
+    const kindLabel: Record<string, string> = {
+      post: "文章",
+      person: "人物",
+      event: "事件",
+      self: "我",
+    };
+    const label = kindLabel[n.kind];
+    if (label) {
+      const k = document.createElement("span");
+      k.className = "graph-preview-kind";
+      k.textContent = label;
+      head.appendChild(k);
     }
+    const h = document.createElement("h3");
+    h.className = "graph-preview-title";
+    h.textContent = n.title;
+    head.appendChild(h);
+    wrap.appendChild(head);
+
+    if (n.excerpt) {
+      const p = document.createElement("p");
+      p.className = "graph-preview-excerpt";
+      p.textContent = n.excerpt;
+      wrap.appendChild(p);
+    }
+
+    if (n.kind === "post" && n.url) {
+      const a = document.createElement("a");
+      a.href = n.url;
+      a.className = "graph-preview-link hover-underline";
+      a.textContent = "阅读全文 →";
+      wrap.appendChild(a);
+    }
+    return wrap;
+  }
+
+  function showDetail(n: GraphNode & { x?: number; y?: number }) {
+    const panel = document.getElementById("graph-detail");
+    if (!panel) return;
+    panel.innerHTML = "";
+    const preview = buildPreview(n);
+    if (preview) panel.appendChild(preview);
+    panel.classList.add("is-open");
   }
 
   function selectNode(id: string) {
@@ -510,7 +604,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       const on = nb.has(sid) && nb.has(tid);
       line.setAttribute("opacity", on ? "1" : "0.1");
     });
-    showDetail(n.contentIndex);
+    showDetail(n);
     window.dispatchEvent(new CustomEvent("graph:select"));
   }
 
