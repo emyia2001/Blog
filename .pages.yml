@@ -87,17 +87,17 @@ content:
     format: yaml-frontmatter
     filename: "{year}{month}{day}{hour}{minute}.mdx"
     view:
-      primary: date
-      sort: date
+      primary: title
+      sort: title
       order: desc
     fields:
       - name: title
         label: 标题（可选）
         type: string
       - name: date
-        label: 日期
+        label: 日期（留空即可，自动取 git 提交时间）
         type: date
-        required: true
+        required: false
       - name: excerpt
         label: 摘要（可选）
         type: text
