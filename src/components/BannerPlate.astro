@@ -65,8 +65,9 @@ const lines = intro ?? [
           </div>
         </noscript>
 
-        <!-- 线条动画层（叠加在轮播上） -->
-        <div class="banner-lines absolute inset-0 z-10 pointer-events-none">
+        <!-- 线条动画层：仅在没有封面图时作为刊首插图出现；有封面图时让图片干净呈现 -->
+        {slides.length === 0 && (
+          <div class="banner-lines absolute inset-0 z-10 pointer-events-none">
           {v === 0 && (
             <svg class="absolute inset-0 w-full h-full" viewBox="0 0 2100 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
               <rect width="2100" height="900" fill="transparent"/>
@@ -105,6 +106,7 @@ const lines = intro ?? [
             </svg>
           )}
         </div>
+        )}
 
         <!-- 期号水印 -->
         <div class="absolute inset-0 flex items-end justify-center pb-5 md:pb-6 pointer-events-none z-20">
@@ -148,16 +150,25 @@ const lines = intro ?? [
 </figure>
 
 <script>
-  // Banner carousel with pause on hover
+  // Banner carousel with randomized order + pause on hover
   const bannerLeft = document.querySelector('.banner-left');
-  const slides = document.querySelectorAll('.banner-slide');
-  
+  const slides = Array.from(document.querySelectorAll('.banner-slide'));
+
   if (slides.length > 1) {
     let currentIndex = 0;
-    let intervalId: ReturnType<typeof setInterval>;
     let isPaused = false;
 
-    function showSlide(index: number) {
+    // Randomize the display order so the cover shown first varies per visit.
+    // `slides` is the shuffled array and drives showSlide, so the visible
+    // slide and the rotation follow the randomized order.
+    for (let i = slides.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slides[i], slides[j]] = [slides[j], slides[i]];
+    }
+    const slideWrap = bannerLeft?.querySelector('.banner-slides');
+    slides.forEach((s) => slideWrap?.appendChild(s));
+
+    function showSlide(index) {
       slides.forEach((slide, i) => {
         slide.classList.toggle('opacity-100', i === index);
         slide.classList.toggle('opacity-0', i !== index);
@@ -175,20 +186,12 @@ const lines = intro ?? [
       }
     }
 
-    function startAutoplay() {
-      intervalId = setInterval(nextSlide, 5000);
-    }
-
     // Pause on hover
-    bannerLeft?.addEventListener('mouseenter', () => {
-      isPaused = true;
-    });
+    bannerLeft?.addEventListener('mouseenter', () => { isPaused = true; });
+    bannerLeft?.addEventListener('mouseleave', () => { isPaused = false; });
 
-    bannerLeft?.addEventListener('mouseleave', () => {
-      isPaused = false;
-    });
-
-    // Start autoplay
-    startAutoplay();
+    currentIndex = 0;
+    showSlide(0);
+    setInterval(nextSlide, 5000);
   }
 </script>

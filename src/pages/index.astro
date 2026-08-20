@@ -21,7 +21,7 @@ const moments = allMoments
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
   .slice(0, 6);
 
-const heroPost = published.find((p) => p.data.featured) || published[0];
+const heroPost = published[0];
 const listPosts = published.filter((p) => p.id !== heroPost?.id);
 
 // 刊首插图构图：按日期轮换（0 波浪 / 1 涟漪 / 2 等高线）
