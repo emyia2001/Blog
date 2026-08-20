@@ -45,4 +45,15 @@ const moments = defineCollection({
   }),
 });
 
-export const collections = { posts, moments };
+// 随感：只写一段话的短想法，独立于时间线与首页，单独成区（/notes）
+const notes = defineCollection({
+  type: "content",
+  schema: z.object({
+    title: z.string().optional(),
+    date: z.date(),
+    draft: z.boolean().default(false),
+    excerpt: z.string().optional(),
+  }),
+});
+
+export const collections = { posts, moments, notes };

@@ -1,0 +1,75 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const all = await getCollection("notes");
+const notes = all
+  .filter((n) => !n.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const rendered = await Promise.all(
+  notes.map(async (n) => ({ data: n.data, Content: (await n.render()).Content }))
+);
+---
+
+<BaseLayout title="随感">
+  <section class="py-24 md:py-32 px-6">
+    <div class="mx-auto max-w-2xl">
+      <h1 class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-3">
+        随感
+      </h1>
+      <p class="text-xs tracking-[0.3em] text-[var(--color-ed-muted)] mb-14">NOTES</p>
+
+      {rendered.length > 0 ? (
+        <div class="space-y-12">
+          {rendered.map(({ data, Content }) => (
+            <article class="border-b border-[var(--color-ed-faint)] pb-10">
+              <div class="flex items-baseline gap-4 mb-4">
+                <time
+                  datetime={data.date.toISOString()}
+                  class="text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0"
+                >
+                  {data.date.toLocaleDateString("zh-CN", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </time>
+                {data.title && (
+                  <h2 class="font-serif text-xl text-[var(--color-ed-fg)] leading-snug">
+                    {data.title}
+                  </h2>
+                )}
+              </div>
+              <div class="prose notes-prose">
+                <Content />
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="text-[var(--color-ed-muted)]">暂无随感。</p>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  function styleNoteSources() {
+    document.querySelectorAll(".notes-prose p").forEach((p) => {
+      if (p.dataset.noteSrc) return;
+      const text = p.textContent ?? "";
+      const m = text.match(/^(.*)\s*[—–-]{1,2}\s*(.+?)\s*$/);
+      if (m) {
+        p.textContent = m[1].trim();
+        const span = document.createElement("span");
+        span.className = "note-source";
+        span.textContent = "—— ".normalize("NFC").replace("——", "——") + m[2];
+        p.appendChild(span);
+        p.dataset.noteSrc = "1";
+      }
+    });
+  }
+  styleNoteSources();
+  document.addEventListener("astro:page-load", styleNoteSources);
+</script>

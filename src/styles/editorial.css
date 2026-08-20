@@ -193,6 +193,24 @@ h1, h2, h3, h4, h5, h6 {
   text-indent: 2em;
 }
 
+/* 随感：每段首行空两格、更松弛，句末 `-- 来源` 渲染为右对齐来源标识 */
+.notes-prose p {
+  text-indent: 2em;
+  line-height: 2;
+  margin-bottom: 1.8em;
+}
+
+.note-source {
+  display: block;
+  text-indent: 0;
+  text-align: right;
+  margin-top: 0.4em;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  font-style: italic;
+  color: var(--color-ed-subtle);
+}
+
 .prose a {
   color: var(--color-ed-fg);
   text-decoration: underline;
