@@ -2,7 +2,6 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
-import { SITE_BGM } from "../consts";
 
 const [allPosts, allMoments] = await Promise.all([
   getCollection("posts"),
@@ -203,6 +202,14 @@ const defaultRendered =
                     人物
                   </span>
                 )}
+                {defaultRendered.kind !== "post" && defaultRendered.entry.data.bgm?.src && (
+                  <div class="mt-4">
+                    <MiniPlayer
+                      src={defaultRendered.entry.data.bgm.src}
+                      title={defaultRendered.entry.data.bgm.title}
+                    />
+                  </div>
+                )}
                 <div class="prose mt-6">
                   <defaultRendered.Content />
                 </div>
@@ -238,6 +245,14 @@ const defaultRendered =
                       人物
                     </span>
                   )}
+                  {c.kind !== "post" && c.entry.data.bgm?.src && (
+                    <div class="mt-4">
+                      <MiniPlayer
+                        src={c.entry.data.bgm.src}
+                        title={c.entry.data.bgm.title}
+                      />
+                    </div>
+                  )}
                   <div class="prose mt-6">
                     <c.Content />
                   </div>
@@ -251,7 +266,6 @@ const defaultRendered =
       )}
     </div>
   </section>
-  <MiniPlayer src={SITE_BGM.src} title={SITE_BGM.title} />
 </BaseLayout>
 
 <script>
