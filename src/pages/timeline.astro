@@ -3,14 +3,7 @@ import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 
-const [allPosts, allMoments] = await Promise.all([
-  getCollection("posts"),
-  getCollection("moments"),
-]);
-
-const publishedPosts = allPosts
-  .filter((p) => !p.data.draft)
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const allMoments = await getCollection("moments");
 
 const publishedMoments = allMoments
   .filter((m) => !m.data.draft)
@@ -29,12 +22,6 @@ interface RenderedAll {
 }
 
 const renderedAll = await Promise.all([
-  ...publishedPosts.map(async (p) => ({
-    id: p.id,
-    kind: "post" as const,
-    entry: p,
-    Content: (await p.render()).Content,
-  })),
   ...publishedMoments.map(async (m) => ({
     id: m.id,
     kind: m.data.type as "person" | "event",
@@ -56,14 +43,6 @@ interface TimelineEntry {
 }
 
 const entries: TimelineEntry[] = [
-  ...publishedPosts.map((p) => ({
-    date: p.data.date,
-    kind: "post" as const,
-    title: p.data.title,
-    excerpt: p.data.excerpt,
-    url: `/blog/${p.id.replace(/\.mdx$/, "")}`,
-    contentIndex: contentIndex.get(p.id)!,
-  })),
   ...publishedMoments.map((m) => ({
     date: m.data.date,
     kind: m.data.type as "person" | "event",
@@ -83,100 +62,24 @@ const defaultRendered =
   defaultIndex >= 0 ? renderedAll[entries[defaultIndex].contentIndex] : null;
 ---
 
-<BaseLayout title="时间线">
+<BaseLayout title="纪事">
   <section class="py-24 md:py-32 px-6">
-    <div class="mx-auto max-w-5xl">
-      <h1 class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-16">
-        时间线
+    <div class="mx-auto max-w-6xl">
+      <h1
+        class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-16"
+      >
+        纪事
       </h1>
 
       {entries.length > 0 ? (
-        <div>
-          <div id="view-timeline">
-          <!-- Horizontal axis: person above, event/post below -->
-          <div class="relative">
-            <div class="absolute left-0 right-0 top-[calc(7rem-0.5px)] h-px bg-[var(--color-ed-faint)]" aria-hidden="true"></div>
-            <div class="relative flex flex-wrap justify-between gap-y-12">
-              {entries.map((entry, i) => {
-                const isAbove = entry.kind === "person";
-                return (
-                  <div
-                    class="timeline-point group grid w-32 cursor-pointer grid-rows-[1fr_2rem_1fr]"
-                    data-kind={entry.kind}
-                    data-index={i}
-                    data-url={entry.url}
-                    data-content-index={entry.contentIndex}
-                    role="button"
-                    tabindex="0"
-                    aria-expanded="false"
-                  >
-                    <!-- Upper cell (person) -->
-                    <div
-                      class={`flex min-h-24 flex-col items-center justify-end text-center ${
-                        isAbove ? "" : "invisible"
-                      }`}
-                    >
-                      <time
-                        datetime={entry.date.toISOString()}
-                        class="text-[11px] tabular-nums text-[var(--color-ed-subtle)]"
-                      >
-                        {formatDate(entry.date, { year: "numeric", month: "short" })}
-                      </time>
-                      <span class="mt-1 font-serif text-sm leading-snug text-[var(--color-ed-fg)] line-clamp-2">
-                        {entry.title}
-                      </span>
-                      <span class="mt-1 text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
-                        {entry.kind === "person" ? "人物" : entry.kind === "post" ? "文章" : "事件"}
-                      </span>
-                    </div>
-
-                    <!-- Node on the axis -->
-                    <div class="flex items-center justify-center">
-                      <div
-                        class={`flex h-4 w-4 items-center justify-center rounded-full border bg-[var(--color-ed-bg)] transition-all duration-300 ${
-                          entry.kind === "post"
-                            ? "border-[var(--color-ed-fg)] group-hover:scale-125"
-                            : "border-[var(--color-ed-muted)] group-hover:scale-125"
-                        }`}
-                      >
-                        <span
-                          class={`block h-1.5 w-1.5 rounded-full ${
-                            entry.kind === "post"
-                              ? "bg-[var(--color-ed-fg)]"
-                              : "bg-[var(--color-ed-muted)]"
-                          }`}
-                        ></span>
-                      </div>
-                    </div>
-
-                    <!-- Lower cell (event / post) -->
-                    <div
-                      class={`flex min-h-24 flex-col items-center justify-start text-center ${
-                        isAbove ? "invisible" : ""
-                      }`}
-                    >
-                      <time
-                        datetime={entry.date.toISOString()}
-                        class="text-[11px] tabular-nums text-[var(--color-ed-subtle)]"
-                      >
-                        {formatDate(entry.date, { year: "numeric", month: "short" })}
-                      </time>
-                      <span class="mt-1 font-serif text-sm leading-snug text-[var(--color-ed-fg)] line-clamp-2">
-                        {entry.title}
-                      </span>
-                      <span class="mt-1 text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
-                        {entry.kind === "person" ? "人物" : entry.kind === "post" ? "文章" : "事件"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          </div>
-
-          <!-- Detail area: first entry pre-rendered, others shown on click -->
-          <div id="timeline-detail" class="mt-16 min-h-40" aria-live="polite" data-default-index={defaultIndex}>
+        <div class="grid gap-12 md:grid-cols-[1fr_18rem]">
+          <!-- 左侧：选中的节点正文 -->
+          <div
+            id="timeline-detail"
+            class="order-2 md:order-1 min-h-40"
+            aria-live="polite"
+            data-default-index={defaultIndex}
+          >
             {defaultRendered && (
               <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
                 <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
@@ -202,14 +105,20 @@ const defaultRendered =
                     人物
                   </span>
                 )}
-                {defaultRendered.kind !== "post" && defaultRendered.entry.data.bgm?.src && (
-                  <div class="mt-4">
-                    <MiniPlayer
-                      src={defaultRendered.entry.data.bgm.src}
-                      title={defaultRendered.entry.data.bgm.title}
-                    />
-                  </div>
+                {defaultRendered.kind === "event" && (
+                  <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                    事件
+                  </span>
                 )}
+                {defaultRendered.kind !== "post" &&
+                  defaultRendered.entry.data.bgm?.src && (
+                    <div class="mt-4">
+                      <MiniPlayer
+                        src={defaultRendered.entry.data.bgm.src}
+                        title={defaultRendered.entry.data.bgm.title}
+                      />
+                    </div>
+                  )}
                 <div class="prose mt-6">
                   <defaultRendered.Content />
                 </div>
@@ -217,56 +126,137 @@ const defaultRendered =
             )}
           </div>
 
-          <!-- Hidden full-text contents (posts + moments), shared by both views -->
-          <template id="content-templates">
-            {renderedAll.map((c, idx) => (
-              <div class="content-body" data-content-index={idx}>
-                <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
-                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                    {c.entry.data.title}
-                  </h2>
-                  <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                    {formatDate(c.entry.data.date, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </p>
-                  {c.kind === "post" && (
-                    <a
-                      href={`/blog/${c.id.replace(/\.mdx$/, "")}`}
-                      class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+          <!-- 右侧：竖向纪事轴 -->
+          <aside id="view-timeline" class="order-1 md:order-2">
+            <div class="md:sticky md:top-24">
+              <div class="flex flex-col">
+                {entries.map((entry, i) => {
+                  const label =
+                    entry.kind === "person"
+                      ? "人物"
+                      : entry.kind === "post"
+                        ? "文章"
+                        : "事件";
+                  return (
+                    <div
+                      class="timeline-point group flex gap-4 cursor-pointer select-none"
+                      data-kind={entry.kind}
+                      data-index={i}
+                      data-url={entry.url}
+                      data-content-index={entry.contentIndex}
+                      role="button"
+                      tabindex="0"
+                      aria-expanded="false"
                     >
-                      阅读全文
-                    </a>
-                  )}
-                  {c.kind === "person" && (
-                    <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
-                      人物
-                    </span>
-                  )}
-                  {c.kind !== "post" && c.entry.data.bgm?.src && (
-                    <div class="mt-4">
-                      <MiniPlayer
-                        src={c.entry.data.bgm.src}
-                        title={c.entry.data.bgm.title}
-                      />
+                      <div class="relative flex flex-col items-center pt-1.5">
+                        <span
+                          class={`tl-dot block h-3 w-3 rounded-full border transition-colors duration-300 ${
+                            entry.kind === "post"
+                              ? "border-[var(--color-ed-fg)]"
+                              : "border-[var(--color-ed-muted)]"
+                          }`}
+                        ></span>
+                        {i < entries.length - 1 && (
+                          <span class="w-px flex-1 bg-[var(--color-ed-faint)] mt-1.5"></span>
+                        )}
+                      </div>
+                      <div class="flex-1 pb-8 text-left">
+                        <time
+                          datetime={entry.date.toISOString()}
+                          class="text-[11px] tabular-nums text-[var(--color-ed-subtle)]"
+                        >
+                          {formatDate(entry.date, {
+                            year: "numeric",
+                            month: "short",
+                          })}
+                        </time>
+                        <span class="tl-title mt-1 block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-muted)]">
+                          {entry.title}
+                        </span>
+                        <span class="mt-1 block text-[10px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
+                          {label}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div class="prose mt-6">
-                    <c.Content />
-                  </div>
-                </article>
+                  );
+                })}
               </div>
-            ))}
-          </template>
+            </div>
+          </aside>
         </div>
       ) : (
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
       )}
     </div>
   </section>
+
+  <!-- Hidden full-text contents (posts + moments), shared by both views -->
+  <template id="content-templates">
+    {
+      renderedAll.map((c, idx) => (
+        <div class="content-body" data-content-index={idx}>
+          <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+            <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+              {c.entry.data.title}
+            </h2>
+            <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+              {formatDate(c.entry.data.date, {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+            {c.kind === "post" && (
+              <a
+                href={`/blog/${c.id.replace(/\.mdx$/, "")}`}
+                class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+              >
+                阅读全文
+              </a>
+            )}
+            {c.kind === "person" && (
+              <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                人物
+              </span>
+            )}
+            {c.kind === "event" && (
+              <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                事件
+              </span>
+            )}
+            {c.kind !== "post" && c.entry.data.bgm?.src && (
+              <div class="mt-4">
+                <MiniPlayer
+                  src={c.entry.data.bgm.src}
+                  title={c.entry.data.bgm.title}
+                />
+              </div>
+            )}
+            <div class="prose mt-6">
+              <c.Content />
+            </div>
+          </article>
+        </div>
+      ))
+    }
+  </template>
 </BaseLayout>
+
+<style>
+  .timeline-point .tl-dot {
+    background: transparent;
+  }
+  .timeline-point.is-active .tl-dot {
+    background: var(--color-ed-fg);
+  }
+  .timeline-point.is-active .tl-title {
+    color: var(--color-ed-fg);
+  }
+  .timeline-point:focus-visible {
+    outline: 1px solid var(--color-ed-accent);
+    outline-offset: 4px;
+  }
+</style>
 
 <script>
   const points = Array.from(
