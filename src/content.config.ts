@@ -14,6 +14,7 @@ const posts = defineCollection({
     title: z.string(),
     date: z.date(),
     excerpt: z.string(),
+    slug: z.string().optional(),
     heroImage: z.string().optional(),
     articleLayout: z
       .enum(["sidebar"])

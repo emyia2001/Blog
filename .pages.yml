@@ -1,0 +1,110 @@
+media:
+  input: public/images
+  output: /images
+
+content:
+  - name: posts
+    label: 文章
+    type: collection
+    path: src/content/posts
+    format: yaml-frontmatter
+    filename:
+      template: "{slug}.mdx"
+      field: false
+    view:
+      primary: title
+      sort: date
+      order: desc
+    fields:
+      - name: slug
+        label: 链接 slug
+        type: string
+        required: true
+        help: "英文短链接，如 hello-world（决定 /blog/xxx 的网址）"
+      - name: title
+        label: 标题
+        type: string
+        required: true
+      - name: date
+        label: 日期
+        type: date
+        required: true
+      - name: excerpt
+        label: 摘要
+        type: text
+      - name: heroImage
+        label: 封面图 URL
+        type: string
+        help: "可填 img.snark.casa 外链；留空则无封面"
+      - name: articleLayout
+        label: 布局
+        type: select
+        options:
+          values: [sidebar]
+        default: sidebar
+      - name: tags
+        label: 标签
+        type: list
+        options:
+          item_type: string
+      - name: draft
+        label: 草稿（不发布）
+        type: boolean
+        default: false
+      - name: featured
+        label: 置顶
+        type: boolean
+        default: false
+      - name: pullQuote
+        label: 引语
+        type: text
+      - name: bgm
+        label: 背景音乐
+        type: object
+        fields:
+          - name: src
+            type: string
+          - name: title
+            type: string
+      - name: graph
+        label: 关系图谱
+        type: object
+        fields:
+          - name: name
+            type: string
+          - name: avatar
+            type: string
+          - name: enabled
+            type: boolean
+      - name: body
+        label: 正文
+        type: rich-text
+
+  - name: notes
+    label: 随感
+    type: collection
+    path: src/content/notes
+    format: yaml-frontmatter
+    filename: "{year}{month}{day}{hour}{minute}.mdx"
+    view:
+      primary: date
+      sort: date
+      order: desc
+    fields:
+      - name: title
+        label: 标题（可选）
+        type: string
+      - name: date
+        label: 日期
+        type: date
+        required: true
+      - name: excerpt
+        label: 摘要（可选）
+        type: text
+      - name: draft
+        label: 草稿
+        type: boolean
+        default: false
+      - name: body
+        label: 正文
+        type: rich-text
