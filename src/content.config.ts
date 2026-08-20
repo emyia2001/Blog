@@ -42,6 +42,12 @@ const moments = defineCollection({
     type: z.enum(["person", "event"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
+    bgm: z
+      .object({
+        src: z.string(),
+        title: z.string().optional(),
+      })
+      .optional(),
     graph: graphConfig,
   }),
 });
