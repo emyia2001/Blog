@@ -79,5 +79,37 @@ const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
     </main>
     <Footer />
     <BackToTop />
+    <script>
+      // One-click copy for code blocks (.code-block__copy is server-rendered by
+      // the rehype plugin). Delegated so it survives View Transitions.
+      document.addEventListener("click", async (e) => {
+        const btn = (e.target as HTMLElement)?.closest?.(".code-block__copy");
+        if (!btn) return;
+        const block = btn.closest(".code-block");
+        const code = block?.querySelector("pre.astro-code code");
+        if (!code) return;
+        const text = code.textContent ?? "";
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+        }
+        const label = btn.querySelector(".code-block__copy-label");
+        const original = label?.textContent ?? "复制";
+        btn.classList.add("is-copied");
+        if (label) label.textContent = "已复制";
+        window.setTimeout(() => {
+          btn.classList.remove("is-copied");
+          if (label) label.textContent = original;
+        }, 1600);
+      });
+    </script>
   </body>
 </html>

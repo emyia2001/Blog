@@ -153,6 +153,18 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* 标题层级：与正文明确区分——更大字号、700 字重、间距与分隔线 */
+.prose h1 {
+  scroll-margin-top: 5rem;
+  font-size: 2.4rem;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 3em 0 1em;
+  padding-left: 0.8rem;
+  border-left: 3px solid rgba(166, 58, 43, 0.7);
+  border-bottom: 1px solid var(--color-ed-faint);
+  padding-bottom: 0.45em;
+}
+
 .prose h2 {
   scroll-margin-top: 5rem;
   font-size: 1.9rem;
@@ -230,6 +242,107 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
   color: var(--color-ed-fg);
   font-size: 1.08em;
+}
+
+/* --- Code blocks: sit on warm paper, with a header bar + copy button --- */
+.prose pre.astro-code,
+.notes-prose pre.astro-code {
+  margin: 1.75em 0;
+  padding: 1.1em 1.25em;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-ed-faint);
+  border-left: 3px solid rgba(166, 58, 43, 0.5);
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Source Code Pro",
+    Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+.prose pre.astro-code code,
+.notes-prose pre.astro-code code {
+  font-family: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  counter-reset: line;
+}
+
+/* Wrapper added by rehype-code-block */
+.code-block {
+  margin: 1.75em 0;
+}
+
+.code-block__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-ed-faint);
+  border-bottom: none;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: rgba(166, 58, 43, 0.06);
+}
+
+.code-block__lang {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ed-subtle);
+}
+
+.code-block__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--color-ed-muted);
+  background: transparent;
+  border: 1px solid var(--color-ed-faint);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+
+.code-block__copy:hover {
+  color: var(--color-ed-fg);
+  border-color: var(--color-ed-fg);
+}
+
+.code-block__copy:active {
+  transform: translateY(1px);
+}
+
+.code-block__copy.is-copied {
+  color: var(--color-ed-bg);
+  background: var(--color-ed-accent);
+  border-color: var(--color-ed-accent);
+}
+
+/* When wrapped, the pre loses its own outer margin/radius (bar owns the top) */
+.code-block pre.astro-code {
+  margin: 0;
+  border-radius: 0 0 0.5rem 0.5rem;
+  border-top: none;
+}
+
+/* Inline code: subtle chip that matches the paper palette */
+.prose :not(pre) > code,
+.notes-prose :not(pre) > code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.12em 0.4em;
+  border-radius: 0.3rem;
+  background: rgba(28, 28, 28, 0.06);
+  color: var(--color-ed-fg);
 }
 
 .prose img {
@@ -676,4 +789,78 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0.03;
   pointer-events: none;
   z-index: 5;
+}
+
+/* ===== 文章目录（TOC） ===== */
+/* 全局样式：目录由 Toc.astro 子组件渲染，故放全局表以确保生效 */
+.toc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+.toc-caret {
+  flex: none;
+  width: 1rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ed-subtle);
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+.toc-caret svg {
+  width: 0.6rem;
+  height: 0.6rem;
+  transition: transform 200ms ease;
+}
+.toc-caret:hover {
+  color: var(--color-ed-fg);
+}
+.toc-caret--leaf {
+  cursor: default;
+}
+/* 收起时：子列表隐藏，箭头旋转为向右 */
+.toc-item.is-collapsed > .toc-list {
+  display: none;
+}
+.toc-item.is-collapsed > .toc-row > .toc-caret:not(.toc-caret--leaf) svg {
+  transform: rotate(-90deg);
+}
+.toc-link {
+  color: var(--color-ed-muted);
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease;
+}
+.toc-link:hover {
+  color: var(--color-ed-fg);
+}
+.toc-link.toc-active {
+  color: var(--color-ed-fg);
+  border-left-color: var(--color-ed-fg);
+}
+/* 多级目录：嵌套列表缩进 + 竖向引导线 */
+.toc-list .toc-list {
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--color-ed-faint);
+  margin-left: 0.35rem;
+  margin-top: 0.25rem;
+}
+.toc-link--sub {
+  font-size: 0.85rem;
+  color: var(--color-ed-subtle);
+}
+.toc-link--sub:hover {
+  color: var(--color-ed-fg);
+}
+/* 祖先项（当前小节所属的上级标题）保持可见高亮 */
+.toc-link.toc-active-ancestor {
+  color: var(--color-ed-muted);
+  border-left-color: rgba(166, 58, 43, 0.35);
 }

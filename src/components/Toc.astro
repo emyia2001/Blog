@@ -1,0 +1,81 @@
+---
+interface TocNode {
+  depth: number;
+  slug: string;
+  text: string;
+  children: TocNode[];
+}
+interface Props {
+  items: TocNode[];
+  baseDepth?: number;
+  parentSlug?: string;
+  root?: boolean;
+}
+const { items, baseDepth = 2, parentSlug = "", root = true } = Astro.props;
+---
+{items.length > 0 && (
+  <ul
+    class:list={[
+      "toc-list",
+      root ? "space-y-2.5" : "space-y-1.5",
+    ]}
+  >
+    {items.map((item) => {
+      const level = item.depth - baseDepth + 1;
+      const hasChildren = item.children.length > 0;
+      return (
+        <li class="toc-item" data-toc-item={item.slug}>
+          <div class="toc-row">
+            {hasChildren ? (
+              <button
+                type="button"
+                class="toc-caret"
+                aria-expanded="true"
+                aria-label="展开或收起子目录"
+                data-toc-toggle
+              >
+                <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.5 6 7.5 9 4.5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            ) : (
+              <span class="toc-caret toc-caret--leaf" aria-hidden="true"></span>
+            )}
+            <a
+              href={`#${item.slug}`}
+              data-toc={item.slug}
+              data-toc-parent={parentSlug || undefined}
+              class:list={[
+                "toc-link",
+                "group",
+                "flex-1",
+                "items-baseline",
+                "gap-2",
+                "text-sm",
+                "leading-snug",
+                "no-underline",
+                level > 1 && "toc-link--sub",
+              ]}
+            >
+              <span class="toc-text">{item.text}</span>
+            </a>
+          </div>
+          {hasChildren && (
+            <Astro.self
+              items={item.children}
+              baseDepth={baseDepth}
+              parentSlug={item.slug}
+              root={false}
+            />
+          )}
+        </li>
+      );
+    })}
+  </ul>
+)}
