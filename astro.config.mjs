@@ -3,12 +3,20 @@ import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
+import { editorialLight } from "./src/utils/editorialShikiTheme";
+import { rehypeCodeBlock } from "./src/utils/rehype-code-block";
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://example.com",
   output: "static",
   integrations: [mdx(), sitemap(), icon()],
+  markdown: {
+    shikiConfig: {
+      theme: editorialLight,
+    },
+    rehypePlugins: [rehypeCodeBlock],
+  },
   vite: {
     plugins: [tailwindcss()],
     build: {
