@@ -27,3 +27,6 @@ export const SITE_SOCIAL: { label: string; href: string; icon: string }[] = [
   { label: "微信", href: "https://img.snark.casa/photo/IMG_6069(20240727-200947).969n7rex9h.JPG", icon: "mdi:wechat" },
   { label: "网易云音乐", href: "#", icon: "mdi:music-circle" },
 ];
+
+// 用于「关于」页构建时拉取提交数的 GitHub 仓库（owner/repo）
+export const GITHUB_REPO = "emyia2001/Blog";

@@ -3,7 +3,7 @@ import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PersonalCard from "../components/PersonalCard.astro";
 import GraphView from "../components/GraphView.astro";
-import { SITE_NAME, SITE_DESCRIPTION, SITE_AVATAR, SITE_SOCIAL } from "../consts";
+import { SITE_NAME, SITE_DESCRIPTION, SITE_AVATAR, SITE_SOCIAL, GITHUB_REPO } from "../consts";
 
 const [allPosts, allMoments] = await Promise.all([
   getCollection("posts"),
@@ -70,7 +70,7 @@ const selfNode: GraphNode = {
   url: "",
   contentIndex: -1,
   avatar: SITE_AVATAR,
-  excerpt: SITE_DESCRIPTION,
+  // excerpt: SITE_DESCRIPTION,
 };
 
 const graphContent = renderedAll.filter(
@@ -125,6 +125,103 @@ for (const c of graphContent) {
     graphLinks.push({ source: c.id, target: target.id });
   }
 }
+
+// GitHub 贡献热力图（构建时取数，烤进页面）。
+// 优先用 GitHub GraphQL + 令牌：能拿到和 github.com 个人页一致的贡献，
+// 含「已设为公开显示的私有仓库」贡献。无令牌时回退到公开抓取（仅公开仓库）。
+const githubUser = GITHUB_REPO.split("/")[0];
+const CAL_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+const LEVEL_MAP: Record<string, number> = {
+  NONE: 0,
+  FIRST_QUARTILE: 1,
+  SECOND_QUARTILE: 2,
+  THIRD_QUARTILE: 3,
+  FOURTH_QUARTILE: 4,
+};
+let contributions: { date: string; count: number; level: number }[][] = [];
+let contribTotal: number | null = null;
+
+async function fromGraphQL(token: string) {
+  const res = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `query($login: String!) {
+        user(login: $login) {
+          contributionsCollection {
+            contributionCalendar {
+              totalContributions
+              weeks { contributionDays { date contributionCount contributionLevel } }
+            }
+          }
+        }
+      }`,
+      variables: { login: githubUser },
+    }),
+  });
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message);
+  const cal = json.data?.user?.contributionsCollection?.contributionCalendar;
+  if (!cal) throw new Error("no calendar");
+  contribTotal = cal.totalContributions ?? null;
+  // GraphQL 已按 周(Sun→Sat) × 天 排好，直接映射即可，范围与个人页一致
+  return cal.weeks.map((w: any) =>
+    w.contributionDays.map((d: any) => ({
+      date: d.date,
+      count: d.contributionCount,
+      level: LEVEL_MAP[d.contributionLevel] ?? 0,
+    }))
+  );
+}
+
+async function fromScraper() {
+  const res = await fetch(
+    `https://github-contributions-api.jogruber.de/v4/${githubUser}`
+  );
+  const data = await res.json();
+  const list: { date: string; count: number; level: number }[] =
+    data.contributions ?? [];
+  if (!list.length) return [];
+  const byDate = new Map(list.map((c) => [c.date, c]));
+  const dates = list.map((c) => c.date).sort();
+  // 取最近约 53 周（GitHub 个人页同款），避免拉满多年历史把图撑得太宽
+  const end = new Date(dates[dates.length - 1] + "T00:00:00");
+  const startSunday = new Date(end);
+  startSunday.setDate(startSunday.getDate() - startSunday.getDay() - 52 * 7);
+  const weekCount = 53;
+  const grid: { date: string; count: number; level: number }[][] = [];
+  for (let w = 0; w < weekCount; w++) {
+    const col: { date: string; count: number; level: number }[] = [];
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(startSunday);
+      dt.setDate(dt.getDate() + w * 7 + d);
+      const key = dt.toISOString().slice(0, 10);
+      const c = byDate.get(key);
+      col.push({ date: key, count: c?.count ?? 0, level: c?.level ?? 0 });
+    }
+    grid.push(col);
+  }
+  contribTotal = grid.flat().reduce((s, c) => s + c.count, 0);
+  return grid;
+}
+
+try {
+  // 构建时用 process.env（Astro 构建会载入 .env.local），
+  // 开发时用 import.meta.env（Vite 开发服务器会载入 .env.local），两者互补
+  const token =
+    import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN;
+  contributions = token ? await fromGraphQL(token) : await fromScraper();
+} catch {
+  // 令牌调用失败则回退公开抓取；仍失败则留空（不影响页面其余内容）
+  try {
+    contributions = await fromScraper();
+  } catch {
+    contributions = [];
+  }
+}
 ---
 
 <BaseLayout title="关于">
@@ -141,9 +238,9 @@ for (const c of graphContent) {
         </div>
 
         <div class="flex-1 min-w-0">
-          <blockquote class="font-serif text-3xl md:text-4xl italic text-[var(--color-ed-muted)] leading-snug mb-10">
-            "留给自己的孤岛。"
-          </blockquote>
+          <!-- <blockquote class="font-serif text-3xl md:text-4xl italic text-[var(--color-ed-muted)] leading-snug mb-10">
+            "hello world"
+          </blockquote> -->
 
           <div class="space-y-6 text-sm md:text-base leading-relaxed text-[var(--color-ed-muted)]">
             <p>
@@ -152,6 +249,44 @@ for (const c of graphContent) {
               所以想要有一个地方来记录这些变化。
             </p>
           </div>
+
+          <!-- GitHub 贡献热力图（构建时取数，烤进页面） -->
+          {
+            contributions.length > 0 && (
+              <div class="mt-10">
+                <p class="font-sans text-xs tracking-[0.28em] uppercase text-[var(--color-ed-subtle)] mb-3">
+                  GitHub 贡献
+                  {contribTotal !== null && (
+                    <span class="ml-2 normal-case tracking-normal text-[var(--color-ed-muted)]">
+                     
+                    </span>
+                  )}
+                </p>
+                <svg
+                  class="w-full h-auto"
+                  viewBox={`0 0 ${contributions.length * 14} 98`}
+                  role="img"
+                  aria-label="GitHub 贡献热力图"
+                >
+                  {contributions.map((col, w) =>
+                    col.map((cell, d) => (
+                      <rect
+                        x={w * 14}
+                        y={d * 14}
+                        width="11"
+                        height="11"
+                        rx="2"
+                        fill={CAL_COLORS[cell.level]}
+                      >
+                        <title>{cell.date}：{cell.count} 次提交</title>
+                      </rect>
+                    ))
+                  )}
+                </svg>
+              </div>
+            )
+          }
+
         </div>
       </div>
 
