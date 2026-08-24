@@ -1,0 +1,22 @@
+name: Scheduled rebuild
+
+on:
+  schedule:
+    # 每天 UTC 21:30（北京时间约 05:30）；非整点避开 Actions 调度拥堵
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Deploy Hook
+        env:
+          CF_DEPLOY_HOOK_URL: ${{ secrets.CF_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$CF_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Secret CF_DEPLOY_HOOK_URL 未配置"
+            exit 1
+          fi
+          status=$(curl -f -sS -o /dev/null -w "%{http_code}" --retry 3 --retry-delay 5 -X POST "$CF_DEPLOY_HOOK_URL")
+          echo "Cloudflare deploy hook responded with HTTP ${status}"
