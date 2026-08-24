@@ -184,9 +184,12 @@ async function fromScraper() {
   const data = await res.json();
   const list: { date: string; count: number; level: number }[] =
     data.contributions ?? [];
-  if (!list.length) return [];
-  const byDate = new Map(list.map((c) => [c.date, c]));
-  const dates = list.map((c) => c.date).sort();
+  // 接口可能返回未来日期的占位数据（如补齐到年底），必须裁掉，否则窗口会被推到未来
+  const today = new Date().toISOString().slice(0, 10);
+  const past = list.filter((c) => c.date <= today);
+  if (!past.length) return [];
+  const byDate = new Map(past.map((c) => [c.date, c]));
+  const dates = past.map((c) => c.date).sort();
   // 取最近约 53 周（GitHub 个人页同款），避免拉满多年历史把图撑得太宽
   const end = new Date(dates[dates.length - 1] + "T00:00:00");
   const startSunday = new Date(end);
@@ -213,12 +216,24 @@ try {
   // 开发时用 import.meta.env（Vite 开发服务器会载入 .env.local），两者互补
   const token =
     import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN;
-  contributions = token ? await fromGraphQL(token) : await fromScraper();
-} catch {
-  // 令牌调用失败则回退公开抓取；仍失败则留空（不影响页面其余内容）
+  if (token) {
+    contributions = await fromGraphQL(token);
+    console.log(
+      `[heatmap] GraphQL ok, ${contribTotal} contributions (含私有仓库)`
+    );
+  } else {
+    console.warn(
+      "[heatmap] 未读到 GITHUB_CONTRIB_TOKEN，回退公开抓取（仅公开贡献）"
+    );
+    contributions = await fromScraper();
+  }
+} catch (err) {
+  console.warn(`[heatmap] 主路径失败，回退公开抓取：${err}`);
   try {
     contributions = await fromScraper();
+    console.log(`[heatmap] 公开抓取 ok，${contribTotal} contributions`);
   } catch {
+    console.warn("[heatmap] 公开抓取也失败，热力图留空");
     contributions = [];
   }
 }
