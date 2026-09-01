@@ -1,0 +1,456 @@
+---
+title: "在 macOS 上搭建按博客项目自动归档的截图工作流"
+date: 2026-09-01
+excerpt: "系统截图默认保存到 Pictures/Screenshots；启用项目后，截图会自动按项目名和时间戳归档到本地素材库。"
+heroImage: ""
+articleLayout: sidebar
+tags: ["macOS", "Automator", "Shell", "效率工具", "博客工作流"]
+draft: false
+featured: false
+pullQuote: "截图不是立刻要发布的图片，而是为未来文章保留的过程证据。"
+bgm:
+  src: ""
+  title: ""
+
+dropCap: false
+graph:
+  name: "macOS 博客截图自动归档工作流"
+  enabled: true
+  # avatar: "/images/your-icon.svg"
+---
+
+我写博客时通常会先完整做完一个项目、排障过程或实验，再回头整理素材和写文章。过程中的截图需要被可靠保存，但也不希望每张普通截图都混进某一篇博客文章的素材中。
+
+这套工作流把系统截图统一保存到 `~/Pictures/Screenshots/`。当我开始一个准备写成博客的项目时，运行一次 `bsp <文章-slug>`，之后新截图会自动移动到该项目的本地素材目录，并以“项目名 + 时间戳”命名。项目完成后运行 `bstop`，新截图会继续保留在 `Screenshots` 目录，整个过程大概有10s。
+
+最终写文章时，再从项目素材库中挑选真正需要的截图，裁剪、标注、脱敏、压缩后上传到 Cloudflare R2。
+
+## 最终效果
+
+例如准备记录一篇关于 PVE GPU 直通的文章：
+
+```bash
+bsp pve-gpu-passthrough
+```
+
+之后照常按 `⌘⇧3`、`⌘⇧4` 或 `⌘⇧5` 截图，新图片将自动移动到：
+
+```text
+~/Pictures/Blog-Material/2026/2026-09-pve-gpu-passthrough/
+```
+
+自动命名结果类似：
+
+```text
+2026-09-pve-gpu-passthrough-20260901-160300.jpg
+2026-09-pve-gpu-passthrough-20260901-160325.jpg
+2026-09-pve-gpu-passthrough-20260901-160409.jpg
+```
+
+如果没有运行 `bsp`，或已经运行：
+
+```bash
+bstop
+```
+
+新截图会保留在：
+
+```text
+~/Pictures/Screenshots/
+```
+
+## 工作原理
+
+```text
+macOS 系统截图
+  ↓
+保存到 ~/Pictures/Screenshots
+  ↓
+Automator Folder Action 监控 Screenshots 目录
+  ↓
+调用 process-blog-screenshot
+  ↓
+.current-project 存在：重命名并移动到当前项目目录
+.current-project 不存在：不处理，截图保留在 Screenshots 目录
+```
+
+`bsp <文章-slug>` 用于设置当前项目。它会创建目标目录，并将目标路径写入素材库根目录中的 `.current-project` 文件。Automator 发现 `Screenshots` 目录有新图片后，会调用处理脚本；处理脚本只在 `.current-project` 存在时移动图片。
+
+这个设计不需要截图工具猜测当前项目。只需要在开始记录项目时选择一次项目名称，之后的截图自动归档。
+
+## 创建目录
+
+在终端执行：
+
+```bash
+mkdir -p "$HOME/Pictures/Screenshots"
+mkdir -p "$HOME/Pictures/Blog-Material"
+mkdir -p "$HOME/bin"
+```
+
+目录结构如下：
+
+```text
+~/Pictures/
+├─ Screenshots/
+│  └─ 未启用项目时保留的普通截图
+└─ Blog-Material/
+   ├─ .current-project
+   └─ 2026/
+      ├─ 2026-09-pve-gpu-passthrough/
+      └─ 2026-09-astro-r2-image-pipeline/
+```
+
+| 路径 | 用途 |
+| --- | --- |
+| `~/Pictures/Screenshots/` | macOS 系统截图默认保存位置；未启用项目时，截图留在这里 |
+| `~/Pictures/Blog-Material/` | 本地博客截图素材库根目录 |
+| `~/Pictures/Blog-Material/2026/` | 按年份保存各文章或项目的截图 |
+| `.current-project` | 当前项目状态文件；存在时启用自动归档 |
+| `~/bin/` | 存放本地 Shell 脚本 |
+
+## 设置截图保存位置
+
+先确保 `Screenshots` 文件夹存在：
+
+```bash
+mkdir -p "$HOME/Pictures/Screenshots"
+```
+
+再将 macOS 系统截图的默认保存位置设置为该文件夹：
+
+```bash
+defaults write com.apple.screencapture location "$HOME/Pictures/Screenshots"
+killall SystemUIServer
+```
+
+验证当前设置：
+
+```bash
+defaults read com.apple.screencapture location
+```
+
+预期输出：
+
+```text
+/Users/your-name/Pictures/Screenshots
+```
+
+也可以按 `⌘⇧5` 打开 macOS 截图工具栏，依次选择“选项 → 存储到 → 其他位置”，然后选择：
+
+```text
+~/Pictures/Screenshots
+```
+
+设置后，按一次 `⌘⇧4` 测试。未启用 `bsp` 时，新截图应出现在 `~/Pictures/Screenshots/`。
+
+## 创建项目命令
+
+创建 `~/bin/blog-screenshot-project`。它接收一个文章 slug，创建按“年月 + slug”命名的项目文件夹，并启用该项目。
+
+```bash
+cat > "$HOME/bin/blog-screenshot-project" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="$HOME/Pictures/Blog-Material"
+YEAR="$(date +%Y)"
+
+if [[ $# -ne 1 ]]; then
+  echo "用法：bsp <文章-slug>"
+  echo "示例：bsp pve-gpu-passthrough"
+  exit 1
+fi
+
+SLUG="$1"
+PROJECT="$(date +%Y-%m)-$SLUG"
+TARGET="$ROOT/$YEAR/$PROJECT"
+
+mkdir -p "$TARGET"
+print -r -- "$TARGET" > "$ROOT/.current-project"
+
+echo "已切换当前截图项目：$PROJECT"
+echo "截图将自动归档到：$TARGET"
+EOF
+
+chmod +x "$HOME/bin/blog-screenshot-project"
+```
+
+测试命令本体：
+
+```bash
+~/bin/blog-screenshot-project test-routing
+```
+
+成功时会创建：
+
+```text
+~/Pictures/Blog-Material/2026/2026-09-test-routing/
+```
+
+并输出当前目录。
+
+## 创建处理脚本
+
+创建 `~/bin/process-blog-screenshot`。Automator 将新截图路径传给它；它读取 `.current-project`，然后自动改名和移动文件。
+
+```bash
+cat > "$HOME/bin/process-blog-screenshot" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="$HOME/Pictures/Blog-Material"
+CURRENT_FILE="$ROOT/.current-project"
+
+# 未启用项目时不移动文件，截图保留在 ~/Pictures/Screenshots。
+[[ -f "$CURRENT_FILE" ]] || exit 0
+
+TARGET="$(<"$CURRENT_FILE")"
+[[ -d "$TARGET" ]] || exit 0
+
+for FILE in "$@"; do
+  [[ -f "$FILE" ]] || continue
+
+  EXT="${FILE:e}"
+  PROJECT="${TARGET:t}"
+  TIMESTAMP="$(stat -f '%Sm' -t '%Y%m%d-%H%M%S' "$FILE")"
+
+  BASENAME="${PROJECT}-${TIMESTAMP}"
+  DEST="$TARGET/${BASENAME}.${EXT}"
+  NUMBER=2
+
+  # 同一秒连续产生多张截图时，以 -2、-3 避免覆盖。
+  while [[ -e "$DEST" ]]; do
+    DEST="$TARGET/${BASENAME}-${NUMBER}.${EXT}"
+    NUMBER=$((NUMBER + 1))
+  done
+
+  mv "$FILE" "$DEST"
+done
+EOF
+
+chmod +x "$HOME/bin/process-blog-screenshot"
+```
+
+确认文件存在且可执行：
+
+```bash
+ls -l "$HOME/bin/process-blog-screenshot"
+```
+
+权限字符串中应包含 `x`，例如：
+
+```text
+-rwxr-xr-x
+```
+
+## 创建停止命令
+
+创建 `~/bin/blog-screenshot-stop`。它删除当前项目状态，使新截图不再被移动。
+
+```bash
+cat > "$HOME/bin/blog-screenshot-stop" <<'EOF'
+#!/bin/zsh
+rm -f "$HOME/Pictures/Blog-Material/.current-project"
+echo "已停止博客截图归档。后续系统截图会保留在 ~/Pictures/Screenshots。"
+EOF
+
+chmod +x "$HOME/bin/blog-screenshot-stop"
+```
+
+## 设置命令别名
+
+上面创建的是正式脚本文件。接下来把 `~/bin` 加入终端命令路径，并为常用功能设置短命令。
+
+将以下内容写入 `~/.zshrc`：
+
+```bash
+grep -qxF 'export PATH="$HOME/bin:$PATH"' "$HOME/.zshrc" 2>/dev/null || \
+  echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.zshrc"
+
+cat >> "$HOME/.zshrc" <<'EOF'
+
+# Blog screenshot workflow
+alias bsp='blog-screenshot-project'
+alias bstop='blog-screenshot-stop'
+alias bsstatus='cat "$HOME/Pictures/Blog-Material/.current-project" 2>/dev/null || echo "未启用博客截图归档（截图默认保留在 ~/Pictures/Screenshots）"'
+alias bsopen='if [[ -f "$HOME/Pictures/Blog-Material/.current-project" ]]; then open "$(cat "$HOME/Pictures/Blog-Material/.current-project")"; else echo "未启用博客截图归档"; fi'
+alias bsmaterial='open "$HOME/Pictures/Blog-Material"'
+alias bsinbox='open "$HOME/Pictures/Blog-Material/_incoming"'
+
+bshelp() {
+  cat <<'HELP'
+博客截图工作流
+
+用法：
+  bsp <文章-slug>     启用并切换到指定文章项目
+  bstop               停止自动归档；截图留在 ~/Pictures/Screenshots
+  bsstatus            查看当前已启用的截图项目
+  bsopen              在 Finder 打开当前项目截图目录
+  bsmaterial          在 Finder 打开素材库根目录
+  bsinbox             在 Finder 打开旧的 _incoming 目录
+  bshelp              显示本帮助
+
+示例：
+  bsp pve-gpu-passthrough
+  bsp astro-r2-image-pipeline
+
+工作逻辑：
+  默认：截图保留在 ~/Pictures/Screenshots
+  运行 bsp 后：新的系统截图自动移入当前项目素材目录
+  运行 bstop 后：停止自动归档，截图继续保留在 ~/Pictures/Screenshots
+HELP
+}
+
+alias bsh='bshelp'
+EOF
+
+source "$HOME/.zshrc"
+```
+
+验证短命令是否已加载：
+
+```bash
+type bsp bstop bsstatus bsopen bsmaterial bsinbox bshelp bsh
+```
+
+正常结果中：
+
+```text
+bsp is an alias for blog-screenshot-project
+bstop is an alias for blog-screenshot-stop
+bshelp is a shell function
+bsh is an alias for bshelp
+```
+
+## 配置 Automator
+
+Automator 使用“文件夹操作”监控 `~/Pictures/Screenshots`。当有新截图进入时，它会调用 `process-blog-screenshot`。
+
+1. 打开 **Automator（自动操作）**。
+2. 点击“新建文稿”。
+
+![](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-160949.png)
+
+3. 选择 **文件夹操作**，不要选择“工作流程”“快速操作”或“应用程序”。
+4. 窗口顶部应显示“文件夹操作接收添加到这个位置的文件和文件夹”。
+5. 点击顶部右侧目录下拉菜单，选择“其他位置”。
+6. 选择：
+
+   ```text
+   ~/Pictures/Screenshots
+   ```
+
+![](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-161045.png)
+
+7. 左侧"实用工具" —— "运行 Shell 脚本"，拖到右侧工作流区域。
+8. 设置：
+
+   ```text
+   Shell：/bin/zsh
+   传递输入：作为自变量
+   ```
+
+9. 在脚本框中粘贴：
+
+   ```zsh
+   while IFS= read -r file; do
+     "$HOME/bin/process-blog-screenshot" "$file"
+   done
+   ```
+
+10. 按 `⌘S` 保存，命名为：
+
+    ```text
+    Blog Screenshot Router
+    ```
+
+![](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-160906.png)
+
+保存后，标题栏应显示：
+
+```text
+Blog Screenshot Router.workflow（文件夹操作）
+```
+
+因为 `Screenshots` 是专用的截图入口目录，Automator 不需要根据中英文文件名前缀筛选；所有进入该目录的文件都会传给处理脚本。处理脚本本身会通过 `.current-project` 判断是否需要移动。
+
+不要在工作流中添加“获得指定的访达项目”。Folder Action 已经会在新文件进入所绑定目录时传入文件路径；该额外动作会传入固定目录，反而会破坏自动处理逻辑。
+
+## 日常使用
+
+### 普通截图
+
+没有启用项目时，直接截图即可：
+
+```text
+⌘⇧3 / ⌘⇧4 / ⌘⇧5
+  ↓
+~/Pictures/Screenshots/
+```
+
+查看当前状态：
+
+```bash
+bsstatus
+```
+
+未启用项目时会显示：
+
+```text
+未启用博客截图归档（截图默认保留在 ~/Pictures/Screenshots）
+```
+
+### 开始记录文章
+
+```bash
+bsp pve-gpu-passthrough
+```
+
+之后所有进入 `~/Pictures/Screenshots/` 的新截图都会自动改名并移动到：
+
+```text
+~/Pictures/Blog-Material/2026/2026-09-pve-gpu-passthrough/
+```
+
+在 Finder 中打开当前项目目录：
+
+```bash
+bsopen
+```
+
+### 切换项目
+
+```bash
+bsp astro-r2-image-pipeline
+```
+
+之后的新截图会归到新项目；旧项目素材不会受影响。
+
+### 完成项目
+
+```bash
+bstop
+```
+
+自动归档停止。之后截图继续保留在：
+
+```text
+~/Pictures/Screenshots/
+```
+
+### 查看帮助
+
+```bash
+bsh
+```
+
+或：
+
+```bash
+bshelp
+```
+
+![](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-161528.png)
+
+原始截图会作为本地项目档案长期保存；Cloudflare R2 中只保存适合公开交付的最终版本。
