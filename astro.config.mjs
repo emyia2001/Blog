@@ -10,6 +10,10 @@ import { rehypeCodeBlock } from "./src/utils/rehype-code-block";
 export default defineConfig({
   site: "https://example.com",
   output: "static",
+  server: {
+    // 固定监听所有网卡:局域网内可直接通过本机 IP 访问开发服务器
+    host: true,
+  },
   integrations: [mdx(), sitemap(), icon()],
   markdown: {
     shikiConfig: {
