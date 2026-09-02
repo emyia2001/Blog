@@ -1,0 +1,20 @@
+#!/bin/sh
+# commit-msg 钩子:提交时自动剥离 Co-Authored-By 尾注。
+#
+# 原因:GitHub 会把 Co-Authored-By 尾注中能匹配到账号的邮箱计入仓库
+# Contributors 列表。AI 编码工具(OpenCode、Claude Code、Copilot、
+# Sisyphus 等)常默认在提交信息里追加这种尾注,导致 AI 账号出现在
+# 博客仓库的贡献者列表。
+#
+# 本钩子对所有提交生效(含 --amend、merge、rebase、squash)。
+# 若确有需要保留 co-author 署名,可用 git commit --no-verify 绕过。
+MSG="$1"
+if [ ! -f "$MSG" ]; then
+  exit 0
+fi
+
+tmp="${MSG}.hooktmp.$$"
+# 删除所有大小写变体的 Co-Authored-By 行;grep 无匹配时退出码为 1,属正常
+grep -viE '^co-authored-by:' "$MSG" > "$tmp" || true
+mv "$tmp" "$MSG"
+exit 0
