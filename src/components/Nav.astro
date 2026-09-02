@@ -115,12 +115,21 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
   </div>
 
 <script>
-  const toggle = document.getElementById("nav-toggle");
-  const drawer = document.getElementById("nav-drawer");
-  const backdrop = document.getElementById("nav-backdrop");
-  const close = document.getElementById("nav-close");
+  // 注:本站启用了 Astro View Transitions,站内跳转会 SPA 式替换 <body> 内 DOM,
+  // 直接绑在元素上的监听器会随旧节点一起丢失。因此这里统一使用
+  // document 级事件委托,并在每次 astro:page-load 后重新获取元素引用。
+
+  function getRefs() {
+    return {
+      toggle: document.getElementById("nav-toggle"),
+      drawer: document.getElementById("nav-drawer"),
+      backdrop: document.getElementById("nav-backdrop"),
+      close: document.getElementById("nav-close"),
+    };
+  }
 
   function open() {
+    const { drawer, backdrop, toggle } = getRefs();
     drawer?.classList.remove("translate-x-full");
     backdrop?.classList.remove("hidden");
     toggle?.setAttribute("aria-expanded", "true");
@@ -129,6 +138,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
   }
 
   function closeDrawer() {
+    const { drawer, backdrop, toggle } = getRefs();
     drawer?.classList.add("translate-x-full");
     backdrop?.classList.add("hidden");
     toggle?.setAttribute("aria-expanded", "false");
@@ -136,32 +146,44 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     document.body.style.overflow = "";
   }
 
-  toggle?.addEventListener("click", () => {
-    const isOpen = toggle.getAttribute("aria-expanded") === "true";
-    isOpen ? closeDrawer() : open();
-  });
-
-  close?.addEventListener("click", closeDrawer);
-  backdrop?.addEventListener("click", closeDrawer);
-
-  // Open the search modal (SearchModal listens for the `open-search` event)
-  document.querySelectorAll("[data-open-search]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      closeDrawer();
-      document.dispatchEvent(new CustomEvent("open-search"));
-    });
-  });
-
-  // Close on Escape
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && toggle?.getAttribute("aria-expanded") === "true") {
-      closeDrawer();
+  // 每次页面加载(VT 换页后也会触发)重新绑定可点击区域的状态,并兜底关闭残留抽屉
+  document.addEventListener("astro:page-load", () => {
+    closeDrawer();
+    const { drawer } = getRefs();
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.matches && drawer) {
+      drawer.style.transition = "none";
     }
   });
 
-  // Respect prefers-reduced-motion
-  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-  if (mq.matches && drawer) {
-    drawer.style.transition = "none";
-  }
+  // 事件委托:hamburger 打开/关闭
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const toggle = target.closest("#nav-toggle");
+    if (toggle) {
+      e.preventDefault();
+      const isOpen = toggle.getAttribute("aria-expanded") === "true";
+      isOpen ? closeDrawer() : open();
+      return;
+    }
+    // 抽屉内的关闭按钮 / 背板点击关闭
+    if (target.closest("#nav-close") || target.closest("#nav-backdrop")) {
+      closeDrawer();
+      return;
+    }
+    // 抽屉内的搜索按钮:关闭抽屉后打开搜索弹层(SearchModal 监听 open-search)
+    if (target.closest("[data-open-search]")) {
+      closeDrawer();
+      document.dispatchEvent(new CustomEvent("open-search"));
+    }
+  });
+
+  // Escape 关闭(委托到 document,天然跨 VT 存活)
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const { toggle } = getRefs();
+      if (toggle?.getAttribute("aria-expanded") === "true") closeDrawer();
+    }
+  });
 </script>

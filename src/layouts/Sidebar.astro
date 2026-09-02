@@ -238,20 +238,16 @@ const related = published
 </BaseLayout>
 
 <script>
-  // TOC collapse / expand (accordion)
-  document.addEventListener("click", (e) => {
-    const toggle = e.target.closest("[data-toc-toggle]");
-    if (!toggle) return;
-    const item = toggle.closest(".toc-item");
-    if (!item) return;
-    const collapsed = item.classList.toggle("is-collapsed");
-    toggle.setAttribute("aria-expanded", String(!collapsed));
-  });
+  // 注:本站启用 Astro View Transitions,站内跳转会 SPA 式替换 <body> 内 DOM,
+  // 直接缓存的元素引用与元素级监听器会随旧节点一起失效。
+  // 因此:交互统一走 document 委托,目录高亮在每次 astro:page-load 后重建。
 
-  // Scroll spy for table of contents (multi-level: h2/h3/h4)
-  const headings = document.querySelectorAll(".prose h2, .prose h3, .prose h4");
-  const tocLinks = document.querySelectorAll("[data-toc]");
-  if (headings.length && tocLinks.length) {
+  // ---- 目录折叠(collapse/expand)与滚动高亮 ----
+  function initTocSpy() {
+    const headings = document.querySelectorAll(".prose h2, .prose h3, .prose h4");
+    const tocLinks = document.querySelectorAll("[data-toc]");
+    if (!headings.length || !tocLinks.length) return;
+
     const expandAncestors = (link) => {
       let item = link.closest(".toc-item");
       while (item) {
@@ -277,15 +273,7 @@ const related = published
       }
     };
 
-    // Click: activate immediately
-    tocLinks.forEach((link) => {
-      link.addEventListener("click", (e) => {
-        const id = link.getAttribute("data-toc");
-        if (id) activate(id);
-      });
-    });
-
-    // Scroll: observer updates active
+    // 滚动观察器:每次重进页面都新建,避免对旧 DOM 的引用
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -299,32 +287,97 @@ const related = published
     headings.forEach((h) => observer.observe(h));
   }
 
-  // Mobile TOC side drawer
-  const tocToggle = document.getElementById("toc-toggle");
-  const tocPanel = document.getElementById("toc-panel");
-  const tocBackdrop = document.getElementById("toc-backdrop");
-  const tocClose = document.getElementById("toc-close");
-
+  // ---- 移动端目录抽屉开合 ----
   function openToc() {
-    tocPanel?.classList.add("toc-open");
-    tocBackdrop?.classList.remove("hidden");
+    const panel = document.getElementById("toc-panel");
+    const backdrop = document.getElementById("toc-backdrop");
+    if (!panel || !backdrop) return;
+    panel.classList.add("toc-open");
+    backdrop.classList.remove("hidden");
     document.body.style.overflow = "hidden";
   }
   function closeToc() {
-    tocPanel?.classList.remove("toc-open");
-    tocBackdrop?.classList.add("hidden");
+    const panel = document.getElementById("toc-panel");
+    const backdrop = document.getElementById("toc-backdrop");
+    if (!panel || !backdrop) return;
+    panel.classList.remove("toc-open");
+    backdrop.classList.add("hidden");
     document.body.style.overflow = "";
   }
 
-  tocToggle?.addEventListener("click", () => {
-    const isOpen = tocPanel?.classList.contains("toc-open");
-    isOpen ? closeToc() : openToc();
+  // 事件委托(跨 VT 存活)
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // 目录折叠/展开
+    const toggle = target.closest("[data-toc-toggle]");
+    if (toggle) {
+      const item = toggle.closest(".toc-item");
+      if (item) {
+        const collapsed = item.classList.toggle("is-collapsed");
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+      }
+      return;
+    }
+
+    // 打开目录抽屉
+    if (target.closest("#toc-toggle")) {
+      const panel = document.getElementById("toc-panel");
+      const isOpen = panel?.classList.contains("toc-open");
+      isOpen ? closeToc() : openToc();
+      return;
+    }
+    // 关闭目录抽屉
+    if (target.closest("#toc-close") || target.closest("#toc-backdrop")) {
+      closeToc();
+      return;
+    }
+    // 点击目录链接:高亮并关闭抽屉(桌面端交给滚动观察器)
+    const tocLink = target.closest("[data-toc]");
+    if (tocLink) {
+      const id = tocLink.getAttribute("data-toc");
+      if (id) {
+        tocLinksHighlight(id);
+      }
+      closeToc();
+    }
   });
-  tocClose?.addEventListener("click", closeToc);
-  tocBackdrop?.addEventListener("click", closeToc);
-  tocPanel?.querySelectorAll("[data-toc]").forEach((l) =>
-    l.addEventListener("click", closeToc)
-  );
+
+  // 点击目录链接时的立即高亮(不依赖滚动)
+  function tocLinksHighlight(id: string) {
+    const link = document.querySelector(`[data-toc="${id}"]`);
+    if (!link) return;
+    const tocLinks = document.querySelectorAll("[data-toc]");
+    tocLinks.forEach((l) => {
+      l.classList.remove("toc-active");
+      l.classList.remove("toc-active-ancestor");
+    });
+    let cur: Element | null = link;
+    while (cur) {
+      const p = cur.getAttribute("data-toc-parent");
+      cur.classList.add("toc-active");
+      if (p) {
+        const parent = document.querySelector(`[data-toc="${p}"]`);
+        if (parent) parent.classList.add("toc-active-ancestor");
+        cur = parent;
+      } else {
+        cur = null;
+      }
+    }
+  }
+
+  // Escape 关闭目录抽屉
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const panel = document.getElementById("toc-panel");
+      if (panel?.classList.contains("toc-open")) closeToc();
+    }
+  });
+
+  // 每次页面加载(VT 换页后也触发)重建目录滚动监听
+  document.addEventListener("astro:page-load", initTocSpy);
+  initTocSpy();
 </script>
 
 <style>

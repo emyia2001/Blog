@@ -25,16 +25,27 @@
 </div>
 
 <script>
-  const modal = document.getElementById("search-modal");
-  const input = document.getElementById("search-input");
-  const results = document.getElementById("search-results");
-  if (!modal || !input || !results) throw new Error("search modal elements missing");
+  // 注:本站启用了 Astro View Transitions,站内跳转会替换 <body> 内 DOM,
+  // 缓存的元素引用和元素级监听器会随旧节点一起失效。
+  // 因此:open-search / keydown 等绑定在 document 上(天然跨 VT 存活),
+  // modal 内的元素引用在每次 astro:page-load 时重新获取。
 
   let pf: any = null;
   let loaded = false;
   let loadPromise: Promise<void> | null = null;
+  let bound = false;
+
+  function getRefs() {
+    return {
+      modal: document.getElementById("search-modal"),
+      input: document.getElementById("search-input") as HTMLInputElement | null,
+      results: document.getElementById("search-results"),
+    };
+  }
 
   function setMessage(message: string) {
+    const results = getRefs().results;
+    if (!results) return;
     const p = document.createElement("p");
     p.className = "py-3 text-sm text-[var(--color-ed-muted)]";
     p.textContent = message;
@@ -62,6 +73,8 @@
   }
 
   function open() {
+    const { modal, input } = getRefs();
+    if (!modal || !input) return;
     modal.classList.remove("hidden");
     modal.classList.add("flex");
     document.body.style.overflow = "hidden";
@@ -70,6 +83,8 @@
   }
 
   function close() {
+    const { modal, input } = getRefs();
+    if (!modal || !input) return;
     modal.classList.add("hidden");
     modal.classList.remove("flex");
     document.body.style.overflow = "";
@@ -77,30 +92,50 @@
     setMessage("输入关键词开始搜索。");
   }
 
-  document.addEventListener("open-search", open);
+  function isOpen() {
+    const { modal } = getRefs();
+    return modal ? !modal.classList.contains("hidden") : false;
+  }
 
-  // Close on backdrop click
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) close();
-  });
+  // 一次性 document 级监听(委托,跨 VT 存活)
+  document.addEventListener("open-search", open);
 
   // Esc closes, Cmd/Ctrl+K opens
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+    if (e.key === "Escape" && isOpen()) {
       close();
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      if (modal.classList.contains("hidden")) {
-        open();
-      } else {
-        close();
-      }
+      if (isOpen()) close();
+      else open();
     }
   });
 
-  // Debounced search
+  // modal 内点击(backdrop 关闭、搜索结果跳转)也走 document 委托
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const { modal } = getRefs();
+    if (!modal || modal.classList.contains("hidden")) return;
+    if (target === modal) {
+      // 点击 backdrop(modal 自身)关闭
+      close();
+      return;
+    }
+    const resultLink = target.closest("[data-search-result]");
+    if (resultLink) {
+      // 点击搜索结果:允许跳转并关闭弹层
+      close();
+    }
+  });
+
+  // Debounced search:input 事件委托到 document(输入框节点会随 VT 更换)
   let debounce: ReturnType<typeof setTimeout>;
-  input.addEventListener("input", () => {
+  document.addEventListener("input", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || target.id !== "search-input") return;
+    const input = getRefs().input;
+    if (!input) return;
     clearTimeout(debounce);
     debounce = setTimeout(async () => {
       const query = input.value.trim();
@@ -143,14 +178,8 @@
         link.append(title, excerpt);
         fragment.appendChild(link);
       }
-      results.replaceChildren(fragment);
+      const results = getRefs().results;
+      if (results) results.replaceChildren(fragment);
     }, 300);
-  });
-
-  // Close the modal before navigating to a result
-  results.addEventListener("click", (e) => {
-    if ((e.target as Element).closest("a[data-search-result]")) {
-      close();
-    }
   });
 </script>
