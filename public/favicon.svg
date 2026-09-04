@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 纸张底 -->
+  <rect width="64" height="64" fill="#F9F8F6"/>
+  <!-- 顶部砖红强调线（呼应站点头部的 accent 细线） -->
+  <rect x="0" y="0" width="64" height="4" fill="#A63A2B"/>
+  <!-- 刊名首字 S（衬线，呼应 Playfair/Noto Serif 气质） -->
+  <text x="32" y="45" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-style="italic" text-anchor="middle" fill="#1C1C1C">S</text>
+</svg>

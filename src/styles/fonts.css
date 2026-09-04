@@ -1,5 +1,10 @@
-/* Noto Serif SC — CJK serif for Chinese headings */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
+/* Noto Serif SC — CJK serif for Chinese headings.
+   本地自托管：分片 CSS（400/700.css）由 scripts/materialize-noto-serif-sc.mjs
+   在 predev/prebuild 时从 @fontsource/noto-serif-sc 物化到 /fonts/noto-serif-sc/，
+   woff2 按 unicode-range 分块、浏览器只按需下载命中块，替代原先的 Google Fonts @import
+   （国内不可达且阻塞渲染）。字体文件不入库，见 .gitignore。 */
+@import url('/fonts/noto-serif-sc/400.css');
+@import url('/fonts/noto-serif-sc/700.css');
 
 /* Playfair Display — serif display font for headings */
 @font-face {

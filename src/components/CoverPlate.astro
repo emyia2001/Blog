@@ -10,6 +10,7 @@ interface Props {
   size?: "card" | "thumb";
   alt?: string;
   class?: string;
+  priority?: boolean; // 首屏（LCP）封面用: eager + fetchpriority=high，其余保持 lazy
 }
 
 const {
@@ -23,6 +24,7 @@ const {
   size = "card",
   alt = title,
   class: className = "",
+  priority = false,
 } = Astro.props;
 
 // 稳定取模：同一篇文章每次构建得到同一构图
@@ -31,7 +33,14 @@ const v = ((Math.abs(Math.trunc(variant)) % 3) + 3) % 3;
 
 {image ? (
   <div class={`cover-root relative overflow-hidden bg-[#EDEAE4] ${ratioClass} ${className}`}>
-    <img src={image} alt={alt} class="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
+    <img
+      src={image}
+      alt={alt}
+      class="absolute inset-0 w-full h-full object-cover"
+      loading={priority ? "eager" : "lazy"}
+      fetchpriority={priority ? "high" : undefined}
+      decoding="async"
+    />
     {caption && (
       <>
         <div class="absolute inset-x-0 bottom-0 h-[45%]" style="background: linear-gradient(180deg, transparent, rgba(28,28,28,0.55));" aria-hidden="true"></div>

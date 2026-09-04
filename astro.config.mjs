@@ -5,10 +5,11 @@ import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 import { editorialLight } from "./src/utils/editorialShikiTheme";
 import { rehypeCodeBlock } from "./src/utils/rehype-code-block";
+import { SITE_URL } from "./src/consts";
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://example.com",
+  site: SITE_URL,
   output: "static",
   server: {
     // 固定监听所有网卡:局域网内可直接通过本机 IP 访问开发服务器
