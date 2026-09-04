@@ -1,0 +1,53 @@
+---
+import type { ContributionCell } from "../utils/contributions";
+
+interface Props {
+  grid: ContributionCell[][];
+  total: number | null;
+}
+
+const { grid, total } = Astro.props;
+
+const CAL_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+---
+
+{
+  grid.length > 0 && (
+    <div>
+      <p class="mb-3 flex items-baseline gap-2 text-[10px] tracking-[0.24em] uppercase text-[var(--color-ed-subtle)]">
+        GitHub 贡献
+        {total !== null && (
+          <span class="normal-case tracking-normal text-[var(--color-ed-muted)]">
+            {total}
+          </span>
+        )}
+      </p>
+      <svg
+        class="h-auto w-full"
+        viewBox={`0 0 ${grid.length * 16 + 2} ${7 * 16 - 2}`}
+        role="img"
+        aria-label="GitHub 贡献热力图"
+      >
+        {grid.map((col, w) =>
+          col.map((cell, d) => (
+            <rect
+              x={w * 16}
+              y={d * 16}
+              width="13"
+              height="13"
+              rx="3"
+              fill={CAL_COLORS[cell.level]}
+            >
+              <title>
+                {cell.date}：{cell.count} 次提交
+              </title>
+            </rect>
+          ))
+        )}
+      </svg>
+      <p class="mt-2 text-[10px] text-[var(--color-ed-subtle)]">
+        近半年 · 每天一格
+      </p>
+    </div>
+  )
+}
