@@ -51,7 +51,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       aria-label="放大关系图谱"
       title="放大关系图谱"
     >
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg id="graph-expand-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
       </svg>
     </button>
@@ -114,12 +114,19 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     border-color: rgba(255, 255, 255, 0.15);
   }
   .graph-layout.is-expanded .graph-expand {
+    width: 2.5rem;
+    height: 2.5rem;
+    top: 1.25rem;
+    right: 1.25rem;
     background: var(--color-ed-fg);
     color: var(--color-ed-bg);
     border-color: var(--color-ed-fg);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   }
   .graph-layout.is-expanded .graph-expand:hover {
-    color: var(--color-ed-accent);
+    background: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+    color: var(--color-ed-bg);
   }
   .graph-layout.is-expanded .graph-detail {
     background: var(--color-ed-bg);
@@ -403,6 +410,18 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     resizeObserver = null;
     simulation.stop();
     document.body.style.overflow = "";
+    // 若正展开：把 layout 移回原位，避免离开页面后 layout 残留在 body 末尾
+    const lay = document.getElementById("graph-layout");
+    if (lay && lay.classList.contains("is-expanded") && layoutOrigin) {
+      const { parent, next } = layoutOrigin;
+      if (next && next.parentNode === parent) {
+        parent.insertBefore(lay, next);
+      } else {
+        parent.appendChild(lay);
+      }
+      lay.classList.remove("is-expanded");
+      layoutOrigin = null;
+    }
   }
 
   document.addEventListener("astro:before-swap", cleanup, {
@@ -502,6 +521,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   // --- Pan & zoom ---
   let zoom = { k: 1, tx: 0, ty: 0 };
+  let userPanned = false; // 用户手动滚轮/拖拽过就不再自动 fit
   function applyZoom() {
     zoomG.setAttribute(
       "transform",
@@ -509,6 +529,42 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     );
   }
   applyZoom();
+
+  // 根据节点实际包围盒，把整图缩放/平移到铺满画布（留 ~12% 边距），
+  // 消除节点聚在中央、四周大片留白的问题。
+  function fitToContent() {
+    if (!svg.isConnected || nodes.length === 0 || userPanned) return;
+    const w = svg.clientWidth;
+    const h = svg.clientHeight;
+    if (!w || !h) return;
+    const xs = nodes.map((n) => n.x ?? 0);
+    const ys = nodes.map((n) => n.y ?? 0);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const bw = Math.max(maxX - minX, 1);
+    const bh = Math.max(maxY - minY, 1);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    // 铺到画布的 82%（视口比例不同，取能放下整体且不超边的最小缩放）
+    const newK = Math.min((w * 0.82) / bw, (h * 0.82) / bh, 2.2);
+    zoom.k = Math.max(newK, 0.2);
+    zoom.tx = w / 2 - cx * zoom.k;
+    zoom.ty = h / 2 - cy * zoom.k;
+    applyZoom();
+  }
+
+  // 布局首次稳定后自动铺满（d3 tick 结束后）
+  let fitOnce = false;
+  function tryAutoFit() {
+    if (fitOnce || userPanned) return;
+    fitOnce = true;
+    fitToContent();
+  }
+  simulation.on("end", tryAutoFit);
+  // 兜底：首次若干 tick 后（若 simulation 长时间不 end）
+  setTimeout(tryAutoFit, 1400);
 
   function svgPoint(e: PointerEvent | WheelEvent | Touch) {
     const pt = svg.createSVGPoint();
@@ -616,12 +672,42 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   // --- 放大 / 还原（全屏） ---
   const layoutEl = document.getElementById("graph-layout");
   const expandBtn = document.getElementById("graph-expand");
+  // 展开时把 layout 移到 body 直属：sticky/transform 父级会锁死 fixed 定位，
+  // 导致全屏层被限制在右栏内、被顶部 nav 盖住（层叠上下文困住）。
+  // 记录原位置以便还原时移回。
+  let layoutOrigin: { parent: Node; next: Node | null } | null = null;
   function setExpanded(on: boolean) {
     if (!layoutEl) return;
+    if (on && layoutEl.parentElement !== document.body) {
+      layoutOrigin = {
+        parent: layoutEl.parentNode as Node,
+        next: layoutEl.nextSibling,
+      };
+      document.body.appendChild(layoutEl);
+    } else if (!on && layoutOrigin) {
+      const { parent, next } = layoutOrigin;
+      if (next && next.parentNode === parent) {
+        parent.insertBefore(layoutEl, next);
+      } else {
+        parent.appendChild(layoutEl);
+      }
+      layoutOrigin = null;
+    }
     layoutEl.classList.toggle("is-expanded", on);
     if (expandBtn) {
       expandBtn.setAttribute("aria-label", on ? "还原关系图谱" : "放大关系图谱");
-      expandBtn.title = on ? "还原" : "放大";
+      expandBtn.title = on ? "还原 (Esc)" : "放大";
+    }
+    // 图标切换：⤢ 放大 ⇄ ✕ 还原
+    const icon = document.getElementById("graph-expand-icon");
+    if (icon) {
+      const p = icon.querySelector("path");
+      if (p) {
+        p.setAttribute(
+          "d",
+          on ? "M6 6l12 12M18 6L6 18" : "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"
+        );
+      }
     }
     if (on) {
       document.body.style.overflow = "hidden";
@@ -630,7 +716,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     }
     // 等布局切换完成后再 fit（fixed 全屏下 svg 尺寸变化）
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => fitViewBox())
+      requestAnimationFrame(() => {
+        userPanned = false;
+        fitOnce = false;
+        fitViewBox();
+        // 布局在更大画布上重排后重新铺满
+        simulation.alpha(0.6).restart();
+        setTimeout(fitToContent, 600);
+      })
     );
   }
   expandBtn?.addEventListener("click", (e) => {
