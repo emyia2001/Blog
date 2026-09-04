@@ -34,7 +34,7 @@
 - **滚动入场动画**：`.reveal`（淡入）与 `.mask-reveal`（擦除）在元素进入视口时触发。
 - **客户端视图过渡**：基于 Astro `ViewTransitions`，站内跳转无刷新。
 - **背景音乐（MiniPlayer）**：右下角迷你播放器，支持单曲循环、淡入淡出、切后台自动暂停、回前台恢复。
-- **关系图谱**：「纪事」页时间线下方用 `d3-force` 力导向图呈现文章/人物/事件的关联，支持拖拽、滚轮缩放、点击查看详情；正文里的 `[[维基链接]]` 会自动连边。
+- **关系图谱**：独立 `/graph` 页用 `d3-force` 力导向图呈现文章/人物/事件的关联，支持拖拽、滚轮缩放、点击查看详情、放大全屏；正文里的 `[[维基链接]]` 会自动连边。
 - **全文搜索**：`Cmd/Ctrl + K` 唤起搜索弹窗，由 Pagefind 提供（需先构建出索引）。
 - **GitHub 贡献热力图**：首页关于卡内展示，构建期拉取（GraphQL/公开抓取双路径）。
 
@@ -67,7 +67,8 @@ src/
 │   └── BackToTop.astro     回到顶部
 ├── pages/
 │   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
-│   ├── timeline.astro      纪事：时间线（moments 流）+ 关系图谱
+│   ├── timeline.astro      纪事：时间线（moments 流，右侧固定轴）
+│   ├── graph.astro         关系图谱（独立页，整页宽）
 │   ├── archive.astro       归档（标签云 + 按年文章列表，已合并原 /tags）
 │   ├── notes.astro         随感列表（段末来源渲染为右对齐破折号标识）
 │   ├── blog/[slug].astro   文章详情（调用 Sidebar 布局）
@@ -122,7 +123,7 @@ public/
 
 ### 三者区别（一句话）
 - **posts** = 完整可独立访问的长文章：有自己的 URL（`/blog/<slug>`）、标签、侧边栏目录、相关文章与评论。
-- **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：没有独立页面，只能在「纪事」时间线（点开内联展开正文）与关系图谱里看，更轻量、偏碎片记录。
+- **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：没有独立页面，只能在「纪事」时间线（点开内联展开正文）与关系图谱（/graph）里看，更轻量、偏碎片记录。
 - **notes** = 更短的一句话随感，独立成区 `/notes`，连标题/摘要都不要。
 
 | 维度 | posts | moments | notes |
@@ -166,7 +167,7 @@ npm run preview  # 预览构建结果（含搜索索引）
 
 - **站点信息**：`src/consts.ts` 里改 `SITE_NAME` / `SITE_DESCRIPTION` / `SITE_URL` / `SITE_AVATAR`（首页关于卡与图谱中心节点头像）/ `SITE_CREATED`（创站天数起点）/ `SITE_BGM`（默认背景音乐）。
 - **设计令牌**：`src/styles/editorial.css` 顶部的 `@theme` 集中定义了配色（`--color-ed-*`）与字体（`--font-serif` / `--font-sans`），改这里即可换肤。
-- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/随感/归档，无「关于」——个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
+- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/图谱/随感/归档，无「关于」——个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
 - **评论**：`Giscus.astro` 默认指向 `emyia2001/comment` 仓库，换成自己的仓库需同步 `data-repo` / `data-repo-id` / `data-category-id`。
 
 ---
