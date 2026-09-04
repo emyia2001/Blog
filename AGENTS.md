@@ -34,15 +34,17 @@ src/
 ├── layouts/
 │   ├── BaseLayout.astro   HTML 骨架（head/SEO/导航/搜索/页脚/ViewTransitions）
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
-├── components/            Nav / Footer / BannerPlate / CoverPlate / GraphView /
-│                          MiniPlayer / SearchModal / Giscus / PersonalCard /
+├── components/            Nav / Footer / GraphView / ContributionHeatmap /
+│                          MiniPlayer / SearchModal / Giscus /
 │                          TagCloud / Toc / PrevNext / BackToTop
-├── pages/                 路由实际目录结构：index.astro / about.astro（含关系图谱与
-│                          GitHub 热力图）/ timeline / archive / notes /
+├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
+│                          left 近期笔墨 / right 关于·纪事·标签卡）/ timeline（时间线 +
+│                          关系图谱）/ archive / notes /
 │                          blog/[slug].astro / tags/[tag].astro /
 │                          404.astro / rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
-└── utils/                 readingTime.ts / coverVariant.ts / editorialShikiTheme.ts / rehype-code-block.ts
+└── utils/                 readingTime.ts / graphData.ts（图谱聚合）/ contributions.ts
+│                          （GitHub 热力图取数）/ editorialShikiTheme.ts / rehype-code-block.ts
 public/                    fonts/（本地 woff2）、images/（banner/头像等）
 .pages.yml                 Pages CMS 配置（posts + notes 集合）
 ```
@@ -69,12 +71,13 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 ### 内容新增/修改后的提交要求
 - `notes` 排序依赖 git 提交时间，**新增/编辑 notes 后应尽快提交**，否则展示时间滞后。
 
-### about 页：关系图谱与贡献热力图（构建期实现要点）
-- **图谱渲染位置**：只有 `/about`（`src/pages/about.astro`）渲染 `<GraphView>`。节点/连线在 about.astro 的 frontmatter 里用 Content API 聚合好后以 props 传入；交互脚本在 `GraphView.astro` 自带的 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
+### 首页/纪事：个人信息与关系图谱（构建期实现要点）
+- **个人信息（原 about 页，已并入首页）**：无 `/about` 页。首页 `index.astro` 右栏「关于」卡承载头像/介绍/统计/**GitHub 贡献热力图**/社交链接；热力图数据经 `src/utils/contributions.ts` 构建时拉取，渲染用 `ContributionHeatmap.astro` 组件。
+- **图谱渲染位置**：只有 `/timeline`（`src/pages/timeline.astro`）的时间线下方渲染 `<GraphView>`。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments)` 聚合（不再需要 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带的 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
 - **节点聚合规则**：posts + moments 中「非 draft 且 `graph.enabled !== false`（默认 true）」的内容各成一个节点，另加固定的「我」(self) 节点。节点显示名 = `graph.name ?? title`；post 节点可跳 `/blog/<id去掉.mdx>`，moment 无落地页。
 - **连边来源**：所有内容节点都连向 self；正文里 `[[锚点]]`（对原始 body 做正则匹配）按 `graph.name` 优先、`title` 回退找目标节点（保留旧链接可用），跳过自连与重复边。
 - **改动图谱前必读**：见上方 posts 的「关系图谱」条目——`[[...]]` 目前只产生连线、正文原样显示方括号，**别拿它当正文内链**。
-- **贡献热力图**：about 页在构建期请求 GitHub 贡献数据并烤进 HTML。有 `GITHUB_CONTRIB_TOKEN` 时走 GraphQL（含「公开显示的私有仓库」贡献），否则或失败时回退公开抓取，再失败则热力图留空（构建日志 console.warn 可见）。令牌读取：`import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN`（Astro 构建与 Vite dev 都会读 `.env.local`）。这正是 §1 里 GitHub Actions 每日重建要刷新的「构建期数据」。
+- **贡献热力图**：首页关于卡在构建期请求 GitHub 贡献数据并烤进 HTML（`contributions.ts`）。有 `GITHUB_CONTRIB_TOKEN` 时走 GraphQL（含「公开显示的私有仓库」贡献），否则或失败时回退公开抓取，再失败则热力图留空（构建日志 console.warn 可见）。令牌读取：`import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN`（Astro 构建与 Vite dev 都会读 `.env.local`）。这正是 §1 里 GitHub Actions 每日重建要刷新的「构建期数据」。
 
 ## 5. Git 提交规范（本仓库有强制钩子）
 
@@ -86,7 +89,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`，社交图标在 `PersonalCard.astro`，Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/随感/归档，无「关于」——个人信息并入首页右栏关于卡），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
@@ -96,7 +99,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 ### 7.1 每次构建后必查（基础门禁）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/about`、`/archive`、`/timeline`、`/notes`、`/tags`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`、`/notes`、`/tags`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查
@@ -110,7 +113,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 **改布局/组件/交互（Nav、Sidebar、搜索、图谱、移动端、ViewTransitions、MiniPlayer）**
 - [ ] **桌面 + 移动端**都过一遍：菜单抽屉 / 目录 / 搜索弹窗在**站内跳转后**仍可点开（历史回归点）
 - [ ] 搜索：`npm run build` 后（Pagefind 索引存在）在 `/` 上搜到新增内容；dev 下提示「索引尚未生成」属正常
-- [ ] 图谱（/about）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放正常；改过 `graph.enabled/name` 的条目已复查
+- [ ] 图谱（/timeline）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放正常；改过 `graph.enabled/name` 的条目已复查
 - [ ] 评论 Giscus、MiniPlayer BGM、`.reveal`/`.mask-reveal` 动画在目标页面仍工作
 - [ ] 换过 `src/consts.ts` 站点信息后：站名/URL/社交链接在各处一致（无残留旧值）
 

@@ -27,16 +27,16 @@
 
 - **字体与色彩**：标题用衬线 `Playfair Display` + `Noto Serif SC`，正文用 `Source Sans 3`；纸张底色 `#F9F8F6`、墨色 `#1C1C1C`、点缀色砖红 `#A63A2B`。
 - **固定装饰框**：大屏下页面四周有一圈细线边框，顶部为砖红强调线；左侧竖排写着 `SNARK · EDITORIAL JOURNAL`。
-- **刊首插图（BannerPlate）**：韵律线条构图（波浪 / 涟漪 / 等高线三种变体按日期轮换），叠加封面轮播图，并带「创站第 N 天」「第 N 期」水印与打字机式随感短句。
-- **书封式封面（CoverPlate）**：每篇文章根据其 id 稳定映射到一个构图变体；有 `heroImage` 时显示图片，无图时用矢量线条封面。
+- **首页报头头条 + 双栏版面**：最新一篇以「本期头条」大字呈现（附 Vol 刊号与坚持天数），右侧独立栏承载关于卡（个人信息 + GitHub 贡献热力图）、纪事、标签——全程不依赖封面图维护。
 - **首字下沉 + 引语（drop-cap / pull-quote）**：文章正文首段首字下沉，可选引语块独立呈现。
 - **阅读时长**：`readingTime` 工具对中英混排做智能估算（中文 ~300 字/分，英文 ~200 词/分）。
 - **右侧目录（TOC）**：文章页右侧 sticky 目录，带滚动高亮（scroll-spy）；移动端变为右侧抽屉。
 - **滚动入场动画**：`.reveal`（淡入）与 `.mask-reveal`（擦除）在元素进入视口时触发。
 - **客户端视图过渡**：基于 Astro `ViewTransitions`，站内跳转无刷新。
 - **背景音乐（MiniPlayer）**：右下角迷你播放器，支持单曲循环、淡入淡出、切后台自动暂停、回前台恢复。
-- **关系图谱**：「关于」页用 `d3-force` 力导向图呈现内容关联，支持拖拽、滚轮缩放、点击查看详情；正文里的 `[[维基链接]]` 会自动连边。
+- **关系图谱**：「纪事」页时间线下方用 `d3-force` 力导向图呈现文章/人物/事件的关联，支持拖拽、滚轮缩放、点击查看详情；正文里的 `[[维基链接]]` 会自动连边。
 - **全文搜索**：`Cmd/Ctrl + K` 唤起搜索弹窗，由 Pagefind 提供（需先构建出索引）。
+- **GitHub 贡献热力图**：首页关于卡内展示，构建期拉取（GraphQL/公开抓取双路径）。
 
 ---
 
@@ -57,20 +57,17 @@ src/
 ├── components/
 │   ├── Nav.astro          顶部导航（桌面 + 移动端抽屉，抽屉裁剪在视口内防溢出）
 │   ├── Footer.astro        页脚
-│   ├── BannerPlate.astro   首页刊首插图（线条构图 + 封面轮播 + 水印）
-│   ├── CoverPlate.astro    通用封面组件（矢量变体 / 图片，含书封与缩略图两种形态）
 │   ├── GraphView.astro     关系图谱（d3-force，可拖拽缩放，详情面板）
+│   ├── ContributionHeatmap.astro GitHub 贡献热力图渲染
 │   ├── MiniPlayer.astro    背景音乐播放器（Web Component）
 │   ├── SearchModal.astro   搜索弹窗（Pagefind，Cmd/Ctrl+K）
 │   ├── Giscus.astro        评论区（主题 CSS 按 commit hash 自动走 jsDelivr）
-│   ├── PersonalCard.astro  「关于」页个人信息卡 + 社交图标
 │   ├── TagCloud.astro      标签云（可复用，按计数排序）
 │   ├── PrevNext.astro      文章上下篇导航
 │   └── BackToTop.astro     回到顶部
 ├── pages/
-│   ├── index.astro         首页：刊首 / 本期 / 目录 / 浮光 / 标签云
-│   ├── about.astro         关于页 + 关系图谱
-│   ├── timeline.astro      时间线（moments 流）
+│   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
+│   ├── timeline.astro      纪事：时间线（moments 流）+ 关系图谱
 │   ├── archive.astro       归档（标签云 + 按年文章列表，已合并原 /tags）
 │   ├── notes.astro         随感列表（段末来源渲染为右对齐破折号标识）
 │   ├── blog/[slug].astro   文章详情（调用 Sidebar 布局）
@@ -85,7 +82,8 @@ src/
 │   └── giscus-theme.css    Giscus 暗/亮主题变量
 └── utils/
     ├── readingTime.ts      中英混排阅读时长估算
-    └── coverVariant.ts     文章 id → 封面构图变体（稳定哈希，0/1/2）
+    ├── graphData.ts        关系图谱节点/连线聚合（posts + moments）
+    └── contributions.ts    GitHub 贡献热力图取数（GraphQL/公开抓取）
 
 public/
 ├── fonts/                 本地字体（Playfair Display / Source Sans 3 的 woff2）
@@ -107,7 +105,7 @@ public/
 | `date` | date | 发布日期 |
 | `excerpt` | string | 摘要 |
 | `slug` | string? | 链接短名，决定 `/blog/<slug>`（CMS 发文时填写） |
-| `heroImage` | string? | 封面图 URL（支持外链，如 `img.snark.casa`） |
+| `heroImage` | string? | 图 URL（可选；已不渲染为文章封面，仅用于分享卡 `og:image` 与图谱节点头像） |
 | `articleLayout` | `"sidebar"` | 目前仅 sidebar 一种版式 |
 | `tags` | string[] | 标签 |
 | `draft` | boolean | 草稿（`true` 不发布） |
@@ -166,9 +164,9 @@ npm run preview  # 预览构建结果（含搜索索引）
 
 ## 自定义要点
 
-- **站点信息**：`src/consts.ts` 里改 `SITE_NAME` / `SITE_DESCRIPTION` / `SITE_URL` / `SITE_AVATAR`（关于页与图谱中心节点头像）/ `SITE_CREATED`（创站天数起点）/ `SITE_BGM`（默认背景音乐）。
+- **站点信息**：`src/consts.ts` 里改 `SITE_NAME` / `SITE_DESCRIPTION` / `SITE_URL` / `SITE_AVATAR`（首页关于卡与图谱中心节点头像）/ `SITE_CREATED`（创站天数起点）/ `SITE_BGM`（默认背景音乐）。
 - **设计令牌**：`src/styles/editorial.css` 顶部的 `@theme` 集中定义了配色（`--color-ed-*`）与字体（`--font-serif` / `--font-sans`），改这里即可换肤。
-- **导航 / 社交**：导航项在 `src/components/Nav.astro`；社交图标在 `src/components/PersonalCard.astro`。
+- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/随感/归档，无「关于」——个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
 - **评论**：`Giscus.astro` 默认指向 `emyia2001/comment` 仓库，换成自己的仓库需同步 `data-repo` / `data-repo-id` / `data-category-id`。
 
 ---
