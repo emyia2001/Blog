@@ -6,7 +6,7 @@
 ## 1. 项目速览
 
 - **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），纯静态站点，部署于 Cloudflare Pages（`git push` 自动构建）。
-- **线上地址**：`https://blog.snark.casa`（构建配置里 `site` 目前写的是 `https://example.com`，注意不要误以为是真实站点）。
+- **线上地址**：`https://blog.snark.casa`（`astro.config.mjs` 的 `site` 从 `src/consts.ts` 的 `SITE_URL` 导入，唯一真源；不要再硬编码域名）。
 - **技术栈**：Astro 5（`output: static`）+ MDX + Tailwind CSS v4（`@tailwindcss/vite`）+ Pagefind（全文搜索，构建后生成索引）+ astro-icon + d3-force（关系图谱）+ Giscus（评论）。
 - **Git 远程仓库**：`emyia2001/Blog`（GitHub）。**GitHub Actions 每日定时触发 Cloudflare 重建**，用于刷新构建期数据（如提交数）。
 
@@ -118,7 +118,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 - [ ] `npm run build` 通过，且产物体积/`dist/pagefind` 无异常
 - [ ] 全站路由与上一版对比无缺页（sitemap 数量/路径）
 - [ ] 重点回归 ViewTransitions 站内跳转、搜索索引、代码高亮（`rehype-code-block` 与自定义 Shiki 主题）、字体/图标加载
-- [ ] 确认 `site` 仍是 `https://example.com` 或按需改动（别误当成真实线上地址）
+- [ ] 确认 `site` 来自 `src/consts.ts` 的 `SITE_URL`（`astro.config.mjs` 已从 consts 导入，勿硬编码域名）
 
 ### 7.3 提交前自查
 - [ ] `git diff` 复核：无调试残留、无无关文件
