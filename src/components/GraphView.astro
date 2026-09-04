@@ -51,6 +51,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     display: flex;
     align-items: stretch;
     gap: 0;
+    position: relative;
+    container-type: inline-size;
   }
 
   .graph-detail {
@@ -68,6 +70,27 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     width: 20rem;
     opacity: 1;
     padding-left: 1.5rem;
+  }
+
+  /* 窄容器（如首页右栏 / 时间线右栏内的图谱）：详情改为浮层盖在图上 */
+  @container (max-width: 620px) {
+    .graph-detail {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      height: 100%;
+      width: 0;
+      border-left: 1px solid var(--color-ed-faint);
+      background: var(--color-ed-bg);
+      box-shadow: -12px 0 30px rgba(28, 28, 28, 0.12);
+      overflow-y: auto;
+    }
+    .graph-detail.is-open {
+      width: 100%;
+      padding: 1rem;
+      opacity: 1;
+    }
   }
 
   .graph-preview-img {
