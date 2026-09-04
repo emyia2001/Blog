@@ -60,6 +60,15 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 </figure>
 
 <style>
+  /* 自动 fit（初始铺满 / 放大切换）时平滑过渡，避免节点大小突跳。
+     手动滚轮缩放前脚本会临时置 0 关闭过渡（见 zoomTo）。 */
+  #graph-zoom {
+    transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #graph-zoom.no-anim {
+    transition: none;
+  }
+
   .graph-layout {
     display: flex;
     align-items: stretch;
@@ -563,8 +572,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     fitToContent();
   }
   simulation.on("end", tryAutoFit);
-  // 兜底：首次若干 tick 后（若 simulation 长时间不 end）
-  setTimeout(tryAutoFit, 1400);
+  // 兜底：若干 tick 后布局已基本收敛即铺满（simulation 可能持续微动不触发 end）
+  setTimeout(tryAutoFit, 900);
 
   function svgPoint(e: PointerEvent | WheelEvent | Touch) {
     const pt = svg.createSVGPoint();
@@ -577,6 +586,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     "wheel",
     (e) => {
       e.preventDefault();
+      // 手动滚轮：跟手要紧，临时关掉过渡
+      zoomG.classList.add("no-anim");
       const p = svgPoint(e);
       const factor = Math.exp(-e.deltaY * 0.001);
       const newK = Math.min(4, Math.max(0.4, zoom.k * factor));
@@ -584,6 +595,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
       zoom.k = newK;
       applyZoom();
+      userPanned = true;
+      requestAnimationFrame(() => zoomG.classList.remove("no-anim"));
     },
     { passive: false, signal: cleanupController.signal }
   );
