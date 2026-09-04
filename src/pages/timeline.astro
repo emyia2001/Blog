@@ -2,13 +2,8 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
-import GraphView from "../components/GraphView.astro";
-import { buildGraphData } from "../utils/graphData";
 
-const [allMoments, allPosts] = await Promise.all([
-  getCollection("moments"),
-  getCollection("posts"),
-]);
+const allMoments = await getCollection("moments");
 
 const publishedMoments = allMoments
   .filter((m) => !m.data.draft)
@@ -65,11 +60,6 @@ const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
 const defaultIndex = entries.findIndex((e) => e.kind !== "post");
 const defaultRendered =
   defaultIndex >= 0 ? renderedAll[entries[defaultIndex].contentIndex] : null;
-
-// 关系图谱（posts + moments 全节点）
-const graphData = buildGraphData(allPosts, allMoments);
-const graphNodes = graphData.nodes;
-const graphLinks = graphData.links;
 ---
 
 <BaseLayout title="纪事">
@@ -172,28 +162,6 @@ const graphLinks = graphData.links;
                 );
               })}
             </ol>
-
-            <!-- 关系图谱（时间轴正下方） -->
-            {graphNodes.length > 1 && (
-              <div class="mt-10 border-t border-[var(--color-ed-faint)] pt-6">
-                <div class="tl-title-row mb-4">关系图谱</div>
-                <GraphView nodes={graphNodes} links={graphLinks} />
-                <ul class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-[var(--color-ed-muted)]">
-                  <li class="flex items-center gap-1.5">
-                    <span class="inline-block h-2 w-2 rounded-full" style="background:var(--color-ed-fg)"></span>
-                    我 / 文章
-                  </li>
-                  <li class="flex items-center gap-1.5">
-                    <span class="inline-block h-2 w-2 rounded-full border" style="border-color:var(--color-ed-muted)"></span>
-                    人物
-                  </li>
-                  <li class="flex items-center gap-1.5">
-                    <span class="inline-block h-2 w-1.5 rotate-45" style="background:var(--color-ed-muted)"></span>
-                    事件
-                  </li>
-                </ul>
-              </div>
-            )}
           </aside>
         </div>
       ) : (

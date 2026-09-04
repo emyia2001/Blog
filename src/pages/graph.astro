@@ -1,0 +1,67 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import GraphView from "../components/GraphView.astro";
+import { buildGraphData } from "../utils/graphData";
+
+const [allPosts, allMoments] = await Promise.all([
+  getCollection("posts"),
+  getCollection("moments"),
+]);
+
+const graphData = buildGraphData(allPosts, allMoments);
+const graphNodes = graphData.nodes;
+const graphLinks = graphData.links;
+---
+
+<BaseLayout title="图谱">
+  <div class="mx-auto max-w-[1380px] px-6 md:px-8">
+    <section class="pt-10 md:pt-16 pb-24">
+      <div class="home-sec-head mb-10">
+        <span class="home-sec-title">
+          关系图谱
+          <small>Connections</small>
+        </span>
+        <a href="/timeline" class="home-sec-more">纪事时间线 →</a>
+      </div>
+
+      {graphNodes.length > 1 ? (
+        <>
+          <div class="graph-tall">
+            <GraphView nodes={graphNodes} links={graphLinks} />
+          </div>
+          <ul class="mt-6 flex flex-wrap items-center gap-x-8 gap-y-2 text-xs text-[var(--color-ed-muted)]">
+            <li class="flex items-center gap-2">
+              <span class="inline-block h-3 w-3 rounded-full" style="background:var(--color-ed-fg)"></span>
+              我 / 文章
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="inline-block h-3 w-3 rounded-full border" style="border-color:var(--color-ed-muted)"></span>
+              人物
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="inline-block h-3 w-3 rotate-45" style="background:var(--color-ed-muted)"></span>
+              事件
+            </li>
+          </ul>
+          <p class="mt-6 max-w-prose text-sm leading-relaxed text-[var(--color-ed-subtle)]">
+            文章、人物与事件之间的关系网络：正文里的
+            <code class="rounded border border-[var(--color-ed-faint)] px-1 py-0.5 text-[0.85em]">[[锚点]]</code>
+            会自动连边。拖拽节点、滚轮缩放，点击节点查看详情。
+          </p>
+        </>
+      ) : (
+        <p class="py-20 text-center text-[var(--color-ed-muted)]">
+          暂无内容。
+        </p>
+      )}
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  /* 独立图谱页：画布更高，充分利用整页宽度 */
+  .graph-tall :global(#graph-svg) {
+    height: 34rem;
+  }
+</style>
