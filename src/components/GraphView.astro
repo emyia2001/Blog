@@ -280,9 +280,13 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   nodes.forEach((n, i) => {
     const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
-    const spread = Math.min(W / 2 - 40, 60 + nodes.length * 22);
-    n.x = W / 2 + Math.cos(angle) * spread;
-    n.y = H / 2 + Math.sin(angle) * spread;
+    // 按实际容器散布：短边方向铺满 ~72%，长边按比例延伸，充分利用画布
+    const cw = svg.clientWidth || W;
+    const ch = svg.clientHeight || H;
+    const rx = Math.max(30, cw * 0.36);
+    const ry = Math.max(30, ch * 0.36);
+    n.x = cw / 2 + Math.cos(angle) * rx;
+    n.y = ch / 2 + Math.sin(angle) * ry;
   });
 
   const NS = "http://www.w3.org/2000/svg";
@@ -397,7 +401,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force("charge", forceManyBody().strength(-300))
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
-    // "self" is pinned to the center, everything else orbits it
+    // "self" is pinned to the center
     .force("x", forceX(W / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .on("tick", ticked);
@@ -508,7 +512,28 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     simulation
       .force("x", forceX(w / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
       .force("y", forceY(h / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)));
-    simulation.alpha(0.3).restart();
+    // 画布尺寸变化时：边距/斥力按画布短边自适应，并把卫星节点重新散布到
+    // 以 self 为中心的环上（布局自然收敛，非 transform 跳变）
+    const short = Math.min(w, h);
+    const linkForce = simulation.force("link") as { distance: (v: number) => unknown } | null;
+    linkForce?.distance(Math.max(100, short * 0.42));
+    const others = nodes.filter((n) => n.kind !== "self");
+    const ringR = Math.max(40, short * 0.3);
+    const cx = w / 2;
+    const cy = h / 2;
+    const selfNode = nodes.find((n) => n.kind === "self");
+    if (selfNode) {
+      selfNode.x = cx;
+      selfNode.y = cy;
+      selfNode.fx = cx;
+      selfNode.fy = cy;
+    }
+    others.forEach((n, i) => {
+      const a = (i / Math.max(others.length, 1)) * Math.PI * 2;
+      n.x = cx + Math.cos(a) * ringR;
+      n.y = cy + Math.sin(a) * ringR;
+    });
+    simulation.alpha(0.6).restart();
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);
