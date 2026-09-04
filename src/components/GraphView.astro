@@ -27,7 +27,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 ---
 
 <figure id="graph-view" aria-label="关系图谱">
-  <div class="graph-layout">
+  <div class="graph-layout" id="graph-layout">
     <svg
       id="graph-svg"
       viewBox="0 0 800 500"
@@ -42,6 +42,19 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     </svg>
 
     <aside id="graph-detail" class="graph-detail" aria-live="polite"></aside>
+
+    <!-- 放大 / 还原 -->
+    <button
+      type="button"
+      id="graph-expand"
+      class="graph-expand"
+      aria-label="放大关系图谱"
+      title="放大关系图谱"
+    >
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
+      </svg>
+    </button>
   </div>
   <script type="application/json" id="graph-data" set:html={graphData}></script>
 </figure>
@@ -53,6 +66,63 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     gap: 0;
     position: relative;
     container-type: inline-size;
+  }
+
+  /* 放大按钮：悬浮在图右上角 */
+  .graph-expand {
+    position: absolute;
+    top: 0.625rem;
+    right: 0.625rem;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-ed-faint);
+    background: rgba(249, 248, 246, 0.9);
+    color: var(--color-ed-muted);
+    cursor: pointer;
+    transition:
+      color 0.2s,
+      border-color 0.2s,
+      background 0.2s;
+    backdrop-filter: blur(4px);
+  }
+  .graph-expand:hover {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+    background: var(--color-ed-bg);
+  }
+
+  /* 全屏展开态 */
+  .graph-layout.is-expanded {
+    position: fixed;
+    inset: 1rem;
+    z-index: 100;
+    gap: 0;
+    padding: 1rem;
+    background: rgba(28, 28, 28, 0.5);
+    border-radius: 0.75rem;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  }
+  .graph-layout.is-expanded .graph-svg {
+    height: auto;
+    max-height: none;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  .graph-layout.is-expanded .graph-expand {
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-fg);
+  }
+  .graph-layout.is-expanded .graph-expand:hover {
+    color: var(--color-ed-accent);
+  }
+  .graph-layout.is-expanded .graph-detail {
+    background: var(--color-ed-bg);
   }
 
   .graph-detail {
@@ -171,6 +241,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   const W = 800;
   const H = 500;
   const cleanupController = new AbortController();
+
   const nodes = data.nodes.map((n) => ({ ...n })) as Array<
     GraphNode & {
       x?: number;
@@ -182,10 +253,29 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   const links = data.links.map((l) => ({ ...l }));
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
+  // 节点大小随节点总数自动缩放：节点少时略收敛、多时递减，避免拥挤/过大。
+  // 4 个节点 → ≈0.82；10 个 → ≈0.60；上限 1、下限 0.5。
+  const nodeScale = Math.max(
+    0.5,
+    Math.min(1, 1.25 / Math.pow(Math.max(nodes.length, 1), 0.35))
+  );
+  // 半径（diamond 的 L1 半径）
+  const R = {
+    avatarSelf: 13 * nodeScale,
+    avatar: 10 * nodeScale,
+    self: 11 * nodeScale,
+    node: 7 * nodeScale, // post / person
+    event: 9 * nodeScale,
+    hit: 24 * nodeScale,
+    collide: 34 * nodeScale,
+    labelY: 26 * nodeScale + 4,
+  };
+
   nodes.forEach((n, i) => {
     const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
-    n.x = W / 2 + Math.cos(angle) * 120;
-    n.y = H / 2 + Math.sin(angle) * 120;
+    const spread = Math.min(W / 2 - 40, 60 + nodes.length * 22);
+    n.x = W / 2 + Math.cos(angle) * spread;
+    n.y = H / 2 + Math.sin(angle) * spread;
   });
 
   const NS = "http://www.w3.org/2000/svg";
@@ -211,7 +301,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
     // Large transparent hit area: forgiving click/drag targets
     const hit = document.createElementNS(NS, "circle");
-    hit.setAttribute("r", "24");
+    hit.setAttribute("r", String(R.hit));
     hit.setAttribute("fill", "transparent");
     hit.style.pointerEvents = "all";
     g.appendChild(hit);
@@ -220,7 +310,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     const isSelf = n.kind === "self";
 
     if (n.avatar) {
-      const r = isSelf ? 13 : 10;
+      const r = isSelf ? R.avatarSelf : R.avatar;
       const clipId = `graph-clip-${ni}`;
       const defs = document.createElementNS(NS, "defs");
       const clip = document.createElementNS(NS, "clipPath");
@@ -252,17 +342,18 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       );
       if (isEvent) {
         // diamond outline to keep it distinct from post (dot) and person (ring)
-        shape.setAttribute("points", "0,-9 9,0 0,9 -9,0");
+        const er = R.event;
+        shape.setAttribute("points", `0,${-er} ${er},0 0,${er} ${-er},0`);
         shape.setAttribute("fill", "none");
         shape.setAttribute("stroke", "var(--color-ed-muted)");
         shape.setAttribute("stroke-width", "1.5");
       } else if (isSelf) {
-        shape.setAttribute("r", "11");
+        shape.setAttribute("r", String(R.self));
         shape.setAttribute("fill", "var(--color-ed-fg)");
         shape.setAttribute("stroke", "var(--color-ed-bg)");
         shape.setAttribute("stroke-width", "3");
       } else {
-        shape.setAttribute("r", "7");
+        shape.setAttribute("r", String(R.node));
         if (n.kind === "post") {
           shape.setAttribute("fill", "var(--color-ed-fg)");
         } else {
@@ -277,7 +368,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     const label = document.createElementNS(NS, "text");
     label.setAttribute("class", "graph-label");
     label.setAttribute("text-anchor", "middle");
-    label.setAttribute("y", "26");
+    label.setAttribute("y", String(R.labelY));
     label.setAttribute(
       "style",
       `font-family: 'Source Sans 3', sans-serif; font-size: 12px; fill: var(--color-ed-muted);${isSelf ? " font-weight: 600;" : ""}`
@@ -298,7 +389,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     )
     .force("charge", forceManyBody().strength(-300))
     .force("center", forceCenter(W / 2, H / 2))
-    .force("collide", forceCollide().radius(34))
+    .force("collide", forceCollide().radius(R.collide))
     // "self" is pinned to the center, everything else orbits it
     .force("x", forceX(W / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
     .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
@@ -311,6 +402,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     resizeObserver?.disconnect();
     resizeObserver = null;
     simulation.stop();
+    document.body.style.overflow = "";
   }
 
   document.addEventListener("astro:before-swap", cleanup, {
@@ -332,10 +424,10 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   // Circles are constant-radius; the diamond is an L1 ball (R = 9).
   function radial(n: GraphNode, ux: number, uy: number): number {
     if (n.kind === "event") {
-      return 9 / (Math.abs(ux) + Math.abs(uy));
+      return R.event / (Math.abs(ux) + Math.abs(uy));
     }
-    if (n.kind === "self") return 11;
-    return 7; // post, person
+    if (n.kind === "self") return R.self;
+    return R.node; // post, person
   }
 
   // Shorten each link so it touches the node edges instead of crossing to centers
@@ -521,6 +613,31 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   // --- Active / highlight ---
   let activeId: string | null = null;
 
+  // --- 放大 / 还原（全屏） ---
+  const layoutEl = document.getElementById("graph-layout");
+  const expandBtn = document.getElementById("graph-expand");
+  function setExpanded(on: boolean) {
+    if (!layoutEl) return;
+    layoutEl.classList.toggle("is-expanded", on);
+    if (expandBtn) {
+      expandBtn.setAttribute("aria-label", on ? "还原关系图谱" : "放大关系图谱");
+      expandBtn.title = on ? "还原" : "放大";
+    }
+    if (on) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    // 等布局切换完成后再 fit（fixed 全屏下 svg 尺寸变化）
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => fitViewBox())
+    );
+  }
+  expandBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setExpanded(!layoutEl?.classList.contains("is-expanded"));
+  }, { signal: cleanupController.signal });
+
   function linkEndIds(l: GraphLink): [string, string] {
     const s = resolveNode(l.source as never);
     const t = resolveNode(l.target as never);
@@ -644,7 +761,13 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") clearActive();
+    if (e.key === "Escape") {
+      if (layoutEl?.classList.contains("is-expanded")) {
+        setExpanded(false);
+      } else {
+        clearActive();
+      }
+    }
   }, { signal: cleanupController.signal });
 
   // timeline selected something -> clear graph highlight
