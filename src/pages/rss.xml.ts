@@ -18,6 +18,6 @@ export async function GET() {
       pubDate: post.data.date,
       link: `/blog/${post.id.replace(/\.mdx$/, "")}`,
     })),
-    customData: `<language>en-us</language>`,
+    customData: `<language>zh-cn</language>`,
   });
 }

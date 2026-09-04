@@ -1,6 +1,6 @@
 ---
 import { ViewTransitions } from "astro:transitions";
-import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "../consts";
+import { SITE_NAME, SITE_DESCRIPTION, SITE_URL, SITE_AVATAR } from "../consts";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import BackToTop from "../components/BackToTop.astro";
@@ -17,6 +17,11 @@ export interface Props {
 const { title, description = SITE_DESCRIPTION, image } = Astro.props;
 const fullTitle = `${title} — ${SITE_NAME}`;
 const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
+// OG 分享图兜底：文章页用 heroImage（Sidebar 传入），其余页面用头像占位，
+// 保证分享卡片始终有图。
+const ogImage = image || SITE_AVATAR;
+const ogImageURL = new URL(ogImage, SITE_URL).href;
+const twitterCard = image ? "summary_large_image" : "summary";
 ---
 
 <!doctype html>
@@ -26,6 +31,10 @@ const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+
+    <!-- Icons & theme color -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#F9F8F6" />
 
     <!-- Font preload -->
     <link
@@ -48,12 +57,14 @@ const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalURL} />
-    {image && <meta property="og:image" content={new URL(image, SITE_URL).href} />}
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:image:alt" content={fullTitle} />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
+    <meta name="twitter:card" content={twitterCard} />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageURL} />
 
     <!-- Canonical -->
     <link rel="canonical" href={canonicalURL} />

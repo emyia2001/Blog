@@ -47,6 +47,8 @@ const lines = intro ?? [
                   alt={slide.title || ""}
                   class="w-full h-full object-cover"
                   loading={i === 0 ? "eager" : "lazy"}
+                  fetchpriority={i === 0 ? "high" : undefined}
+                  decoding="async"
                 />
                 <div class="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
               </a>

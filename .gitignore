@@ -3,6 +3,7 @@ dist/
 node_modules/
 .omo/
 public/pagefind/
+public/fonts/noto-serif-sc/
 .env
 .env.*
 .playwright-mcp/
