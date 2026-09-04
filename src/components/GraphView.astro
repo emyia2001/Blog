@@ -60,15 +60,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 </figure>
 
 <style>
-  /* 自动 fit（初始铺满 / 放大切换）时平滑过渡，避免节点大小突跳。
-     手动滚轮缩放前脚本会临时置 0 关闭过渡（见 zoomTo）。 */
-  #graph-zoom {
-    transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  #graph-zoom.no-anim {
-    transition: none;
-  }
-
   .graph-layout {
     display: flex;
     align-items: stretch;
@@ -530,7 +521,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   // --- Pan & zoom ---
   let zoom = { k: 1, tx: 0, ty: 0 };
-  let userPanned = false; // 用户手动滚轮/拖拽过就不再自动 fit
   function applyZoom() {
     zoomG.setAttribute(
       "transform",
@@ -538,42 +528,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     );
   }
   applyZoom();
-
-  // 根据节点实际包围盒，把整图缩放/平移到铺满画布（留 ~12% 边距），
-  // 消除节点聚在中央、四周大片留白的问题。
-  function fitToContent() {
-    if (!svg.isConnected || nodes.length === 0 || userPanned) return;
-    const w = svg.clientWidth;
-    const h = svg.clientHeight;
-    if (!w || !h) return;
-    const xs = nodes.map((n) => n.x ?? 0);
-    const ys = nodes.map((n) => n.y ?? 0);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const bw = Math.max(maxX - minX, 1);
-    const bh = Math.max(maxY - minY, 1);
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    // 铺到画布的 82%（视口比例不同，取能放下整体且不超边的最小缩放）
-    const newK = Math.min((w * 0.82) / bw, (h * 0.82) / bh, 2.2);
-    zoom.k = Math.max(newK, 0.2);
-    zoom.tx = w / 2 - cx * zoom.k;
-    zoom.ty = h / 2 - cy * zoom.k;
-    applyZoom();
-  }
-
-  // 布局首次稳定后自动铺满（d3 tick 结束后）
-  let fitOnce = false;
-  function tryAutoFit() {
-    if (fitOnce || userPanned) return;
-    fitOnce = true;
-    fitToContent();
-  }
-  simulation.on("end", tryAutoFit);
-  // 兜底：若干 tick 后布局已基本收敛即铺满（simulation 可能持续微动不触发 end）
-  setTimeout(tryAutoFit, 900);
 
   function svgPoint(e: PointerEvent | WheelEvent | Touch) {
     const pt = svg.createSVGPoint();
@@ -586,8 +540,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     "wheel",
     (e) => {
       e.preventDefault();
-      // 手动滚轮：跟手要紧，临时关掉过渡
-      zoomG.classList.add("no-anim");
       const p = svgPoint(e);
       const factor = Math.exp(-e.deltaY * 0.001);
       const newK = Math.min(4, Math.max(0.4, zoom.k * factor));
@@ -595,8 +547,6 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
       zoom.k = newK;
       applyZoom();
-      userPanned = true;
-      requestAnimationFrame(() => zoomG.classList.remove("no-anim"));
     },
     { passive: false, signal: cleanupController.signal }
   );
@@ -727,15 +677,12 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     } else {
       document.body.style.overflow = "";
     }
-    // 等布局切换完成后再 fit（fixed 全屏下 svg 尺寸变化）
+    // 容器尺寸变化后：viewBox 跟随新尺寸，并让 d3 在新画布上重算布局
+    // （保持 zoom 不动，不做自动铺满）
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        userPanned = false;
-        fitOnce = false;
         fitViewBox();
-        // 布局在更大画布上重排后重新铺满
         simulation.alpha(0.6).restart();
-        setTimeout(fitToContent, 600);
       })
     );
   }
