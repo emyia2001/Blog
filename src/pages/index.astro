@@ -73,28 +73,35 @@ const daysStr = String(daysNum).padStart(2, "0");
       <main class="min-w-0">
         {heroPost && (
           <header class="home-masthead">
-            <div class="home-kicker">
-              本期头条 · Current Issue
-              <span class="home-kicker__vol">Vol. {vol} · 创站第 {daysStr} 天</span>
-            </div>
-            <a href={postUrl(heroPost.id)} class="no-underline">
-              <h1 class="home-masthead__title">{heroPost.data.title}</h1>
-            </a>
-            {heroPost.data.excerpt && (
-              <p class="home-masthead__dek">{heroPost.data.excerpt}</p>
-            )}
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)]">
-              <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
-              {heroPost.data.tags?.length > 0 && (
-                <>
-                  <span class="text-[var(--color-ed-faint)]" aria-hidden="true">·</span>
-                  <span>{heroPost.data.tags.join(" · ")}</span>
-                </>
+            <span class="home-masthead__rail" aria-hidden="true">
+              {SITE_NAME}
+            </span>
+            <div class="home-masthead__body">
+              <div class="home-masthead__topline" aria-hidden="true"></div>
+              <div class="home-kicker">
+                <span class="home-kicker__label">最新文章</span>
+                <span class="home-kicker__no">No.01</span>
+                <span class="home-kicker__vol">Vol. {vol} · 创站第 {daysStr} 天</span>
+              </div>
+              <a href={postUrl(heroPost.id)} class="no-underline">
+                <h1 class="home-masthead__title">{heroPost.data.title}</h1>
+              </a>
+              {heroPost.data.excerpt && (
+                <p class="home-masthead__dek">{heroPost.data.excerpt}</p>
               )}
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)]">
+                <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
+                {heroPost.data.tags?.length > 0 && (
+                  <>
+                    <span class="text-[var(--color-ed-faint)]" aria-hidden="true">·</span>
+                    <span>{heroPost.data.tags.join(" · ")}</span>
+                  </>
+                )}
+              </div>
+              <a href={postUrl(heroPost.id)} class="home-masthead__cta">
+                阅读全文 →
+              </a>
             </div>
-            <a href={postUrl(heroPost.id)} class="home-masthead__cta">
-              阅读本期 →
-            </a>
           </header>
         )}
 
@@ -118,6 +125,13 @@ const daysStr = String(daysNum).padStart(2, "0");
                 <span class="home-post-title">{post.data.title}</span>
                 {post.data.excerpt && (
                   <span class="home-post-excerpt">{post.data.excerpt}</span>
+                )}
+                {post.data.tags?.length > 0 && (
+                  <span class="home-post-tags">
+                    {post.data.tags.slice(0, 3).map((tag) => (
+                      <span class="chip-inline">{tag}</span>
+                    ))}
+                  </span>
                 )}
               </span>
               <span class="home-post-meta">
@@ -227,8 +241,6 @@ const daysStr = String(daysNum).padStart(2, "0");
         )}
       </aside>
     </div>
-
-    <p class="home-signoff">—— 慢慢写。</p>
   </div>
 </BaseLayout>
 

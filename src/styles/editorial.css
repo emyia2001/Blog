@@ -34,7 +34,7 @@ body {
 
 @media (min-width: 1280px) {
   body::after {
-    content: 'SNARK · EDITORIAL JOURNAL';
+    content: 'SNARK';
     position: fixed;
     left: 1.35rem;
     top: 50%;
@@ -681,12 +681,41 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- 报头条（masthead）：本期头条 + 期刊角标 --- */
 .home-masthead {
-  padding: 3.25rem 0 2.25rem;
+  padding: 2rem 0 2.25rem;
+  display: flex;
+  gap: 1.25rem;
+  position: relative;
+}
+
+/* 竖排刊名装饰（rail） */
+.home-masthead__rail {
+  writing-mode: vertical-rl;
+  font-size: 0.5625rem;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: rgba(166, 58, 43, 0.5);
+  padding-top: 0.25rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* 报头主体 */
+.home-masthead__body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 砖红眉线 + 细分隔 */
+.home-masthead__topline {
+  width: 3.5rem;
+  height: 3px;
+  background: var(--color-ed-accent);
+  margin-bottom: 1.25rem;
 }
 
 .home-kicker {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.875rem;
   font-size: 0.625rem;
   letter-spacing: 0.3em;
@@ -698,6 +727,21 @@ h1, h2, h3, h4, h5, h6 {
   content: '';
   flex: 1;
   border-bottom: 1px solid var(--color-ed-faint);
+}
+.home-kicker__label {
+  letter-spacing: 0.3em;
+}
+.home-kicker__no {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 0.875rem;
+  letter-spacing: 0.06em;
+  color: var(--color-ed-fg);
+  text-transform: none;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--color-ed-faint);
+  border-radius: 2px;
+  line-height: 1.4;
 }
 .home-kicker__vol {
   color: var(--color-ed-subtle);
@@ -830,6 +874,27 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.8125rem;
   color: var(--color-ed-muted);
   line-height: 1.65;
+}
+
+/* 文章行内小标签 */
+.home-post-tags {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.chip-inline {
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+  color: var(--color-ed-subtle);
+  border: 1px solid var(--color-ed-faint);
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.home-post-row:hover .chip-inline {
+  color: var(--color-ed-accent);
+  border-color: var(--color-ed-accent);
 }
 .home-post-meta {
   text-align: right;
@@ -1005,21 +1070,14 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.625rem;
 }
 
-/* 页脚落款 */
-.home-signoff {
-  text-align: center;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 0.9375rem;
-  color: var(--color-ed-muted);
-  padding: 0.625rem 0 0.25rem;
-}
-
 /* --- 响应式：窄屏收拢为单列 --- */
 @media (max-width: 1000px) {
   .home-layout {
     grid-template-columns: 1fr;
     gap: 2.25rem;
+  }
+  .home-masthead__rail {
+    display: none;
   }
   .home-side {
     flex-direction: row;
