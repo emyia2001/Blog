@@ -2,26 +2,25 @@
 import { SITE_NAME, SITE_DESCRIPTION } from "../consts";
 const year = new Date().getFullYear();
 const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
+// 博客联盟 / 友链接力链接：以后加入新联盟，在此追加一项即可。
+// 注：开往因规则要求"打开网站即可见"，另在 Nav.astro 顶栏保留入口（桌面+移动抽屉）。
+const allianceLinks = [
+  {
+    href: "https://www.travellings.cn/go.html",
+    label: "开往",
+    title: "开往 · 友链接力",
+  },
+];
 ---
 
 <footer class="border-t border-[var(--color-ed-faint)] py-8">
-  <div class="mx-auto flex max-w-7xl flex-col items-center px-6 text-center">
+  <div class="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 text-center">
     <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
       <span class="text-[var(--color-ed-subtle)]">
         &copy; {year} {SITE_NAME}
       </span>
       <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
       <a href="/rss.xml" class="hover-underline no-underline">RSS</a>
-      <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
-      <a
-        href="https://www.travellings.cn/go.html"
-        class="hover-underline no-underline"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="开往 · 友链接力"
-      >
-        开往
-      </a>
       {socialLinks.map((link) => (
         <>
           <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
@@ -37,5 +36,22 @@ const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
       ))}
     </div>
 
+    {allianceLinks.length > 0 && (
+      <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
+        <span class="text-[var(--color-ed-subtle)]">友链</span>
+        <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+        {allianceLinks.map((link) => (
+          <a
+            href={link.href}
+            class="hover-underline no-underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            title={link.title}
+          >
+            {link.label}
+          </a>
+        ))}
+      </div>
+    )}
   </div>
 </footer>
