@@ -25,7 +25,6 @@ export const SITE_CREATED = new Date("2026-08-06T00:00:00+08:00");
 export const SITE_SOCIAL: { label: string; href: string; icon: string }[] = [
   { label: "GitHub", href: "https://github.com/emyia2001", icon: "mdi:github" },
   { label: "微信", href: "https://img.snark.casa/photo/IMG_6069(20240727-200947).969n7rex9h.JPG", icon: "mdi:wechat" },
-  { label: "网易云音乐", href: "#", icon: "mdi:music-circle" },
 ];
 
 // 用于「关于」页构建时拉取提交数的 GitHub 仓库（owner/repo）
