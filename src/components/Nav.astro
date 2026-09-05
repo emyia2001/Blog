@@ -7,6 +7,15 @@ const navLinks = [
   { href: "/archive", label: "归档" },
 ];
 
+// 开往（Travellings）友链接力：外链需放在打开网站即可见的位置（顶栏/侧栏）
+const TRAVELLINGS_HREF = "https://www.travellings.cn/go.html";
+const travellingsAttrs = {
+  href: TRAVELLINGS_HREF,
+  target: "_blank",
+  rel: "noopener noreferrer",
+  title: "开往 · 友链接力",
+};
+
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 ---
 
@@ -42,6 +51,14 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
           </li>
         );
       })}
+      <li>
+        <a
+          {...travellingsAttrs}
+          class="text-xs tracking-[0.05em] no-underline text-[var(--color-ed-muted)] hover-underline"
+        >
+          开往
+        </a>
+      </li>
       <li>
         <button
           type="button"
@@ -98,6 +115,14 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
             </a>
           </li>
         ))}
+        <li>
+          <a
+            {...travellingsAttrs}
+            class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
+          >
+            开往
+          </a>
+        </li>
         <li>
           <button
             type="button"
