@@ -53,7 +53,7 @@ const moments = defineCollection({
   }),
 });
 
-// 随感：只写一段话的短想法，独立于纪事与首页，单独成区（/notes）
+// 随感：只写一段话的短想法，展示在纪事页的「随感」Tab（/timeline），无独立页面
 const notes = defineCollection({
   type: "content",
   schema: z.object({

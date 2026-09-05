@@ -1,5 +1,6 @@
 ---
 import { getCollection, type CollectionEntry } from "astro:content";
+import { execSync } from "node:child_process";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 
@@ -60,113 +61,229 @@ const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
 const defaultIndex = entries.findIndex((e) => e.kind !== "post");
 const defaultRendered =
   defaultIndex >= 0 ? renderedAll[entries[defaultIndex].contentIndex] : null;
+
+// ===== 随感（notes）：与纪事同页 Tab 展示 =====
+// 取文件的 git 提交时间（作者时间，含时区，精确到分钟）作为随感的展示与排序依据，
+// 无 git 信息时回退到 frontmatter 的 date。
+function gitCommitDate(path: string | undefined): { iso: string; ms: number } | null {
+  if (!path) return null;
+  try {
+    const out = execSync(`git log -1 --format=%aI -- "${path}"`, {
+      encoding: "utf-8",
+    }).trim();
+    if (!out) return null;
+    const ms = new Date(out).getTime();
+    if (Number.isNaN(ms)) return null;
+    return { iso: out, ms };
+  } catch {
+    return null;
+  }
+}
+
+const allNotes = await getCollection("notes");
+const publishedNotes = allNotes
+  .filter((n) => !n.data.draft)
+  .map((n) => {
+    const c = gitCommitDate(n.filePath);
+    const date = c ? new Date(c.ms) : n.data.date;
+    return { entry: n, date: date ?? new Date(0), iso: c?.iso };
+  })
+  .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+const renderedNotes = await Promise.all(
+  publishedNotes.map(async ({ entry, date, iso }) => {
+    const display = iso
+      ? iso.slice(0, 16).replace("T", " ")
+      : date.toLocaleString("zh-CN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+    return {
+      Content: (await entry.render()).Content,
+      datetime: iso ?? date.toISOString(),
+      display,
+    };
+  })
+);
 ---
 
 <BaseLayout title="纪事">
   <div class="mx-auto max-w-[1380px] px-6 md:px-8">
     <section class="pt-10 md:pt-16">
-      <h1
-        class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-14"
-      >
-        纪事
-      </h1>
+      <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 mb-8">
+        <h1
+          class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)]"
+        >
+          纪事
+        </h1>
 
-      {entries.length > 0 ? (
-        <div class="grid gap-10 md:grid-cols-[minmax(0,1fr)_320px] items-start">
-          <!-- 左侧：选中的节点正文 -->
-          <div
-            id="timeline-detail"
-            class="min-h-40"
-            aria-live="polite"
-            data-default-index={defaultIndex}
+        <!-- Tab 切换：纪事（默认）| 随感 -->
+        <div
+          class="flex items-center gap-1 border border-[var(--color-ed-faint)]"
+          role="tablist"
+          aria-label="纪事与随感"
+        >
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-timeline"
+            aria-controls="panel-timeline"
+            aria-selected="true"
+            data-tab="timeline"
+            class="px-4 py-1.5 text-xs tracking-[0.12em] no-underline transition-colors duration-200"
           >
-            {defaultRendered && (
-              <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
-                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                  {defaultRendered.entry.data.title}
-                </h2>
-                <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                  {formatDate(defaultRendered.entry.data.date, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-                {defaultRendered.kind === "post" && (
-                  <a
-                    href={`/blog/${defaultRendered.id.replace(/\.mdx$/, "")}`}
-                    class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
-                  >
-                    阅读全文
-                  </a>
-                )}
-                {defaultRendered.kind === "person" && (
-                  <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
-                    人物
-                  </span>
-                )}
-                {defaultRendered.kind === "event" && (
-                  <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
-                    事件
-                  </span>
-                )}
-                {defaultRendered.kind !== "post" &&
-                  defaultRendered.entry.data.bgm?.src && (
-                    <div class="mt-4">
-                      <MiniPlayer
-                        src={defaultRendered.entry.data.bgm.src}
-                        title={defaultRendered.entry.data.bgm.title}
-                      />
-                    </div>
+            纪事
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-notes"
+            aria-controls="panel-notes"
+            aria-selected="false"
+            data-tab="notes"
+            class="px-4 py-1.5 text-xs tracking-[0.12em] no-underline transition-colors duration-200"
+          >
+            随感
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== 面板：纪事 ===== -->
+      <div
+        id="panel-timeline"
+        role="tabpanel"
+        aria-labelledby="tab-btn-timeline"
+      >
+        {entries.length > 0 ? (
+          <div class="grid gap-10 md:grid-cols-[minmax(0,1fr)_320px] items-start">
+            <!-- 左侧：选中的节点正文 -->
+            <div
+              id="timeline-detail"
+              class="min-h-40"
+              aria-live="polite"
+              data-default-index={defaultIndex}
+            >
+              {defaultRendered && (
+                <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
+                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                    {defaultRendered.entry.data.title}
+                  </h2>
+                  <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                    {formatDate(defaultRendered.entry.data.date, {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                  {defaultRendered.kind === "post" && (
+                    <a
+                      href={`/blog/${defaultRendered.id.replace(/\.mdx$/, "")}`}
+                      class="mt-2 inline-block text-xs text-[var(--color-ed-fg)] hover-underline"
+                    >
+                      阅读全文
+                    </a>
                   )}
-                <div class="prose mt-6">
-                  <defaultRendered.Content />
+                  {defaultRendered.kind === "person" && (
+                    <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                      人物
+                    </span>
+                  )}
+                  {defaultRendered.kind === "event" && (
+                    <span class="mt-3 inline-block border border-[var(--color-ed-faint)] px-2 py-0.5 text-[10px] tracking-[0.05em] text-[var(--color-ed-muted)]">
+                      事件
+                    </span>
+                  )}
+                  {defaultRendered.kind !== "post" &&
+                    defaultRendered.entry.data.bgm?.src && (
+                      <div class="mt-4">
+                        <MiniPlayer
+                          src={defaultRendered.entry.data.bgm.src}
+                          title={defaultRendered.entry.data.bgm.title}
+                        />
+                      </div>
+                    )}
+                  <div class="prose mt-6">
+                    <defaultRendered.Content />
+                  </div>
+                </article>
+              )}
+            </div>
+
+            <!-- 右侧固定栏：简约时间轴 -->
+            <aside id="view-timeline" class="md:sticky md:top-24 min-w-0">
+              <div class="tl-title-row mb-1">纪事轴</div>
+              <ol class="tl-simple">
+                {entries.map((entry, i) => {
+                  const label =
+                    entry.kind === "person"
+                      ? "人物"
+                      : entry.kind === "post"
+                        ? "文章"
+                        : "事件";
+                  return (
+                    <li
+                      class="timeline-point group"
+                      data-kind={entry.kind}
+                      data-index={i}
+                      data-url={entry.url}
+                      data-content-index={entry.contentIndex}
+                      role="button"
+                      tabindex="0"
+                      aria-expanded="false"
+                    >
+                      <span class="tl-simple__dot" aria-hidden="true"></span>
+                      <span class="tl-simple__body">
+                        <time class="tl-simple__date" datetime={entry.date.toISOString()}>
+                          {formatDate(entry.date, { year: "numeric", month: "short" })}
+                        </time>
+                        <span class="tl-title block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-accent)]">
+                          {entry.title}
+                        </span>
+                        <span class="tl-simple__label">{label}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </aside>
+          </div>
+        ) : (
+          <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
+        )}
+      </div>
+
+      <!-- ===== 面板：随感 ===== -->
+      <div
+        id="panel-notes"
+        role="tabpanel"
+        aria-labelledby="tab-btn-notes"
+        hidden
+      >
+        {renderedNotes.length > 0 ? (
+          <div class="max-w-2xl space-y-12">
+            {renderedNotes.map(({ Content, datetime, display }) => (
+              <article class="border-b border-[var(--color-ed-faint)] pb-10">
+                <div class="mb-4">
+                  <time
+                    datetime={datetime}
+                    class="text-xs text-[var(--color-ed-subtle)] tabular-nums"
+                  >
+                    {display}
+                  </time>
+                </div>
+                <div class="prose notes-prose">
+                  <Content />
                 </div>
               </article>
-            )}
+            ))}
           </div>
-
-          <!-- 右侧固定栏：简约时间轴 + 关系图谱（时间轴正下方） -->
-          <aside id="view-timeline" class="md:sticky md:top-24 min-w-0">
-            <div class="tl-title-row mb-1">纪事轴</div>
-            <ol class="tl-simple">
-              {entries.map((entry, i) => {
-                const label =
-                  entry.kind === "person"
-                    ? "人物"
-                    : entry.kind === "post"
-                      ? "文章"
-                      : "事件";
-                return (
-                  <li
-                    class="timeline-point group"
-                    data-kind={entry.kind}
-                    data-index={i}
-                    data-url={entry.url}
-                    data-content-index={entry.contentIndex}
-                    role="button"
-                    tabindex="0"
-                    aria-expanded="false"
-                  >
-                    <span class="tl-simple__dot" aria-hidden="true"></span>
-                    <span class="tl-simple__body">
-                      <time class="tl-simple__date" datetime={entry.date.toISOString()}>
-                        {formatDate(entry.date, { year: "numeric", month: "short" })}
-                      </time>
-                      <span class="tl-title block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-accent)]">
-                        {entry.title}
-                      </span>
-                      <span class="tl-simple__label">{label}</span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          </aside>
-        </div>
-      ) : (
-        <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
-      )}
+        ) : (
+          <p class="text-[var(--color-ed-muted)]">暂无随感。</p>
+        )}
+      </div>
     </section>
 
     <!-- Hidden full-text contents (posts + moments), shared by both views -->
@@ -318,6 +435,26 @@ const defaultRendered =
     outline: 1px solid var(--color-ed-accent);
     outline-offset: 4px;
   }
+
+  /* —— Tab 切换（纪事 | 随感）—— */
+  [role="tab"] {
+    color: var(--color-ed-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-serif);
+  }
+  [role="tab"]:hover {
+    color: var(--color-ed-fg);
+  }
+  [role="tab"][aria-selected="true"] {
+    color: var(--color-ed-bg);
+    background: var(--color-ed-fg);
+  }
+  [role="tab"]:focus-visible {
+    outline: 1px solid var(--color-ed-accent);
+    outline-offset: 2px;
+  }
 </style>
 
 <script>
@@ -394,4 +531,54 @@ const defaultRendered =
       }
     });
   });
+
+  // ===== Tab 切换（纪事 | 随感）=====
+  // 默认停在纪事面板（服务端已按此渲染）；随感面板内容为静态渲染，仅做显隐。
+  const tabButtons = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-tab]")
+  );
+  const panels: Record<string, HTMLElement | null> = {
+    timeline: document.getElementById("panel-timeline"),
+    notes: document.getElementById("panel-notes"),
+  };
+
+  function switchTab(name: string) {
+    tabButtons.forEach((btn) => {
+      const on = btn.dataset.tab === name;
+      btn.setAttribute("aria-selected", String(on));
+    });
+    if (name === "timeline") {
+      panels.notes?.setAttribute("hidden", "");
+      panels.timeline?.removeAttribute("hidden");
+    } else {
+      panels.timeline?.setAttribute("hidden", "");
+      panels.notes?.removeAttribute("hidden");
+    }
+  }
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.tab;
+      if (name) switchTab(name);
+    });
+  });
+
+  // ===== 随感来源（句末 `—— 来源` 渲染为右对齐来源标识）=====
+  // 随感面板静态渲染，元素已在 DOM 中；函数带去重标记，重复执行无害。
+  function styleNoteSources() {
+    document.querySelectorAll("#panel-notes .notes-prose p").forEach((p) => {
+      if (p.dataset.noteSrc) return;
+      const text = p.textContent ?? "";
+      const m = text.match(/^(.*)\s*[—–-]{1,2}\s*(.+?)\s*$/);
+      if (m) {
+        p.textContent = m[1].trim();
+        const span = document.createElement("span");
+        span.className = "note-source";
+        span.textContent = "—— " + m[2];
+        p.appendChild(span);
+        p.dataset.noteSrc = "1";
+      }
+    });
+  }
+  styleNoteSources();
 </script>

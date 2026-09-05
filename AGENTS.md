@@ -30,7 +30,7 @@ src/
 ├── content/
 │   ├── posts/             文章（长文，独立 URL /blog/<slug>）
 │   ├── moments/           时间线节点（person/event，无独立页面）
-│   └── notes/             一句话随感（/notes，只有 date? 与 draft）
+│   └── notes/             一句话随感（并入纪事页 Tab，只有 date? 与 draft）
 ├── layouts/
 │   ├── BaseLayout.astro   HTML 骨架（head/SEO/导航/搜索/页脚/ViewTransitions）
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
@@ -38,8 +38,9 @@ src/
 │                          MiniPlayer / SearchModal / Giscus /
 │                          TagCloud / Toc / PrevNext / BackToTop
 ├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
-│                          left 近期笔墨 / right 关于·纪事·标签卡）/ timeline（时间线）/
-│                          graph.astro（关系图谱独立页）/ archive / notes /
+│                          left 近期笔墨 / right 关于·纪事·标签卡）/
+│                          timeline.astro（纪事时间线 + 随感，同页 Tab）/
+│                          graph.astro（关系图谱独立页）/ archive /
 │                          blog/[slug].astro / tags/[tag].astro /
 │                          404.astro / rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
@@ -89,7 +90,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/随感/归档，无「关于」——个人信息并入首页右栏关于卡），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档，无「关于」「随感」独立项——随感并入纪事页 Tab，个人信息并入首页右栏关于卡），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
@@ -99,7 +100,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 ### 7.1 每次构建后必查（基础门禁）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/archive`、`/timeline`、`/graph`、`/notes`、`/tags`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`（含纪事 + 随感双 Tab）、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查

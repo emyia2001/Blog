@@ -67,10 +67,10 @@ src/
 │   └── BackToTop.astro     回到顶部
 ├── pages/
 │   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
-│   ├── timeline.astro      纪事：时间线（moments 流，右侧固定轴）
+│   ├── timeline.astro      纪事 + 随感：同页 Tab 切换（默认纪事时间线；随感为
+│   │                        notes 短想法流，段末来源渲染为右对齐破折号标识）
 │   ├── graph.astro         关系图谱（独立页，整页宽）
 │   ├── archive.astro       归档（标签云 + 按年文章列表，已合并原 /tags）
-│   ├── notes.astro         随感列表（段末来源渲染为右对齐破折号标识）
 │   ├── blog/[slug].astro   文章详情（调用 Sidebar 布局）
 │   ├── tags/[tag].astro    标签筛选页
 │   ├── 404.astro           自定义 404
@@ -124,13 +124,13 @@ public/
 ### 三者区别（一句话）
 - **posts** = 完整可独立访问的长文章：有自己的 URL（`/blog/<slug>`）、标签、侧边栏目录、相关文章与评论。
 - **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：没有独立页面，只能在「纪事」时间线（点开内联展开正文）与关系图谱（/graph）里看，更轻量、偏碎片记录。
-- **notes** = 更短的一句话随感，独立成区 `/notes`，连标题/摘要都不要。
+- **notes** = 更短的一句话随感，连标题/摘要都不要；展示在「纪事」页的**随感 Tab** 里（与 moments 同页切换）。
 
 | 维度 | posts | moments | notes |
 | --- | --- | --- | --- |
-| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ✅ `/notes` 列表 |
+| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ❌ 并入纪事页随感 Tab |
 | 首页形态 | 头条 + 目录 | 「浮光」胶片条 | 不出现 |
-| 纪事页 | 已移除（现仅 moments） | 点开内联展开正文 | 不出现 |
+| 纪事页 | 已移除（现仅 moments） | 点开内联展开正文 | 随感 Tab 全展开 |
 | 关键字段 | `slug` / `tags` / `pullQuote` / `articleLayout` / `featured` | `type`（person/event） | 仅 `date?` / `draft` |
 | 排版形态 | 长文 + 侧栏目录 + 评论 | 短节点正文 | 极短段落 |
 | 关系图谱 | 节点跳 `/blog` | 节点无外链 | 不出现 |
@@ -167,7 +167,7 @@ npm run preview  # 预览构建结果（含搜索索引）
 
 - **站点信息**：`src/consts.ts` 里改 `SITE_NAME` / `SITE_DESCRIPTION` / `SITE_URL` / `SITE_AVATAR`（首页关于卡与图谱中心节点头像）/ `SITE_CREATED`（创站天数起点）/ `SITE_BGM`（默认背景音乐）。
 - **设计令牌**：`src/styles/editorial.css` 顶部的 `@theme` 集中定义了配色（`--color-ed-*`）与字体（`--font-serif` / `--font-sans`），改这里即可换肤。
-- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/图谱/随感/归档，无「关于」——个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
+- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/图谱/归档，无「关于」「随感」独立项——随感并入纪事页 Tab，个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
 - **评论**：`Giscus.astro` 默认指向 `emyia2001/comment` 仓库，换成自己的仓库需同步 `data-repo` / `data-repo-id` / `data-category-id`。
 
 ---
