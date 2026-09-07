@@ -45,11 +45,12 @@
 ```
 src/
 ├── consts.ts                站点常量：站名、头像、URL、创站日、默认 BGM
-├── content.config.ts        三个内容集合的 Zod schema（posts / moments / notes）
+├── content.config.ts        四个内容集合的 Zod schema（posts / moments / notes / diary）
 ├── content/                MDX 内容（详见下方「内容模型」）
 │   ├── posts/              文章
 │   ├── moments/            时间线节点（人物 / 事件）
-│   └── notes/              随感（短想法）
+│   ├── notes/              随感（短想法）
+│   └── diary/              日记（每日流水，/diary 独立页）
 ├── layouts/
 │   ├── BaseLayout.astro    HTML 骨架：<head> SEO/OG/RSS、导航、搜索、页脚、
 │   │                        ViewTransitions、无障碍「跳至主内容」
@@ -69,6 +70,7 @@ src/
 │   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
 │   ├── timeline.astro      纪事 + 随感：同页 Tab 切换（默认纪事时间线；随感为
 │   │                        notes 短想法流，段末来源渲染为右对齐破折号标识）
+│   ├── diary.astro         日记：独立页（不进导航/图谱/RSS，入口在首页右栏与页脚）
 │   ├── graph.astro         关系图谱（独立页，整页宽）
 │   ├── archive.astro       归档（标签云 + 按年文章列表，已合并原 /tags）
 │   ├── blog/[slug].astro   文章详情（调用 Sidebar 布局）
@@ -90,7 +92,7 @@ public/
 ├── fonts/                 本地字体（Playfair Display / Source Sans 3 的 woff2）
 └── images/                banner / graph 图标 / 头像（touxiang.webp）
 
-.pages.yml                 Pages CMS 配置（posts + notes 两个集合）
+.pages.yml                 Pages CMS 配置（posts / notes / diary 三个集合）
 ```
 
 ---
@@ -121,20 +123,24 @@ public/
 ### `notes`（随感）
 极简短想法，只含 `date?`（可选）与 `draft` 两个字段，无需标题与摘要。`date` 可留空——页面展示与排序**默认取该文件的 git 提交时间（精确到分钟）**，因此用 CMS 发文时无需手填日期。正文段落末尾写 `—— 来源` 会被自动渲染为右对齐的破折号来源标识，段首空两格。
 
-### 三者区别（一句话）
+### `diary`（日记）
+轻量独立的每日流水，字段：`date`（**必填**，记录当天；补写旧日记也写那天）、`title?`（可选，缺省用日期作展示标题）、`draft`。独立页 `/diary` 单栏展示，**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚。它是"进行时的流水账"，与 moments（回顾型人生节点）语义分开；将来若迁移到 Ech0 可整体退役此集合。
+
+### 四者区别（一句话）
 - **posts** = 完整可独立访问的长文章：有自己的 URL（`/blog/<slug>`）、标签、侧边栏目录、相关文章与评论。
 - **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：没有独立页面，只能在「纪事」时间线（点开内联展开正文）与关系图谱（/graph）里看，更轻量、偏碎片记录。
 - **notes** = 更短的一句话随感，连标题/摘要都不要；展示在「纪事」页的**随感 Tab** 里（与 moments 同页切换）。
+- **diary** = 每日流水账，独立页 `/diary`，频率高、可长可短，与公开作品/人生节点分离。
 
-| 维度 | posts | moments | notes |
-| --- | --- | --- | --- |
-| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ❌ 并入纪事页随感 Tab |
-| 首页形态 | 头条 + 目录 | 「浮光」胶片条 | 不出现 |
-| 纪事页 | 已移除（现仅 moments） | 点开内联展开正文 | 随感 Tab 全展开 |
-| 关键字段 | `slug` / `tags` / `pullQuote` / `articleLayout` / `featured` | `type`（person/event） | 仅 `date?` / `draft` |
-| 排版形态 | 长文 + 侧栏目录 + 评论 | 短节点正文 | 极短段落 |
-| 关系图谱 | 节点跳 `/blog` | 节点无外链 | 不出现 |
-| 标签页 / RSS | ✅ | ❌ | ❌ |
+| 维度 | posts | moments | notes | diary |
+| --- | --- | --- | --- | --- |
+| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ❌ 并入纪事页随感 Tab | ✅ `/diary` |
+| 首页形态 | 头条 + 目录 | 「浮光」胶片条 | 不出现 | 右栏入口 |
+| 纪事页 | 已移除（现仅 moments） | 点开内联展开正文 | 随感 Tab 全展开 | 不出现 |
+| 关键字段 | `slug` / `tags` / `pullQuote` / `articleLayout` / `featured` | `type`（person/event） | 仅 `date?` / `draft` | `date` / `title?` |
+| 排版形态 | 长文 + 侧栏目录 + 评论 | 短节点正文 | 极短段落 | 单栏流水 |
+| 关系图谱 | 节点跳 `/blog` | 节点无外链 | 不出现 | 不出现 |
+| 标签页 / RSS | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -156,7 +162,7 @@ npm run preview  # 预览构建结果（含搜索索引）
 本仓库已内置 `.pages.yml`，可直接用 [Pages CMS](https://pagescms.org) 在浏览器（含手机）里编辑内容：
 
 1. 打开 https://pagescms.org ，用 GitHub 登录，绑定本仓库 `emyia2001/Blog`。
-2. 左侧出现「文章」「随感」两个集合，即可新建 / 编辑，保存会自动提交到仓库并触发 Cloudflare 重新构建。
+2. 左侧出现「文章」「随感」「日记」集合，即可新建 / 编辑，保存会自动提交到仓库并触发 Cloudflare 重新构建。
 3. 新建文章时填写「链接 slug」（英文短名，决定 `/blog/<slug>`）；随感文件名自动按时间戳生成。
 
 > 注意：`.pages.yml` 与 `content.config.ts` 是**双份 schema**，需保持一致——改了 `content.config.ts` 的字段（尤其是类型 / 枚举），记得同步 `.pages.yml`，否则 CMS 新建的文章可能与 Zod 校验不符导致构建失败。
