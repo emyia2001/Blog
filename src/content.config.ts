@@ -53,16 +53,7 @@ const moments = defineCollection({
   }),
 });
 
-// 随感：只写一段话的短想法，展示在纪事页的「随感」Tab（/timeline），无独立页面
-const notes = defineCollection({
-  type: "content",
-  schema: z.object({
-    date: z.date().optional(),
-    draft: z.boolean().default(false),
-  }),
-});
-
-// 日记：轻量独立的每日流水，展示在纪事页「日记」Tab。不进图谱/RSS/搜索，仅作个人记录；
+// 日记：轻量独立的每日流水，与 moments 混排在纪事页时间线。不进图谱/RSS/搜索，仅作个人记录；
 // 若将来迁移到 Ech0 可整体退役此集合。date 为"记录当天"的真实日期，必填。
 const diary = defineCollection({
   type: "content",
@@ -73,4 +64,4 @@ const diary = defineCollection({
   }),
 });
 
-export const collections = { posts, moments, notes, diary };
+export const collections = { posts, moments, diary };

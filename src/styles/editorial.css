@@ -205,23 +205,7 @@ h1, h2, h3, h4, h5, h6 {
   text-indent: 2em;
 }
 
-/* 随感：每段首行空两格、更松弛，句末 `-- 来源` 渲染为右对齐来源标识 */
-.notes-prose p {
-  text-indent: 2em;
-  line-height: 2;
-  margin-bottom: 1.8em;
-}
-
-.note-source {
-  display: block;
-  text-indent: 0;
-  text-align: right;
-  margin-top: 0.4em;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  font-style: italic;
-  color: var(--color-ed-subtle);
-}
+/* 随感样式已随 notes 集合移除（2026-09） */
 
 .prose a {
   color: var(--color-ed-fg);
@@ -245,8 +229,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* --- Code blocks: sit on warm paper, with a header bar + copy button --- */
-.prose pre.astro-code,
-.notes-prose pre.astro-code {
+.prose pre.astro-code {
   margin: 1.75em 0;
   padding: 1.1em 1.25em;
   border-radius: 0.5rem;
@@ -260,8 +243,7 @@ h1, h2, h3, h4, h5, h6 {
   tab-size: 2;
 }
 
-.prose pre.astro-code code,
-.notes-prose pre.astro-code code {
+.prose pre.astro-code code {
   font-family: inherit;
   background: none;
   border: 0;
@@ -335,8 +317,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Inline code: subtle chip that matches the paper palette */
-.prose :not(pre) > code,
-.notes-prose :not(pre) > code {
+.prose :not(pre) > code {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.85em;
   padding: 0.12em 0.4em;
