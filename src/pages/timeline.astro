@@ -252,10 +252,11 @@ const defaultRendered =
   .tl-simple {
     list-style: none;
     margin: 0;
-    padding: 0 0.25rem 0 0;
+    padding: 0 1.5rem 0 0.25rem; /* 右侧留余量：dock 放大时文字不被滚动条裁掉 */
     position: relative;
     height: 22rem;
     overflow-y: auto;
+    overflow-x: hidden;
     overscroll-behavior: contain;
   }
   /* 贯穿竖线（用 ::before 画在左侧，穿过所有点的圆心） */
@@ -275,6 +276,15 @@ const defaultRendered =
     cursor: pointer;
     border-radius: 4px;
     position: relative;
+    /* mac dock 鱼眼：悬停/邻近放大由 JS 设 inline transform，这里负责平滑过渡 */
+    transform-origin: left center;
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.2s;
+    will-change: transform;
+    z-index: 1;
+  }
+  .timeline-point.is-dock-hot {
+    z-index: 3;
   }
   .timeline-point:hover {
     background: rgba(28, 28, 28, 0.03);
@@ -333,64 +343,117 @@ const defaultRendered =
 </style>
 
 <script>
-  const points = Array.from(
-    document.querySelectorAll<HTMLElement>(".timeline-point")
-  );
+  // ===== 纪事时间线交互 =====
+  // 点击切换详情采用 document 级事件委托：兼容 ViewTransitions 换页后节点被替换、
+  // 以及脚本重入的情况，避免“点了没反应”。
   const detail = document.getElementById("timeline-detail");
-  const template = document.getElementById(
-    "content-templates"
-  ) as HTMLTemplateElement | null;
-  if (!detail || !template) throw new Error("timeline elements missing");
-
-  const contentBodies = Array.from(
-    template.content.querySelectorAll<HTMLElement>(".content-body")
-  );
-
-  let activeIndex: number | null = null;
-
-  // First entry is shown server-side; keep its point highlighted
-  const initialIndex = Number(detail.dataset.defaultIndex ?? "-1");
-  if (initialIndex >= 0) {
-    activeIndex = initialIndex;
-    setActive(initialIndex);
-  }
-
-  function setActive(i: number | null) {
-    points.forEach((p, idx) => {
-      const on = idx === i;
-      p.setAttribute("aria-expanded", String(on));
-      p.classList.toggle("is-active", on);
-    });
-  }
-
-  function selectPoint(el: HTMLElement, index: number) {
-    if (activeIndex === index) {
-      activeIndex = null;
-      setActive(null);
-      detail.innerHTML = "";
-      return;
-    }
-    activeIndex = index;
-    setActive(index);
-
-    // clone its pre-rendered body into the detail area
-    const contentIdx = Number(el.dataset.contentIndex);
-    const body = contentBodies.find(
-      (b) => b.dataset.contentIndex === String(contentIdx)
+  const template = document.getElementById("content-templates");
+  if (!detail || !template) {
+    console.warn("timeline elements missing");
+  } else {
+    const contentBodies = Array.from(
+      template.content.querySelectorAll<HTMLElement>(".content-body")
     );
-    if (body) {
-      detail.innerHTML = "";
-      detail.appendChild(body.cloneNode(true) as HTMLElement);
-    }
-  }
 
-  points.forEach((el, i) => {
-    el.addEventListener("click", () => selectPoint(el, i));
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
+    let activeIndex: number | null = null;
+
+    // 服务端默认已展开最新一条（轴点 index 0）
+    const initialIndex = Number(detail.dataset.defaultIndex ?? "0");
+    activeIndex = initialIndex;
+
+    function setActive(i: number | null) {
+      const points = document.querySelectorAll<HTMLElement>(".timeline-point");
+      points.forEach((p, idx) => {
+        const on = idx === i;
+        p.setAttribute("aria-expanded", String(on));
+        p.classList.toggle("is-active", on);
+      });
+    }
+    setActive(activeIndex);
+
+    function selectPoint(el: HTMLElement) {
+      const index = Number(el.dataset.index ?? "-1");
+      if (Number.isNaN(index) || index < 0) return;
+      if (activeIndex === index) {
+        activeIndex = null;
+        setActive(null);
+        detail.innerHTML = "";
+        return;
+      }
+      activeIndex = index;
+      setActive(index);
+
+      const contentIdx = Number(el.dataset.contentIndex);
+      const body = contentBodies.find(
+        (b) => b.dataset.contentIndex === String(contentIdx)
+      );
+      if (body) {
+        detail.innerHTML = "";
+        detail.appendChild(body.cloneNode(true) as HTMLElement);
+      }
+    }
+
+    document.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      const point = target?.closest?.(".timeline-point");
+      if (point) selectPoint(point as HTMLElement);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const target = e.target as HTMLElement | null;
+      const point = target?.closest?.(".timeline-point");
+      if (point) {
         e.preventDefault();
-        selectPoint(el, i);
+        selectPoint(point as HTMLElement);
       }
     });
-  });
+  }
+
+  // ===== mac dock 鱼眼动画（右侧时间轴）=====
+  // 鼠标在轴上移动时，靠近光标的条目放大、邻近条目次级放大，离开复位。
+  const axis = document.querySelector<HTMLElement>(".tl-simple");
+  const dockItems = Array.from(
+    document.querySelectorAll<HTMLElement>(".timeline-point")
+  );
+  if (axis && dockItems.length > 0) {
+    const MAX_SCALE = 1.45; // 最近条目最大放大
+    const NEIGHBOR_SCALE = 1.18; // 相邻条目次级放大
+    const EFFECT_RADIUS = 120; // 影响半径 px（超出则不变形）
+    let raf = 0;
+
+    function applyDock(clientY: number | null) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        dockItems.forEach((item) => {
+          const rect = item.getBoundingClientRect();
+          if (clientY === null) {
+            item.style.transform = "";
+            item.classList.remove("is-dock-hot");
+            return;
+          }
+          const itemCenterY = rect.top + rect.height / 2;
+          const dist = Math.abs(clientY - itemCenterY);
+          let scale = 1;
+          if (dist < EFFECT_RADIUS) {
+            // 距离越近放大越多：1 → MAX_SCALE 平滑衰减
+            scale = 1 + (MAX_SCALE - 1) * Math.pow(1 - dist / EFFECT_RADIUS, 1.6);
+            scale = Math.min(scale, MAX_SCALE);
+            if (scale > NEIGHBOR_SCALE) {
+              item.classList.add("is-dock-hot");
+            } else {
+              item.classList.remove("is-dock-hot");
+            }
+          } else {
+            item.classList.remove("is-dock-hot");
+          }
+          item.style.transform =
+            scale > 1.0001 ? `scale(${scale.toFixed(3)})` : "";
+        });
+      });
+    }
+
+    axis.addEventListener("mousemove", (e) => applyDock(e.clientY));
+    axis.addEventListener("mouseleave", () => applyDock(null));
+  }
 </script>
