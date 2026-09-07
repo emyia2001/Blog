@@ -62,7 +62,7 @@ const notes = defineCollection({
   }),
 });
 
-// 日记：轻量独立的每日流水（/diary）。不进图谱/RSS/搜索，仅作个人记录；
+// 日记：轻量独立的每日流水，展示在纪事页「日记」Tab。不进图谱/RSS/搜索，仅作个人记录；
 // 若将来迁移到 Ech0 可整体退役此集合。date 为"记录当天"的真实日期，必填。
 const diary = defineCollection({
   type: "content",
