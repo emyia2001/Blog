@@ -161,7 +161,11 @@ const defaultRendered =
                   role="button"
                   tabindex="0"
                   aria-expanded="false"
+                  style={`--tl-i: ${i}`}
                 >
+                  {/* 段竖线：独立于可缩放内容，入场时逐段生长、悬停时本段高亮 */}
+                  <span class="tl-seg" aria-hidden="true"></span>
+                  {/* 圆点：圆心钉在竖线上，dock 放大时不随文字缩放，始终骑线 */}
                   <span class="tl-simple__dot" aria-hidden="true"></span>
                   <span class="tl-simple__body">
                     <time class="tl-simple__date" datetime={entry.date.toISOString()}>
@@ -247,8 +251,9 @@ const defaultRendered =
     border-bottom: 1px solid var(--color-ed-faint);
   }
 
-  /* 简约时间轴：连续竖线 + 圆点 + 日期/标题。
-     固定高度避免节点少时显得空旷；条目多时内部滚动。 */
+  /* ================= 简约时间轴 =================
+     结构：每 <li> 自带一段竖线 .tl-seg + 一个圆点 .tl-simple__dot。
+     竖线分段 → 可逐段做入场生长与悬停高亮；圆点圆心钉在线上，dock 放大不脱线。 */
   .tl-simple {
     list-style: none;
     margin: 0;
@@ -259,47 +264,78 @@ const defaultRendered =
     overflow-x: hidden;
     overscroll-behavior: contain;
   }
-  /* 贯穿竖线（用 ::before 画在左侧，穿过所有点的圆心） */
-  .tl-simple::before {
-    content: '';
-    position: absolute;
-    left: 3.5px;
-    top: 8px;
-    bottom: 8px;
-    width: 1px;
-    background: rgba(28, 28, 28, 0.18);
+  /* 时间线变量：线 X 坐标（1px 线，中心对齐）、dot 半径 */
+  .tl-simple {
+    --tl-line-x: 7.5px;
+    --tl-dot-d: 9px;
   }
   .timeline-point {
+    position: relative;
     display: flex;
-    gap: 0.875rem;
-    padding: 0.625rem 0;
+    padding: 0.625rem 0 0.625rem 1.5rem; /* 左 padding 让位给线/点 */
     cursor: pointer;
     border-radius: 4px;
-    position: relative;
-    /* mac dock 鱼眼：悬停/邻近放大由 JS 设 inline transform，这里负责平滑过渡 */
-    transform-origin: left center;
-    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
-      background 0.2s;
-    will-change: transform;
-    z-index: 1;
+    /* 入场动画：整体淡入上移（delay 由 --tl-i 逐条错开） */
+    opacity: 0;
+    animation: tl-point-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(0.25s + var(--tl-i, 0) * 0.09s);
   }
-  .timeline-point.is-dock-hot {
-    z-index: 3;
+  @keyframes tl-point-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .timeline-point:hover {
     background: rgba(28, 28, 28, 0.03);
   }
+
+  /* —— 每段竖线：默认透明，入场时逐段从顶生长；悬停/激活时本段点亮 —— */
+  .tl-seg {
+    position: absolute;
+    left: calc(var(--tl-line-x) - 0.5px);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-ed-faint);
+    transform: scaleY(0);
+    transform-origin: top;
+    animation: tl-seg-grow 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(0.25s + var(--tl-i, 0) * 0.09s);
+  }
+  @keyframes tl-seg-grow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+  .timeline-point:hover .tl-seg {
+    background: var(--color-ed-accent);
+    opacity: 0.7;
+  }
+  .timeline-point.is-active .tl-seg {
+    background: var(--color-ed-accent);
+  }
+
+  /* —— 圆点/方点：绝对定位，圆心精确钉在竖线上；放大以圆心为锚，不脱线 —— */
   .tl-simple__dot {
-    position: relative;
-    z-index: 1;
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    margin-top: 3px;
+    position: absolute;
+    left: calc(var(--tl-line-x) - var(--tl-dot-d) / 2);
+    top: 0.9rem; /* 与首行文字（日期）大致齐平 */
+    width: var(--tl-dot-d);
+    height: var(--tl-dot-d);
     border-radius: 50%;
     border: 1px solid var(--color-ed-muted);
     background: var(--color-ed-bg);
+    transform-origin: center;
     transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    pointer-events: none;
   }
   /* 日记节点用小方点以示区分 */
   .timeline-point[data-kind="diary"] .tl-simple__dot {
@@ -312,11 +348,20 @@ const defaultRendered =
   .timeline-point.is-active .tl-simple__dot {
     background: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
+    transform: scale(1.15);
   }
+
+  /* —— 可 dock 缩放的主体：只放大文字区，线与点保持骑线不动 —— */
   .tl-simple__body {
     flex: 1;
     min-width: 0;
     padding-bottom: 0.25rem;
+    transform-origin: left center;
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .timeline-point.is-dock-hot .tl-simple__body {
+    z-index: 3;
   }
   .tl-simple__date {
     display: block;
@@ -426,9 +471,11 @@ const defaultRendered =
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         dockItems.forEach((item) => {
+          // 只缩放文字主体 .tl-simple__body：竖线与圆点保持原位，圆点始终骑线
+          const body = item.querySelector<HTMLElement>(".tl-simple__body");
           const rect = item.getBoundingClientRect();
-          if (clientY === null) {
-            item.style.transform = "";
+          if (clientY === null || !body) {
+            if (body) body.style.transform = "";
             item.classList.remove("is-dock-hot");
             return;
           }
@@ -447,7 +494,7 @@ const defaultRendered =
           } else {
             item.classList.remove("is-dock-hot");
           }
-          item.style.transform =
+          body.style.transform =
             scale > 1.0001 ? `scale(${scale.toFixed(3)})` : "";
         });
       });
