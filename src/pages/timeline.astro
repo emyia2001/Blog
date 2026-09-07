@@ -108,6 +108,30 @@ const renderedNotes = await Promise.all(
     };
   })
 );
+
+// ===== 日记（diary）：纪事页第三个 Tab =====
+// date 为记录当天（必填），倒序展示；title 可选，缺省用长日期作标题。
+const publishedDiary = (await getCollection("diary"))
+  .filter((e) => !e.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const renderedDiary = await Promise.all(
+  publishedDiary.map(async (e) => {
+    const fmtLong = (d: Date) =>
+      d.toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      });
+    return {
+      date: e.data.date,
+      title: e.data.title,
+      display: fmtLong(e.data.date),
+      Content: (await e.render()).Content,
+    };
+  })
+);
 ---
 
 <BaseLayout title="纪事">
@@ -120,11 +144,11 @@ const renderedNotes = await Promise.all(
           纪事
         </h1>
 
-        <!-- Tab 切换：纪事（默认）| 随感 -->
+        <!-- Tab 切换：纪事（默认）| 随感 | 日记 -->
         <div
           class="flex items-center gap-1 border border-[var(--color-ed-faint)]"
           role="tablist"
-          aria-label="纪事与随感"
+          aria-label="纪事、随感与日记"
         >
           <button
             type="button"
@@ -147,6 +171,17 @@ const renderedNotes = await Promise.all(
             class="px-4 py-1.5 text-xs tracking-[0.12em] no-underline transition-colors duration-200"
           >
             随感
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-diary"
+            aria-controls="panel-diary"
+            aria-selected="false"
+            data-tab="diary"
+            class="px-4 py-1.5 text-xs tracking-[0.12em] no-underline transition-colors duration-200"
+          >
+            日记
           </button>
         </div>
       </div>
@@ -282,6 +317,37 @@ const renderedNotes = await Promise.all(
           </div>
         ) : (
           <p class="text-[var(--color-ed-muted)]">暂无随感。</p>
+        )}
+      </div>
+
+      <!-- ===== 面板：日记 ===== -->
+      <div
+        id="panel-diary"
+        role="tabpanel"
+        aria-labelledby="tab-btn-diary"
+        hidden
+      >
+        {renderedDiary.length > 0 ? (
+          <div class="max-w-2xl space-y-14">
+            {renderedDiary.map(({ date, title, display, Content }) => (
+              <article class="border-b border-[var(--color-ed-faint)] pb-10">
+                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                  {title ?? display}
+                </h2>
+                <time
+                  datetime={date.toISOString()}
+                  class="mt-2 mb-6 block text-xs text-[var(--color-ed-subtle)] tabular-nums"
+                >
+                  {display}
+                </time>
+                <div class="prose">
+                  <Content />
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p class="text-[var(--color-ed-muted)]">还没有日记。</p>
         )}
       </div>
     </section>
@@ -532,14 +598,15 @@ const renderedNotes = await Promise.all(
     });
   });
 
-  // ===== Tab 切换（纪事 | 随感）=====
-  // 默认停在纪事面板（服务端已按此渲染）；随感面板内容为静态渲染，仅做显隐。
+  // ===== Tab 切换（纪事 | 随感 | 日记）=====
+  // 默认停在纪事面板（服务端已按此渲染）；其余面板内容为静态渲染，仅做显隐。
   const tabButtons = Array.from(
     document.querySelectorAll<HTMLElement>("[data-tab]")
   );
   const panels: Record<string, HTMLElement | null> = {
     timeline: document.getElementById("panel-timeline"),
     notes: document.getElementById("panel-notes"),
+    diary: document.getElementById("panel-diary"),
   };
 
   function switchTab(name: string) {
@@ -547,13 +614,14 @@ const renderedNotes = await Promise.all(
       const on = btn.dataset.tab === name;
       btn.setAttribute("aria-selected", String(on));
     });
-    if (name === "timeline") {
-      panels.notes?.setAttribute("hidden", "");
-      panels.timeline?.removeAttribute("hidden");
-    } else {
-      panels.timeline?.setAttribute("hidden", "");
-      panels.notes?.removeAttribute("hidden");
-    }
+    Object.entries(panels).forEach(([key, panel]) => {
+      if (!panel) return;
+      if (key === name) {
+        panel.removeAttribute("hidden");
+      } else {
+        panel.setAttribute("hidden", "");
+      }
+    });
   }
 
   tabButtons.forEach((btn) => {

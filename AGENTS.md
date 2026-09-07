@@ -31,7 +31,7 @@ src/
 │   ├── posts/             文章（长文，独立 URL /blog/<slug>）
 │   ├── moments/           时间线节点（person/event，无独立页面）
 │   ├── notes/             一句话随感（并入纪事页 Tab，只有 date? 与 draft）
-│   └── diary/             日记（每日流水，独立页 /diary，date 必填 + title?）
+│   └── diary/             日记（每日流水，纪事页「日记」Tab，date 必填 + title?）
 ├── layouts/
 │   ├── BaseLayout.astro   HTML 骨架（head/SEO/导航/搜索/页脚/ViewTransitions）
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
@@ -40,9 +40,9 @@ src/
 │                          TagCloud / Toc / PrevNext / BackToTop
 ├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
 │                          left 近期笔墨 / right 关于·纪事·标签卡）/
-│                          timeline.astro（纪事时间线 + 随感，同页 Tab）/
-│                          diary.astro（日记，独立页）/ graph.astro（关系图谱独立页）/
-│                          archive / blog/[slug].astro / tags/[tag].astro /
+│                          timeline.astro（纪事时间线 + 随感 + 日记，同页三 Tab）/
+│                          graph.astro（关系图谱独立页）/ archive /
+│                          blog/[slug].astro / tags/[tag].astro /
 │                          404.astro / rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
 └── utils/                 readingTime.ts / graphData.ts（图谱聚合）/ contributions.ts
@@ -72,7 +72,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 ### diary（日记）
 - 字段：`date`（**必填**，记录当天；补写旧日记也写那天）、`title?`（可选，缺省用日期作展示标题）、`draft`。
-- 轻量独立的每日流水，独立页 `/diary`（单栏，倒序），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚。
+- 轻量独立的每日流水，展示在纪事页「日记」Tab（单栏，倒序），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚（均指向 /timeline）。
 - 与 moments（回顾型人生节点）语义分开；将来若迁移到 Ech0 可整体退役此集合。
 
 ### 内容新增/修改后的提交要求
@@ -106,7 +106,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 ### 7.1 每次构建后必查（基础门禁）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/archive`、`/timeline`（含纪事 + 随感双 Tab）、`/diary`、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`（纪事 + 随感 + 日记三 Tab）、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查
