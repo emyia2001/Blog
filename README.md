@@ -45,12 +45,11 @@
 ```
 src/
 ├── consts.ts                站点常量：站名、头像、URL、创站日、默认 BGM
-├── content.config.ts        四个内容集合的 Zod schema（posts / moments / notes / diary）
+├── content.config.ts        三个内容集合的 Zod schema（posts / moments / diary）
 ├── content/                MDX 内容（详见下方「内容模型」）
 │   ├── posts/              文章
 │   ├── moments/            时间线节点（人物 / 事件）
-│   ├── notes/              随感（短想法）
-│   └── diary/              日记（每日流水，纪事页「日记」Tab）
+│   └── diary/              日记（每日流水，与 moments 混排在纪事页时间线）
 ├── layouts/
 │   ├── BaseLayout.astro    HTML 骨架：<head> SEO/OG/RSS、导航、搜索、页脚、
 │   │                        ViewTransitions、无障碍「跳至主内容」
@@ -68,8 +67,8 @@ src/
 │   └── BackToTop.astro     回到顶部
 ├── pages/
 │   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
-│   ├── timeline.astro      纪事 + 随感 + 日记：同页三 Tab 切换（默认纪事时间线；
-│   │                        随感为 notes 短想法流，日记为 diary 流水，均服务端静态渲染）
+│   ├── timeline.astro      纪事：单条时间线（moments 人物/事件 + 日记混排，
+│   │                        点轴点展开正文，右侧固定时间轴）
 │   ├── graph.astro         关系图谱（独立页，整页宽）
 │   ├── archive.astro       归档（标签云 + 按年文章列表，已合并原 /tags）
 │   ├── blog/[slug].astro   文章详情（调用 Sidebar 布局）
@@ -91,7 +90,7 @@ public/
 ├── fonts/                 本地字体（Playfair Display / Source Sans 3 的 woff2）
 └── images/                banner / graph 图标 / 头像（touxiang.webp）
 
-.pages.yml                 Pages CMS 配置（posts / notes / diary 三个集合）
+.pages.yml                 Pages CMS 配置（posts / diary 两个集合）
 ```
 
 ---
@@ -119,27 +118,26 @@ public/
 ### `moments`（时间线节点）
 `type` 为 `person`（人物）或 `event`（事件），可选 `graph` 配置，用于「纪事」与关系图谱。可选 `bgm: { src, title }`：在纪事点开本节点时，右下角迷你播放器会播放该节点专属曲目（与文章一致）。
 
-### `notes`（随感）
-极简短想法，只含 `date?`（可选）与 `draft` 两个字段，无需标题与摘要。`date` 可留空——页面展示与排序**默认取该文件的 git 提交时间（精确到分钟）**，因此用 CMS 发文时无需手填日期。正文段落末尾写 `—— 来源` 会被自动渲染为右对齐的破折号来源标识，段首空两格。
+### `moments`（时间线节点）
+`type` 为 `person`（人物）或 `event`（事件），可选 `graph` 配置，用于「纪事」与关系图谱。可选 `bgm: { src, title }`：在纪事点开本节点时，右下角迷你播放器会播放该节点专属曲目（与文章一致）。
 
 ### `diary`（日记）
-轻量独立的每日流水，字段：`date`（**必填**，记录当天；补写旧日记也写那天）、`title?`（可选，缺省用日期作展示标题）、`draft`。展示在「纪事」页的**日记 Tab**（单栏流水，与 moments/notes 同页切换），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚。它是"进行时的流水账"，与 moments（回顾型人生节点）语义分开；将来若迁移到 Ech0 可整体退役此集合。
+每日流水，字段：`date`（**必填**，记录当天；补写旧日记也写那天）、`title?`（可选，缺省用日期作展示标题）、`draft`。与 moments **混排在纪事页的同一条时间线**（右侧轴上日记为方点标记），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚（指向 /timeline）。它是"进行时的流水账"，与 moments（回顾型人生节点）语义分开；将来若迁移到 Ech0 可整体退役此集合。
 
-### 四者区别（一句话）
+### 三者区别（一句话）
 - **posts** = 完整可独立访问的长文章：有自己的 URL（`/blog/<slug>`）、标签、侧边栏目录、相关文章与评论。
-- **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：没有独立页面，只能在「纪事」时间线（点开内联展开正文）与关系图谱（/graph）里看，更轻量、偏碎片记录。
-- **notes** = 更短的一句话随感，连标题/摘要都不要；展示在「纪事」页的**随感 Tab** 里（与 moments 同页切换）。
-- **diary** = 每日流水账，展示在纪事页的**日记 Tab**，频率高、可长可短，与公开作品/人生节点分离。
+- **moments** = 时间线上的短节点（`person` 人物 / `event` 事件）：回顾型人生节点，无独立页面，在纪事页时间线与关系图谱（/graph）里看，更轻量、偏碎片记录。
+- **diary** = 每日流水账，频率高、可长可短，与公开作品/人生节点分离，混排在纪事页时间线。
 
-| 维度 | posts | moments | notes | diary |
-| --- | --- | --- | --- | --- |
-| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ❌ 并入纪事页随感 Tab | ❌ 并入纪事页日记 Tab |
-| 首页形态 | 头条 + 目录 | 「浮光」胶片条 | 不出现 | 右栏入口 |
-| 纪事页 | 已移除（现仅 moments） | 点开内联展开正文 | 随感 Tab 全展开 | 日记 Tab 全展开 |
-| 关键字段 | `slug` / `tags` / `pullQuote` / `articleLayout` / `featured` | `type`（person/event） | 仅 `date?` / `draft` | `date` / `title?` |
-| 排版形态 | 长文 + 侧栏目录 + 评论 | 短节点正文 | 极短段落 | 单栏流水 |
-| 关系图谱 | 节点跳 `/blog` | 节点无外链 | 不出现 | 不出现 |
-| 标签页 / RSS | ✅ | ❌ | ❌ | ❌ |
+| 维度 | posts | moments | diary |
+| --- | --- | --- | --- |
+| 独立页面 | ✅ `/blog/<slug>` | ❌ 仅纪事/图谱 | ❌ 仅纪事时间线 |
+| 首页形态 | 头条 + 目录 | 「浮光」胶片条 | 右栏入口 |
+| 纪事页 | 已移除（现仅 moments） | 轴点展开正文 | 轴点展开正文（方点） |
+| 关键字段 | `slug` / `tags` / `pullQuote` / `articleLayout` / `featured` | `type`（person/event） | `date` / `title?` |
+| 排版形态 | 长文 + 侧栏目录 + 评论 | 短节点正文 | 单栏流水 |
+| 关系图谱 | 节点跳 `/blog` | 节点无外链 | 不出现 |
+| 标签页 / RSS | ✅ | ❌ | ❌ |
 
 ---
 
@@ -161,8 +159,8 @@ npm run preview  # 预览构建结果（含搜索索引）
 本仓库已内置 `.pages.yml`，可直接用 [Pages CMS](https://pagescms.org) 在浏览器（含手机）里编辑内容：
 
 1. 打开 https://pagescms.org ，用 GitHub 登录，绑定本仓库 `emyia2001/Blog`。
-2. 左侧出现「文章」「随感」「日记」集合，即可新建 / 编辑，保存会自动提交到仓库并触发 Cloudflare 重新构建。
-3. 新建文章时填写「链接 slug」（英文短名，决定 `/blog/<slug>`）；随感文件名自动按时间戳生成。
+2. 左侧出现「文章」「日记」集合，即可新建 / 编辑，保存会自动提交到仓库并触发 Cloudflare 重新构建。
+3. 新建文章时填写「链接 slug」（英文短名，决定 `/blog/<slug>`）；日记填「日期」即"记录当天"。
 
 > 注意：`.pages.yml` 与 `content.config.ts` 是**双份 schema**，需保持一致——改了 `content.config.ts` 的字段（尤其是类型 / 枚举），记得同步 `.pages.yml`，否则 CMS 新建的文章可能与 Zod 校验不符导致构建失败。
 
@@ -172,7 +170,7 @@ npm run preview  # 预览构建结果（含搜索索引）
 
 - **站点信息**：`src/consts.ts` 里改 `SITE_NAME` / `SITE_DESCRIPTION` / `SITE_URL` / `SITE_AVATAR`（首页关于卡与图谱中心节点头像）/ `SITE_CREATED`（创站天数起点）/ `SITE_BGM`（默认背景音乐）。
 - **设计令牌**：`src/styles/editorial.css` 顶部的 `@theme` 集中定义了配色（`--color-ed-*`）与字体（`--font-serif` / `--font-sans`），改这里即可换肤。
-- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/图谱/归档，无「关于」「随感」独立项——随感并入纪事页 Tab，个人信息并入首页右栏）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
+- **导航 / 社交**：导航项在 `src/components/Nav.astro`（首页/纪事/图谱/归档，无「关于」——个人信息并入首页右栏，随感板块已移除、日记混排进纪事页时间线）；社交图标在首页右栏关于卡（`astro-icon` + mdi，见 `SITE_SOCIAL`）。
 - **评论**：`Giscus.astro` 默认指向 `emyia2001/comment` 仓库，换成自己的仓库需同步 `data-repo` / `data-repo-id` / `data-category-id`。
 
 ---

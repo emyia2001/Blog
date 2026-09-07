@@ -80,29 +80,6 @@ content:
         label: 正文
         type: rich-text
 
-  - name: notes
-    label: 随感
-    type: collection
-    path: src/content/notes
-    format: yaml-frontmatter
-    filename: "{year}{month}{day}{hour}{minute}.mdx"
-    view:
-      primary: date
-      sort: date
-      order: desc
-    fields:
-      - name: date
-        label: 日期（留空即可，自动取 git 提交时间）
-        type: date
-        required: false
-      - name: draft
-        label: 草稿
-        type: boolean
-        default: false
-      - name: body
-        label: 正文
-        type: rich-text
-
   - name: diary
     label: 日记
     type: collection

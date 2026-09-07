@@ -26,12 +26,11 @@ npm run preview   # 预览构建产物（含搜索索引）
 ```
 src/
 ├── consts.ts              站点常量（站名/URL/头像/创站日/默认BGM/社交链接/GitHub仓库）
-├── content.config.ts      四集合 Zod schema（posts/moments/notes/diary）——内容字段的权威定义
+├── content.config.ts      三集合 Zod schema（posts/moments/diary）——内容字段的权威定义
 ├── content/
 │   ├── posts/             文章（长文，独立 URL /blog/<slug>）
 │   ├── moments/           时间线节点（person/event，无独立页面）
-│   ├── notes/             一句话随感（并入纪事页 Tab，只有 date? 与 draft）
-│   └── diary/             日记（每日流水，纪事页「日记」Tab，date 必填 + title?）
+│   └── diary/             日记（每日流水，date 必填 + title?，混排进纪事页时间线）
 ├── layouts/
 │   ├── BaseLayout.astro   HTML 骨架（head/SEO/导航/搜索/页脚/ViewTransitions）
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
@@ -40,7 +39,7 @@ src/
 │                          TagCloud / Toc / PrevNext / BackToTop
 ├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
 │                          left 近期笔墨 / right 关于·纪事·标签卡）/
-│                          timeline.astro（纪事时间线 + 随感 + 日记，同页三 Tab）/
+│                          timeline.astro（纪事：moments + 日记混排成单条时间线）/
 │                          graph.astro（关系图谱独立页）/ archive /
 │                          blog/[slug].astro / tags/[tag].astro /
 │                          404.astro / rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
@@ -48,12 +47,12 @@ src/
 └── utils/                 readingTime.ts / graphData.ts（图谱聚合）/ contributions.ts
 │                          （GitHub 热力图取数）/ editorialShikiTheme.ts / rehype-code-block.ts
 public/                    fonts/（本地 woff2）、images/（banner/头像等）
-.pages.yml                 Pages CMS 配置（posts + notes + diary 集合）
+.pages.yml                 Pages CMS 配置（posts + diary 集合）
 ```
 
 ## 4. 内容模型与写作约定（改动内容时的重点）
 
-- 四个集合的**字段权威定义在 `src/content.config.ts`（Zod schema）**。写新内容或改字段前先对照它，确保 frontmatter 合法，否则构建失败。
+- 三个集合的**字段权威定义在 `src/content.config.ts`（Zod schema）**。写新内容或改字段前先对照它，确保 frontmatter 合法，否则构建失败。
 - **双份 schema 警告**：`.pages.yml` 与 `content.config.ts` 必须保持一致。若改了 content schema 的字段/类型/枚举，**必须同步 `.pages.yml`**，否则 CMS 新建的内容可能通不过 Zod 校验。
 
 ### posts（文章）
@@ -66,17 +65,13 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 - 字段：`title`、`date`、`excerpt`、`type: person|event`、可选 `heroImage`、`draft`、`bgm`、`graph`。
 - 无独立页面，只出现在「纪事」时间线（点开内联展开）与关系图谱。
 
-### notes（随感）
-- 只有 `date?`（可留空）与 `draft`。**`date` 留空时，页面展示/排序默认取文件的 git 提交时间（精确到分钟）**——所以用 CMS 发文不用手填日期。
-- 正文格式：段落末尾写 `—— 来源` 会渲染为右对齐破折号来源标识；段首空两格。
-
 ### diary（日记）
 - 字段：`date`（**必填**，记录当天；补写旧日记也写那天）、`title?`（可选，缺省用日期作展示标题）、`draft`。
-- 轻量独立的每日流水，展示在纪事页「日记」Tab（单栏，倒序），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚（均指向 /timeline）。
+- 每日流水，与 moments **混排在纪事页同一条时间线**（右侧轴上日记节点为方点、标签「日记」），**不进导航 / 图谱 / RSS / 搜索**，入口在首页右栏与页脚（指向 /timeline）。
 - 与 moments（回顾型人生节点）语义分开；将来若迁移到 Ech0 可整体退役此集合。
 
 ### 内容新增/修改后的提交要求
-- `notes` 排序依赖 git 提交时间，**新增/编辑 notes 后应尽快提交**，否则展示时间滞后。
+- `moments` / `diary` 排序依赖 frontmatter `date`，**新增/编辑后记得提交**。
 
 ### 首页/纪事/图谱：个人信息与关系图谱（构建期实现要点）
 - **个人信息（原 about 页，已并入首页）**：无 `/about` 页。首页 `index.astro` 右栏「关于」卡承载头像/介绍/统计/**GitHub 贡献热力图**/社交链接；热力图数据经 `src/utils/contributions.ts` 构建时拉取，渲染用 `ContributionHeatmap.astro` 组件。
@@ -90,13 +85,13 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 - **Commit message 用中文，遵循 Conventional Commits**：`feat:` / `fix:` / `chore:` / `docs:` / `test:` / `ci:` 等前缀 + 简要描述（看 `git log` 保持一致，例如 `fix: 修复 View Transitions 站内跳转后…`）。
 - **不要添加 `Co-Authored-By` 尾注**：`.githooks/commit-msg`（已通过 `core.hooksPath` 启用）会在提交时**自动剥离所有 Co-Authored-By 行**，因为 GitHub 会把能匹配到账号的邮箱计入仓库 Contributors 列表，导致 AI 账号出现在贡献者名单。若确有需要保留，用 `git commit --no-verify` 绕过（默认不要这么做）。
-- 改动内容（尤其 notes / moments）后记得提交，让 git 时间成为排序依据。
+- 改动内容（尤其 moments / diary）后记得提交。
 
 ## 6. 设计与样式约定
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档，无「关于」「随感」独立项——随感并入纪事页 Tab，个人信息并入首页右栏关于卡），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档，无「关于」——个人信息并入首页右栏关于卡，随感板块已移除、日记混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
@@ -106,14 +101,13 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 ### 7.1 每次构建后必查（基础门禁）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/archive`、`/timeline`（纪事 + 随感 + 日记三 Tab）、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`（moments + 日记混排时间线）、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查
 
-**改内容（posts/moments/notes/diary）**
+**改内容（posts/moments/diary）**
 - [ ] frontmatter 对照 `src/content.config.ts` 合法（新字段同时核对 `.pages.yml` 双份一致）
-- [ ] 新增/编辑 **notes** 后已提交（排序/展示时间依赖 git 提交时间）
 - [ ] 用了 `[[锚点]]` 的正文：确认目标节点存在（`graph.name`/`title` 匹配），否则该连线静默丢失
 - [ ] 改文章日期/新增文章后：首页列表、`/archive`、`/tags`、侧边相关文章顺序符合预期
 
