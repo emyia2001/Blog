@@ -102,3 +102,30 @@ content:
       - name: body
         label: 正文
         type: rich-text
+
+  - name: diary
+    label: 日记
+    type: collection
+    path: src/content/diary
+    format: yaml-frontmatter
+    filename: "{year}-{month}-{day}.mdx"
+    view:
+      primary: date
+      sort: date
+      order: desc
+    fields:
+      - name: date
+        label: 日期（记录当天，必填）
+        type: date
+        required: true
+      - name: title
+        label: 标题（可留空，缺省用日期）
+        type: string
+        required: false
+      - name: draft
+        label: 草稿
+        type: boolean
+        default: false
+      - name: body
+        label: 正文
+        type: rich-text

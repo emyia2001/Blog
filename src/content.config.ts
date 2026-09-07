@@ -62,4 +62,15 @@ const notes = defineCollection({
   }),
 });
 
-export const collections = { posts, moments, notes };
+// 日记：轻量独立的每日流水（/diary）。不进图谱/RSS/搜索，仅作个人记录；
+// 若将来迁移到 Ech0 可整体退役此集合。date 为"记录当天"的真实日期，必填。
+const diary = defineCollection({
+  type: "content",
+  schema: z.object({
+    date: z.date(),
+    title: z.string().optional(), // 缺省用日期作展示标题
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = { posts, moments, notes, diary };
