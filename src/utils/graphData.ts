@@ -39,7 +39,10 @@ export function buildGraphData(
   moments: MomentEntry[]
 ): GraphData {
   const publishedPosts = posts.filter((p) => !p.data.draft);
-  const publishedMoments = moments.filter((m) => !m.data.draft);
+  // 图谱只收「回顾型节点」person / event；diary（日记流水）不入图
+  const publishedMoments = moments.filter(
+    (m) => !m.data.draft && m.data.type !== "diary"
+  );
 
   type AnyEntry = PostEntry | MomentEntry;
 
@@ -60,7 +63,7 @@ export function buildGraphData(
   const kindOf = (e: AnyEntry): GraphNode["kind"] =>
     e.collection === "posts"
       ? "post"
-      : (e.data.type as "person" | "event");
+      : ((e.data.type as string) === "person" ? "person" : "event");
 
   const urlOf = (id: string, e: AnyEntry): string =>
     e.collection === "posts" ? `/blog/${id.replace(/\.mdx$/, "")}` : "";
@@ -70,7 +73,12 @@ export function buildGraphData(
     ...graphContent.map(({ id, entry }) => ({
       id,
       kind: kindOf(entry),
-      title: entry.data.graph?.name ?? entry.data.title,
+      title:
+        entry.data.graph?.name ??
+        entry.data.title ??
+        (entry.collection === "posts"
+          ? entry.data.title
+          : String(entry.data.date ?? "")), // person/event 无标题时用日期兜底（极少见）
       url: urlOf(id, entry),
       contentIndex: -1,
       avatar: entry.data.graph?.avatar,

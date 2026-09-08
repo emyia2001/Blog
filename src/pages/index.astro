@@ -200,11 +200,6 @@ const daysStr = String(daysNum).padStart(2, "0");
               <Icon name="mdi:rss" class="w-4 h-4" aria-hidden="true" />
             </a>
           </div>
-          <div class="mt-6 border-t border-[var(--color-ed-faint)] pt-4">
-            <a href="/timeline" class="home-sec-more no-underline">
-              日记 →
-            </a>
-          </div>
         </div>
 
         <!-- 纪事 -->
@@ -214,7 +209,9 @@ const daysStr = String(daysNum).padStart(2, "0");
             {moments.slice(0, 4).map((m) => (
               <a href="/timeline" class="home-moment-line">
                 <span class="home-moment-dot" aria-hidden="true"></span>
-                <span class="home-moment-title">{m.data.title}</span>
+                <span class="home-moment-title">
+                  {m.data.title ?? m.data.date.toISOString().slice(0, 10)}
+                </span>
                 <span class="home-moment-date">
                   {fmtYearMonth(m.data.date)}
                 </span>

@@ -80,29 +80,68 @@ content:
         label: 正文
         type: rich-text
 
-  - name: diary
-    label: 日记
+  - name: moments
+    label: 纪事
     type: collection
-    path: src/content/diary
+    path: src/content/moments
     format: yaml-frontmatter
-    filename: "{year}-{month}-{day}.mdx"
+    filename:
+      template: "moment-{year}-{month}-{day}.mdx"
+      field: false
     view:
       primary: date
       sort: date
       order: desc
     fields:
+      - name: type
+        label: 类型
+        type: select
+        required: true
+        options:
+          values: [person, event, diary]
+          labels: [人物, 事件, 日记]
+        help: "人物/事件为回顾型节点（进图谱与归档）；日记为日常流水（只进时间线）"
+      - name: title
+        label: 标题（日记可留空，缺省用日期）
+        type: string
+        required: false
       - name: date
         label: 日期（记录当天，必填）
         type: date
         required: true
-      - name: title
-        label: 标题（可留空，缺省用日期）
+      - name: excerpt
+        label: 摘要（可留空）
+        type: text
+        required: false
+      - name: heroImage
+        label: 封面图 URL
         type: string
         required: false
+        help: "可填 img.snark.casa 外链；留空则无封面"
       - name: draft
         label: 草稿
         type: boolean
         default: false
+      - name: bgm
+        label: 背景音乐（可选）
+        type: object
+        required: false
+        fields:
+          - name: src
+            type: string
+          - name: title
+            type: string
+      - name: graph
+        label: 关系图谱（可选，人物/事件有效）
+        type: object
+        required: false
+        fields:
+          - name: name
+            type: string
+          - name: avatar
+            type: string
+          - name: enabled
+            type: boolean
       - name: body
         label: 正文
         type: rich-text

@@ -6,7 +6,10 @@ import TagCloud from "../components/TagCloud.astro";
 const allPosts = await getCollection("posts");
 const allMoments = await getCollection("moments");
 const publishedPosts = allPosts.filter((p) => !p.data.draft);
-const publishedMoments = allMoments.filter((m) => !m.data.draft);
+// 归档收「回顾型」纪事（person/event）；日记流水（diary）只在 /timeline 看
+const publishedMoments = allMoments.filter(
+  (m) => !m.data.draft && m.data.type !== "diary"
+);
 
 type Entry = {
   kind: "post" | "person" | "event";
@@ -14,6 +17,9 @@ type Entry = {
   date: Date;
   url: string;
 };
+
+const fmtShort = (d: Date) =>
+  d.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
 
 const entries: Entry[] = [
   ...publishedPosts.map((p) => ({
@@ -24,7 +30,7 @@ const entries: Entry[] = [
   })),
   ...publishedMoments.map((m) => ({
     kind: m.data.type as "person" | "event",
-    title: m.data.title,
+    title: m.data.title ?? fmtShort(m.data.date),
     date: m.data.date,
     url: "/timeline",
   })),
