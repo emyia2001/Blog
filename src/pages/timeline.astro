@@ -3,15 +3,11 @@ import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 
+// 纪事（moments）：person / event / diary 三类统一成一条时间线
 const allMoments = await getCollection("moments");
-const allDiary = await getCollection("diary");
 
 const publishedMoments = allMoments
   .filter((m) => !m.data.draft)
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
-
-const publishedDiary = allDiary
-  .filter((e) => !e.data.draft)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 type RenderedContent = Awaited<
@@ -20,32 +16,31 @@ type RenderedContent = Awaited<
 
 type Kind = "person" | "event" | "diary";
 
-// 所有内容统一预渲染全文（moments + diary），点轴点后克隆进详情区
+const KIND_LABEL: Record<Kind, string> = {
+  person: "人物",
+  event: "事件",
+  diary: "日记",
+};
+
+// 所有内容统一预渲染全文，点轴点后克隆进详情区
 interface RenderedAll {
   id: string;
   kind: Kind;
-  entry: CollectionEntry<"moments"> | CollectionEntry<"diary">;
+  entry: CollectionEntry<"moments">;
   Content: RenderedContent;
 }
 
-const renderedAll: RenderedAll[] = await Promise.all([
-  ...publishedMoments.map(async (m) => ({
+const renderedAll: RenderedAll[] = await Promise.all(
+  publishedMoments.map(async (m) => ({
     id: m.id,
-    kind: m.data.type as "person" | "event",
+    kind: m.data.type as Kind,
     entry: m,
     Content: (await m.render()).Content,
-  })),
-  ...publishedDiary.map(async (e) => ({
-    id: e.id,
-    kind: "diary" as const,
-    entry: e,
-    Content: (await e.render()).Content,
-  })),
-]);
+  }))
+);
 
 const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
 
-// moments 与日记统一成一条时间线，按日期倒序
 interface TimelineEntry {
   date: Date;
   kind: Kind;
@@ -54,22 +49,15 @@ interface TimelineEntry {
   contentIndex: number;
 }
 
-const entries: TimelineEntry[] = [
-  ...publishedMoments.map((m) => ({
+const entries: TimelineEntry[] = publishedMoments
+  .map((m) => ({
     date: m.data.date,
-    kind: m.data.type as "person" | "event",
-    title: m.data.title,
-    label: m.data.type === "person" ? "人物" : "事件",
+    kind: m.data.type as Kind,
+    title: m.data.title ?? "", // diary 可无标题，轴点用日期兜底（模板处理）
+    label: KIND_LABEL[m.data.type as Kind],
     contentIndex: contentIndex.get(m.id)!,
-  })),
-  ...publishedDiary.map((e) => ({
-    date: e.data.date,
-    kind: "diary" as const,
-    title: e.data.title ?? "",
-    label: "日记",
-    contentIndex: contentIndex.get(e.id)!,
-  })),
-].sort((a, b) => b.date.getTime() - a.date.getTime());
+  }))
+  .sort((a, b) => b.date.getTime() - a.date.getTime());
 
 const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
   d.toLocaleDateString("zh-CN", opts);
@@ -111,9 +99,8 @@ const defaultRendered =
             {defaultRendered && (
               <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
                 <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                  {defaultRendered.kind === "diary"
-                    ? (defaultRendered.entry.data.title ?? fmtLong(defaultRendered.entry.data.date))
-                    : defaultRendered.entry.data.title}
+                  {defaultRendered.entry.data.title ??
+                    fmtLong(defaultRendered.entry.data.date)}
                 </h2>
                 <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
                   {fmtLong(defaultRendered.entry.data.date)}
@@ -193,9 +180,7 @@ const defaultRendered =
           <div class="content-body" data-content-index={idx}>
             <article class="border-t border-[var(--color-ed-faint)] pt-8 pb-4">
               <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                {c.kind === "diary"
-                  ? (c.entry.data.title ?? fmtLong(c.entry.data.date))
-                  : c.entry.data.title}
+                {c.entry.data.title ?? fmtLong(c.entry.data.date)}
               </h2>
               <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
                 {fmtLong(c.entry.data.date)}

@@ -37,10 +37,10 @@ const posts = defineCollection({
 const moments = defineCollection({
   type: "content",
   schema: z.object({
-    title: z.string(),
+    title: z.string().optional(), // 可选：person/event 通常有；diary 常缺省，展示用日期兜底
     date: z.date(),
-    excerpt: z.string(),
-    type: z.enum(["person", "event"]).default("event"),
+    excerpt: z.string().optional(),
+    type: z.enum(["person", "event", "diary"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
     bgm: z
@@ -53,15 +53,4 @@ const moments = defineCollection({
   }),
 });
 
-// 日记：轻量独立的每日流水，与 moments 混排在纪事页时间线。不进图谱/RSS/搜索，仅作个人记录；
-// 若将来迁移到 Ech0 可整体退役此集合。date 为"记录当天"的真实日期，必填。
-const diary = defineCollection({
-  type: "content",
-  schema: z.object({
-    date: z.date(),
-    title: z.string().optional(), // 缺省用日期作展示标题
-    draft: z.boolean().default(false),
-  }),
-});
-
-export const collections = { posts, moments, diary };
+export const collections = { posts, moments };
