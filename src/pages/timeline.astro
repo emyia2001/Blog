@@ -2,6 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
+import { encryptContent } from "../utils/lockContent";
 
 // 纪事（moments）：person / event / diary 三类统一成一条时间线
 const allMoments = await getCollection("moments");
@@ -22,21 +23,38 @@ const KIND_LABEL: Record<Kind, string> = {
   diary: "日记",
 };
 
-// 所有内容统一预渲染全文，点轴点后克隆进详情区
+// 所有内容统一预渲染全文；带 lock 的文章构建期加密正文，浏览器端用答案解密
 interface RenderedAll {
   id: string;
   kind: Kind;
   entry: CollectionEntry<"moments">;
-  Content: RenderedContent;
+  Content?: RenderedContent; // 未加密才有明文 Content
+  lock?: {
+    question: string;
+    ciphertext: string;
+    salt: string;
+    iv: string;
+  };
 }
 
 const renderedAll: RenderedAll[] = await Promise.all(
-  publishedMoments.map(async (m) => ({
-    id: m.id,
-    kind: m.data.type as Kind,
-    entry: m,
-    Content: (await m.render()).Content,
-  }))
+  publishedMoments.map(async (m) => {
+    const base = { id: m.id, kind: m.data.type as Kind, entry: m };
+    if (m.data.lock?.answer) {
+      // 加密正文（构建期）；明文不进产物
+      const enc = encryptContent(String(m.body ?? ""), m.data.lock.answer);
+      return {
+        ...base,
+        lock: {
+          question: m.data.lock.question,
+          ciphertext: enc.ciphertext,
+          salt: enc.salt,
+          iv: enc.iv,
+        },
+      };
+    }
+    return { ...base, Content: (await m.render()).Content };
+  })
 );
 
 const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
@@ -128,9 +146,35 @@ const defaultRendered =
                     />
                   </div>
                 )}
-                <div class="prose mt-6">
-                  <defaultRendered.Content />
-                </div>
+                {defaultRendered.lock ? (
+                  <div
+                    class="lock-box mt-6"
+                    data-lock-id={defaultRendered.id}
+                    data-ciphertext={defaultRendered.lock.ciphertext}
+                    data-salt={defaultRendered.lock.salt}
+                    data-iv={defaultRendered.lock.iv}
+                  >
+                    <p class="lock-question">{defaultRendered.lock.question}</p>
+                    <div class="lock-row">
+                      <input
+                        type="text"
+                        class="lock-input"
+                        placeholder="输入答案解锁"
+                        autocomplete="off"
+                        aria-label="答案"
+                      />
+                      <button type="button" class="lock-btn">解锁</button>
+                    </div>
+                    <p class="lock-error" hidden>答案不对，再试试。</p>
+                    <div class="lock-content prose mt-4" hidden></div>
+                  </div>
+                ) : (
+                  defaultRendered.Content && (
+                    <div class="prose mt-6">
+                      <defaultRendered.Content />
+                    </div>
+                  )
+                )}
               </article>
             )}
           </div>
@@ -208,9 +252,35 @@ const defaultRendered =
                   />
                 </div>
               )}
-              <div class="prose mt-6">
-                <c.Content />
-              </div>
+              {c.lock ? (
+                <div
+                  class="lock-box mt-6"
+                  data-lock-id={c.id}
+                  data-ciphertext={c.lock.ciphertext}
+                  data-salt={c.lock.salt}
+                  data-iv={c.lock.iv}
+                >
+                  <p class="lock-question">{c.lock.question}</p>
+                  <div class="lock-row">
+                    <input
+                      type="text"
+                      class="lock-input"
+                      placeholder="输入答案解锁"
+                      autocomplete="off"
+                      aria-label="答案"
+                    />
+                    <button type="button" class="lock-btn">解锁</button>
+                  </div>
+                  <p class="lock-error" hidden>答案不对，再试试。</p>
+                  <div class="lock-content prose mt-4" hidden></div>
+                </div>
+              ) : (
+                c.Content && (
+                  <div class="prose mt-6">
+                    <c.Content />
+                  </div>
+                )
+              )}
             </article>
           </div>
         ))
@@ -370,6 +440,53 @@ const defaultRendered =
     outline: 1px solid var(--color-ed-accent);
     outline-offset: 4px;
   }
+
+  /* —— 纪事内容解锁（加密文章）—— */
+  .lock-box {
+    border: 1px dashed var(--color-ed-faint);
+    padding: 1rem;
+  }
+  .lock-question {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    color: var(--color-ed-fg);
+    margin: 0 0 0.75rem;
+  }
+  .lock-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .lock-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--color-ed-faint);
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--color-ed-fg);
+  }
+  .lock-input:focus {
+    outline: 1px solid var(--color-ed-accent);
+    outline-offset: 1px;
+  }
+  .lock-btn {
+    border: 1px solid var(--color-ed-fg);
+    background: transparent;
+    color: var(--color-ed-fg);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .lock-btn:hover {
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+  }
+  .lock-error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--color-ed-accent);
+  }
 </style>
 
 <script>
@@ -488,4 +605,136 @@ const defaultRendered =
     axis.addEventListener("mousemove", (e) => applyDock(e.clientY));
     axis.addEventListener("mouseleave", () => applyDock(null));
   }
+
+  // ===== 纪事内容解锁（AES-GCM，答案解密）=====
+  // 构建期已把带 lock 的正文加密成密文（明文不进产物）；浏览器端用答案经
+  // PBKDF2 派生密钥解密，成功后在当前会话记忆，无需重复输入。
+  const PBKDF2_ITERATIONS = 120000;
+  const LOCK_STORAGE_KEY = "snark_locked_entries";
+
+  function b64ToBuf(b64: string): ArrayBuffer {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer as ArrayBuffer;
+  }
+
+  // 解密后的 markdown 原文做最简渲染：按空行分段 → <p>，单换行 → <br>
+  function renderPlainMd(text: string): string {
+    const blocks = text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+    if (blocks.length === 0) return "";
+    return blocks
+      .map((b) => `<p>${b.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  }
+
+  async function decryptBlock(box: HTMLElement, answer: string): Promise<string | null> {
+    const ciphertext = box.dataset.ciphertext ?? "";
+    const salt = box.dataset.salt ?? "";
+    const iv = box.dataset.iv ?? "";
+    if (!ciphertext || !salt || !iv) return null;
+    try {
+      const enc = new TextEncoder();
+      const saltBuf = b64ToBuf(salt);
+      const ivBuf = b64ToBuf(iv);
+      // 密文 = [GCM tag(16B) | ciphertext]，整体作为 AES-GCM 的 ciphertext 传入
+      const combined = b64ToBuf(ciphertext);
+
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(answer.normalize("NFC").trim()),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+      );
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: saltBuf, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+      const plain = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: ivBuf, tagLength: 128 },
+        key,
+        combined
+      );
+      return new TextDecoder().decode(plain);
+    } catch {
+      return null;
+    }
+  }
+
+  // 会话记忆：记录已解锁条目的 id → 明文
+  function loadLocks(): Record<string, string> {
+    try {
+      return JSON.parse(sessionStorage.getItem(LOCK_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+  function saveLock(id: string, plain: string) {
+    const locks = loadLocks();
+    locks[id] = plain;
+    sessionStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(locks));
+  }
+
+  function fillLocked(box: HTMLElement, plain: string) {
+    const contentEl = box.querySelector<HTMLElement>(".lock-content");
+    if (!contentEl) return;
+    contentEl.innerHTML = renderPlainMd(plain);
+    contentEl.hidden = false;
+    box.querySelector(".lock-input")?.remove();
+    box.querySelector(".lock-btn")?.remove();
+    box.querySelector(".lock-question")?.remove();
+    if (box.querySelector(".lock-error")) box.querySelector(".lock-error")!.hidden = true;
+  }
+
+  async function tryUnlock(box: HTMLElement) {
+    const id = box.dataset.lockId ?? "";
+    const input = box.querySelector<HTMLInputElement>(".lock-input");
+    const answer = input?.value ?? "";
+    if (!answer) return;
+    // 若已记忆则直接展示
+    const memo = loadLocks();
+    if (id && memo[id]) {
+      fillLocked(box, memo[id]);
+      return;
+    }
+    const plain = await decryptBlock(box, answer);
+    const err = box.querySelector<HTMLElement>(".lock-error");
+    if (plain !== null) {
+      if (id) saveLock(id, plain);
+      fillLocked(box, plain);
+    } else if (err) {
+      err.hidden = false;
+    }
+  }
+
+  // 事件委托：克隆进详情区的 lock-box 也能触发解锁；Enter/空格提交
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement | null;
+    const btn = target?.closest?.(".lock-btn");
+    if (btn) {
+      e.preventDefault();
+      const box = btn.closest<HTMLElement>(".lock-box");
+      if (box) tryUnlock(box);
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLElement | null;
+    if (target?.classList?.contains("lock-input")) {
+      e.preventDefault();
+      const box = target.closest<HTMLElement>(".lock-box");
+      if (box) tryUnlock(box);
+    }
+  });
+
+  // 初始加载：把已记忆的加密条目直接呈现（若页面含其 lock-box）
+  document.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
+    const id = box.dataset.lockId ?? "";
+    const locks = loadLocks();
+    if (id && locks[id]) fillLocked(box, locks[id]);
+  });
 </script>

@@ -43,6 +43,16 @@ const moments = defineCollection({
     type: z.enum(["person", "event", "diary"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
+    // 内容加密（构建时 AES-GCM 加密正文，浏览器端用答案解密）：
+    //   question —— 谜面/提示（必填）
+    //   answer   —— 答案即密码（必填；建议长且唯一，勿用单词/生日/姓名等弱答案）
+    // 注：纯静态站加密上限——密文与谜面都在页面里，懂技术者仍可离线破解。
+    lock: z
+      .object({
+        question: z.string(),
+        answer: z.string(),
+      })
+      .optional(),
     bgm: z
       .object({
         src: z.string(),
