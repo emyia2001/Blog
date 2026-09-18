@@ -61,10 +61,11 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 - 示例模板：`src/content/posts/example-post.mdx`（复制改字段即可）。
 
 ### moments（纪事）
-- 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`excerpt?`、可选 `heroImage`、`draft`、`bgm`、`graph`。
+- 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`excerpt?`、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。
 - **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进关系图谱（/graph）与归档（/archive）。
 - **diary**（日记）：日常流水，`title`/`excerpt` 可留空——**不进图谱 / 归档 / RSS / 搜索**，只在纪事页时间线展示（轴上为方点、标签「日记」）。
 - 无独立页面；person/event 出现在「纪事」时间线（点开内联展开）与关系图谱，diary 只出现在时间线。
+- **lock 内容加密（三类都可用）**：`{ question, answer }`——构建期用 `src/utils/lockContent.ts` 把**正文** AES-GCM 加密成密文写入产物（**明文绝不进源码**），浏览器端输对 `answer` 经 PBKDF2(120000, SHA-256) 派生密钥解密，解密结果会话记忆。**安全边界**：密文+谜面都在页面里，懂技术且耐心者可离线破解，故 `answer` 必须长且唯一（勿用单词/生日/姓名）。解密后为 markdown 原文、以纯文本分段展示（不重新编译 MDX 排版）。客户端逻辑在 `timeline.astro` 的 `<script>` 中（`tryUnlock`/`decryptBlock`），事件委托处理克隆进详情区的 `.lock-box`。
 
 ### 内容新增/修改后的提交要求
 - `moments` 排序依赖 frontmatter `date`，**新增/编辑后记得提交**。

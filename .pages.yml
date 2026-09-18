@@ -131,6 +131,18 @@ content:
             type: string
           - name: title
             type: string
+      - name: lock
+        label: 加密（可选）
+        type: object
+        required: false
+        help: "填了 question+answer 后，正文会在构建时加密；浏览器端输对答案才显示。answer 建议用长且唯一的句子（勿用单词/生日）"
+        fields:
+          - name: question
+            label: 谜面/提示（公开显示）
+            type: string
+          - name: answer
+            label: 答案（即密码，不会写入页面）
+            type: string
       - name: graph
         label: 关系图谱（可选，人物/事件有效）
         type: object
