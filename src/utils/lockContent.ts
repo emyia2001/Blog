@@ -34,8 +34,8 @@ export function encryptContent(plaintext: string, answer: string): EncryptedBloc
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  // 组合: [tag(16B) | ciphertext]，浏览器端解密时先取 tag
-  const combined = Buffer.concat([tag, ciphertext]);
+  // WebCrypto AES-GCM 期望 ciphertext 末尾携带 GCM tag，因此存储顺序为 [ciphertext | tag]
+  const combined = Buffer.concat([ciphertext, tag]);
   return {
     ciphertext: combined.toString("base64"),
     salt: salt.toString("base64"),
