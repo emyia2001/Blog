@@ -1,0 +1,205 @@
+---
+/**
+ * 页脚「此刻 N 人在读」的前端组件 —— **停放中，当前站点未启用**。
+ *
+ * 停放原因：功能尚未上线，此文件放在 src/ 之外，因此不参与 Astro 构建、不影响线上站点。
+ * 启用步骤见 ../README.md 的「启用清单」（复制回 src/components/、在 Footer 挂一行、填 ONLINE_COUNTER_WS）。
+ *
+ * 行为：
+ * - 地址取自 src/consts.ts 的 ONLINE_COUNTER_WS；留空则整块不渲染（连脚本都不进产物）。
+ * - Worker 连不上时保持隐藏（不在页脚留一个「— 人在读」的残骸）。
+ * - 连接在站内跳转（ViewTransitions）之间保持，不重复建连；离开页面时主动断开。
+ * - 心跳 30s；断线指数退避重连（2s→60s，带抖动）；兼容 bfcache（pageshow）。
+ */
+import { ONLINE_COUNTER_WS } from "../consts";
+
+const wsUrl = ONLINE_COUNTER_WS;
+---
+
+{
+  wsUrl && (
+    <p class="online-now" data-online-now data-ws-url={wsUrl} hidden>
+      <span class="online-now__dot" aria-hidden="true" />
+      <span>
+        此刻 <span class="online-now__count" data-online-count>—</span> 人在读
+      </span>
+    </p>
+  )
+}
+
+{
+  /* 未配置地址时整块不产出（连这段脚本也不进产物） */
+  wsUrl && (
+    <script>
+      const HEARTBEAT_MS = 30_000;
+      const RETRY_BASE_MS = 2_000;
+      const RETRY_MAX_MS = 60_000;
+
+      let socket: WebSocket | null = null;
+      let heartbeat: number | undefined;
+      let retryTimer: number | undefined;
+      let retries = 0;
+      let lastCount: number | null = null;
+      let stopped = false;
+
+  function onlineEl(): HTMLElement | null {
+    return document.querySelector<HTMLElement>("[data-online-now]");
+  }
+
+  function paint(): void {
+    const el = onlineEl();
+    if (!el || lastCount === null) return;
+    const num = el.querySelector<HTMLElement>("[data-online-count]");
+    if (num) num.textContent = String(lastCount);
+    el.hidden = false;
+  }
+
+  function clearHeartbeat(): void {
+    if (heartbeat !== undefined) {
+      window.clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+  }
+
+  function scheduleRetry(): void {
+    if (stopped || retryTimer !== undefined) return;
+    // 指数退避 2s → 60s，带抖动，避免所有读者同时重连
+    const delay =
+      Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(retries, 5)) *
+      (0.8 + Math.random() * 0.4);
+    retries += 1;
+    retryTimer = window.setTimeout(() => {
+      retryTimer = undefined;
+      connect();
+    }, delay);
+  }
+
+  function connect(): void {
+    const el = onlineEl();
+    const url = el?.dataset.wsUrl;
+    if (!el || !url || stopped) return;
+    const busy =
+      socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN);
+    if (busy) return;
+
+    try {
+      socket = new WebSocket(url);
+    } catch {
+      socket = null;
+      scheduleRetry();
+      return;
+    }
+
+    socket.addEventListener("open", () => {
+      retries = 0;
+      clearHeartbeat();
+      heartbeat = window.setInterval(() => {
+        if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
+      }, HEARTBEAT_MS);
+    });
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const data = JSON.parse(String(event.data)) as { online?: unknown };
+        if (typeof data.online === "number" && Number.isFinite(data.online)) {
+          lastCount = Math.max(0, data.online);
+          paint();
+        }
+      } catch {
+        // 非 JSON 数据忽略
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      clearHeartbeat();
+      socket = null;
+      scheduleRetry();
+    });
+  }
+
+  function start(): void {
+    stopped = false;
+    paint();
+    connect();
+  }
+
+  function stop(): void {
+    stopped = true;
+    clearHeartbeat();
+    if (retryTimer !== undefined) {
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+    }
+    if (socket) {
+      try {
+        socket.close();
+      } catch {
+        /* ignore */
+      }
+      socket = null;
+    }
+  }
+
+  // 初次加载 + 每次站内跳转后都确保连上（已连接则跳过）
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+  document.addEventListener("astro:page-load", start);
+  window.addEventListener("pagehide", stop);
+  // 从 bfcache 返回时浏览器不会重跑脚本，需要手动重连
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) start();
+  });
+    </script>
+  )
+}
+
+<style>
+  .online-now {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-subtle);
+  }
+
+  .online-now[hidden] {
+    display: none;
+  }
+
+  .online-now__dot {
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: var(--color-ed-accent);
+    box-shadow: 0 0 0 0 rgba(166, 58, 43, 0.35);
+    animation: online-pulse 2.4s ease-out infinite;
+  }
+
+  .online-now__count {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ed-fg);
+  }
+
+  @keyframes online-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(166, 58, 43, 0.35);
+    }
+    70% {
+      box-shadow: 0 0 0 0.35rem rgba(166, 58, 43, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(166, 58, 43, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .online-now__dot {
+      animation: none;
+    }
+  }
+</style>
