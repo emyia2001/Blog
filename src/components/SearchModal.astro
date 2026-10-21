@@ -6,7 +6,7 @@
   aria-modal="true"
   aria-labelledby="search-title"
 >
-  <div class="w-full max-w-xl border border-[var(--color-ed-faint)]"
+  <div class="w-full max-w-xl border border-[var(--color-ed-rule)]"
     style="background: var(--color-ed-bg);"
   >
     <h2 id="search-title" class="sr-only">站内搜索</h2>
@@ -16,7 +16,7 @@
       id="search-input"
       placeholder="搜索文章…"
       autocomplete="off"
-      class="w-full border-b border-[var(--color-ed-faint)] bg-transparent px-5 py-4 text-sm text-[var(--color-ed-fg)] placeholder:text-[var(--color-ed-subtle)] focus:outline-none"
+      class="w-full border-b border-[var(--color-ed-rule)] bg-transparent px-5 py-4 text-sm text-[var(--color-ed-fg)] placeholder:text-[var(--color-ed-subtle)] focus:outline-none"
     />
     <div
       id="search-results"
@@ -198,7 +198,7 @@
         link.href = data.url;
         link.dataset.searchResult = "";
         link.className =
-          "block border-b border-[var(--color-ed-faint)] py-4 no-underline group";
+          "block border-b border-[var(--color-ed-hairline)] py-4 no-underline group";
 
         const title = document.createElement("h3");
         title.className =
