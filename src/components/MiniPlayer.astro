@@ -11,7 +11,7 @@ const { src, title } = Astro.props;
   <button
     id="mp-btn"
     class="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center font-serif text-sm border"
-    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-faint); border-radius: 50%;"
+    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule); border-radius: 50%;"
     aria-label={title ? `Play ${title}` : "Play background music"}
   >
     <span id="mp-icon">&#9654;</span>
@@ -19,7 +19,7 @@ const { src, title } = Astro.props;
   <div
     id="mp-bar"
     class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 h-11 px-4 border"
-    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-faint);"
+    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule);"
   >
     <button id="mp-play" class="font-serif text-sm" aria-label="Play/Pause">
       &#9654;
@@ -29,7 +29,7 @@ const { src, title } = Astro.props;
         {title}
       </span>
     )}
-    <div class="w-24 h-px" style="background: var(--color-ed-faint);">
+    <div class="w-24 h-px" style="background: var(--color-ed-hairline);">
       <div
         id="mp-progress"
         class="h-px"

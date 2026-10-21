@@ -91,7 +91,7 @@ const daysStr = String(daysNum).padStart(2, "0");
                 <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
                 {heroPost.data.tags?.length > 0 && (
                   <>
-                    <span class="text-[var(--color-ed-faint)]" aria-hidden="true">·</span>
+                    <span class="text-[var(--color-ed-sep)]" aria-hidden="true">·</span>
                     <span>{heroPost.data.tags.join(" · ")}</span>
                   </>
                 )}

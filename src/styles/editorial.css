@@ -9,6 +9,14 @@
   --color-ed-muted: rgba(28, 28, 28, 0.68);
   --color-ed-subtle: rgba(28, 28, 28, 0.62); /* 4.67:1，仅用于次要文本；再浅就不达标 */
   --color-ed-faint: rgba(28, 28, 28, 0.1);
+  /* ---- 线条三级（期刊排版的「粗细对比」靠这三档建立）----
+     原先所有线都压在 10% 墨（1.22:1），纸上几乎看不见，区块之间没有分割感。
+     hairline 1.4:1 只用于卡内细节；rule 2.1:1 是结构线；rule-strong 4.3:1 用于分节。 */
+  --color-ed-hairline: rgba(28, 28, 28, 0.16);
+  --color-ed-rule: rgba(28, 28, 28, 0.34);
+  --color-ed-rule-strong: rgba(28, 28, 28, 0.6);
+  /* 元信息里的 · 分隔点：0.1 等于没有，0.3 才读得出「这里是分隔」 */
+  --color-ed-sep: rgba(28, 28, 28, 0.32);
   --font-serif: 'Playfair Display', 'Noto Serif SC', 'Noto Serif CJK SC', ui-serif, Georgia, serif;
   --font-sans: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
 }
@@ -28,8 +36,8 @@ body {
     inset: 0.875rem;
     z-index: 30;
     pointer-events: none;
-    border: 1px solid var(--color-ed-faint);
-    border-top-color: rgba(166, 58, 43, 0.5);
+    border: 1px solid var(--color-ed-rule);
+    border-top-color: rgba(166, 58, 43, 0.6);
     border-bottom: none;
   }
 }
@@ -159,8 +167,8 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   margin: 3em 0 1em;
   padding-left: 0.8rem;
-  border-left: 3px solid rgba(166, 58, 43, 0.7);
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-left: 3px solid rgba(166, 58, 43, 0.85);
+  border-bottom: 1px solid var(--color-ed-rule-strong);
   padding-bottom: 0.45em;
 }
 
@@ -171,8 +179,8 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   margin: 2.8em 0 1em;
   padding-left: 0.8rem;
-  border-left: 3px solid rgba(166, 58, 43, 0.55);
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-left: 3px solid rgba(166, 58, 43, 0.7);
+  border-bottom: 1px solid var(--color-ed-rule-strong);
   padding-bottom: 0.45em;
 }
 
@@ -219,7 +227,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .prose blockquote {
-  border-left: 3px solid rgba(166, 58, 43, 0.35);
+  border-left: 3px solid rgba(166, 58, 43, 0.55);
   padding-left: 1.5em;
   margin: 2em 0;
   font-family: var(--font-serif);
@@ -232,8 +240,8 @@ h1, h2, h3, h4, h5, h6 {
   margin: 1.75em 0;
   padding: 1.1em 1.25em;
   border-radius: 0.5rem;
-  border: 1px solid var(--color-ed-faint);
-  border-left: 3px solid rgba(166, 58, 43, 0.5);
+  border: 1px solid var(--color-ed-rule);
+  border-left: 3px solid rgba(166, 58, 43, 0.7);
   font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Source Code Pro",
     Menlo, Consolas, monospace;
   font-size: 0.875rem;
@@ -260,7 +268,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.9rem;
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-rule);
   border-bottom: none;
   border-radius: 0.5rem 0.5rem 0 0;
   background: rgba(166, 58, 43, 0.06);
@@ -284,7 +292,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.08em;
   color: var(--color-ed-muted);
   background: transparent;
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-rule);
   border-radius: 999px;
   cursor: pointer;
   transition:
@@ -371,8 +379,8 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-ed-muted);
   padding: 1.5em 0;
   margin: 2em 0;
-  border-top: 1px solid var(--color-ed-faint);
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-top: 1px solid var(--color-ed-rule-strong);
+  border-bottom: 1px solid var(--color-ed-rule-strong);
   text-align: center;
 }
 
@@ -511,7 +519,7 @@ h1, h2, h3, h4, h5, h6 {
 /* 多级目录：嵌套列表缩进 + 竖向引导线 */
 .toc-list .toc-list {
   padding-left: 0.65rem;
-  border-left: 1px solid var(--color-ed-faint);
+  border-left: 1px solid var(--color-ed-rule);
   margin-left: 0.35rem;
   margin-top: 0.25rem;
 }
@@ -579,7 +587,7 @@ h1, h2, h3, h4, h5, h6 {
 .home-kicker::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-bottom: 1px solid var(--color-ed-rule);
 }
 .home-kicker__label {
   letter-spacing: 0.14em; /* 中文标签：0.3em 会把字拆散，收到 0.14em */
@@ -592,7 +600,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-ed-fg);
   text-transform: none;
   padding: 0.125rem 0.5rem;
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-hairline);
   border-radius: 2px;
   line-height: 1.4;
 }
@@ -693,7 +701,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: baseline;
   gap: 1.25rem;
   padding: 1.25rem 0.25rem;
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-bottom: 1px solid var(--color-ed-rule);
   text-decoration: none;
   color: var(--color-ed-fg);
   transition: padding-left 0.18s, background 0.15s;
@@ -747,7 +755,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.6875rem;
   letter-spacing: 0.05em;
   color: var(--color-ed-subtle);
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-hairline);
   padding: 0.0625rem 0.5rem;
   border-radius: 999px;
   transition: color 0.15s, border-color 0.15s;
@@ -775,8 +783,10 @@ h1, h2, h3, h4, h5, h6 {
   top: 4.75rem;
 }
 .home-side-card {
-  background: rgba(28, 28, 28, 0.025);
-  border: 1px solid var(--color-ed-faint);
+  background: rgba(28, 28, 28, 0.04);
+  border: 1px solid var(--color-ed-rule);
+  /* 2px 顶线：让三张卡各自像「一个栏目」，而不是三块融在纸里的浅色区 */
+  border-top: 2px solid var(--color-ed-rule-strong);
   padding: 1.375rem 1.25rem;
 }
 .home-side-label {
@@ -792,7 +802,7 @@ h1, h2, h3, h4, h5, h6 {
 .home-side-label::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid rgba(28, 28, 28, 0.12);
+  border-bottom: 1px solid var(--color-ed-rule);
 }
 
 /* 关于卡 */
@@ -807,7 +817,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 3.625rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-rule);
 }
 .home-about-name {
   font-family: var(--font-serif);
@@ -830,8 +840,8 @@ h1, h2, h3, h4, h5, h6 {
 .home-about-stats {
   display: flex;
   gap: 0.5rem;
-  border-top: 1px solid var(--color-ed-faint);
-  border-bottom: 1px solid var(--color-ed-faint);
+  border-top: 1px solid var(--color-ed-rule);
+  border-bottom: 1px solid var(--color-ed-rule);
   padding: 0.625rem 0;
   margin-bottom: 0.875rem;
 }
@@ -862,7 +872,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(28, 28, 28, 0.2);
+  border: 1px solid var(--color-ed-rule);
   color: var(--color-ed-fg);
   text-decoration: none;
   font-size: 0.75rem;
@@ -879,7 +889,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5625rem 0;
-  border-bottom: 1px solid rgba(28, 28, 28, 0.07);
+  border-bottom: 1px solid var(--color-ed-hairline);
   text-decoration: none;
   color: var(--color-ed-fg);
 }
@@ -914,7 +924,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.6875rem;
   color: var(--color-ed-muted);
   text-decoration: none;
-  border: 1px solid var(--color-ed-faint);
+  border: 1px solid var(--color-ed-rule);
   padding: 0.25rem 0.6875rem;
   border-radius: 999px;
   transition: color 0.15s, border-color 0.15s;
@@ -947,5 +957,14 @@ h1, h2, h3, h4, h5, h6 {
   }
   .home-side-card {
     flex: 1 1 15rem;
+  }
+}
+
+/* --- 分栏结构线：正文栏与右侧边栏之间立一条线，区块不再「糊」在纸里 --- */
+@media (min-width: 1001px) {
+  /* 线挂左栏右缘：右侧边栏保持 320px 原宽，不会被竖线挤窄 */
+  .home-layout > div:first-child {
+    border-right: 1px solid var(--color-ed-rule);
+    padding-right: 2rem;
   }
 }

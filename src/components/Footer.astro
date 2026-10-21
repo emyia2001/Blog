@@ -14,19 +14,19 @@ const allianceLinks = [
 ];
 ---
 
-<footer class="border-t border-[var(--color-ed-faint)] py-8">
+<footer class="border-t-2 border-[var(--color-ed-rule-strong)] py-8">
   <div class="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 text-center">
     <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
       <span class="text-[var(--color-ed-subtle)]">
         &copy; {year} {SITE_NAME}
       </span>
-      <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+      <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
       <a href="/rss.xml" class="hover-underline no-underline hit-24">RSS</a>
-      <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+      <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
       <a href="/timeline/" class="hover-underline no-underline hit-24">纪事</a>
       {socialLinks.map((link) => (
         <>
-          <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+          <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
           <a
             href={link.href}
             class="hover-underline no-underline hit-24"
@@ -42,7 +42,7 @@ const allianceLinks = [
     {allianceLinks.length > 0 && (
       <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
         <span class="text-[var(--color-ed-subtle)]">友链</span>
-        <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
+        <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
         {allianceLinks.map((link) => (
           <a
             href={link.href}

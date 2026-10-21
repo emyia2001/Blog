@@ -71,7 +71,7 @@ const related = published
   article={{ publishedTime: date, tags }}
 >
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
-    <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.7fr)_14rem] gap-10 lg:gap-12">
+    <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] gap-10 lg:gap-12">
       <!-- Main article -->
       <!-- max-w-[40em]（≈640px，17px 正文下 ~37 个汉字/行）约束阅读行长；
            1440 视口下原先是 960px ≈ 56 字/行，远超舒适区 -->
@@ -106,7 +106,7 @@ const related = published
           <Content />
         </div>
 
-        <div class="mt-16 pt-10 border-t border-[var(--color-ed-faint)]">
+        <div class="mt-16 pt-10 border-t-2 border-[var(--color-ed-rule-strong)]">
           <h2 class="font-serif text-2xl text-[var(--color-ed-fg)] mb-6">评论</h2>
           <Giscus />
         </div>
@@ -115,7 +115,7 @@ const related = published
 
         <!-- Tags (mobile only, at article end) -->
         {tags.length > 0 && (
-          <div class="mt-16 pt-10 border-t border-[var(--color-ed-faint)] lg:hidden">
+          <div class="mt-16 pt-10 border-t-2 border-[var(--color-ed-rule-strong)] lg:hidden">
             <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
               标签
             </h3>
@@ -134,7 +134,7 @@ const related = published
       </article>
 
       <!-- Sidebar -->
-      <aside class="shrink-0 order-1 lg:order-2 flex flex-col">
+      <aside class="shrink-0 order-1 lg:order-2 flex flex-col lg:border-l lg:border-[var(--color-ed-rule)] lg:pl-8">
         <div class="lg:sticky lg:top-24 space-y-10">
           <!-- Tags (desktop sidebar only; mobile version is at article end) -->
           {tags.length > 0 && (
@@ -159,9 +159,9 @@ const related = published
           {tocTree.length > 0 && (
             <div
               id="toc-panel"
-              class="border-t border-[var(--color-ed-faint)] pt-6
+              class="border-t border-[var(--color-ed-rule)] pt-6
                      max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:w-72
-                     max-lg:border-l max-lg:border-[var(--color-ed-faint)]
+                     max-lg:border-l max-lg:border-[var(--color-ed-rule)]
                      max-lg:bg-[var(--color-ed-bg)] max-lg:p-8 max-lg:pt-12 max-lg:overflow-y-auto"
             >
               <div class="mb-5 flex items-center justify-between">

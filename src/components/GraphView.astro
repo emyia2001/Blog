@@ -15,12 +15,12 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     <svg
       id="graph-svg"
       viewBox="0 0 800 500"
-      class="graph-svg h-[26rem] flex-1 min-w-0 cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
+      class="graph-svg h-[26rem] flex-1 min-w-0 cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-rule)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
       role="group"
       aria-label="内容关系图谱，支持拖拽缩放；每个节点可用 Tab 聚焦后回车查看详情"
     >
       <g id="graph-zoom">
-        <g id="graph-links" stroke="var(--color-ed-faint)" stroke-width="1.2"></g>
+        <g id="graph-links" stroke="var(--color-ed-rule)" stroke-width="1.2"></g>
         <g id="graph-nodes"></g>
       </g>
     </svg>
@@ -71,7 +71,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     width: 2rem;
     height: 2rem;
     border-radius: 999px;
-    border: 1px solid var(--color-ed-faint);
+    border: 1px solid var(--color-ed-rule);
     background: rgba(249, 248, 246, 0.9);
     color: var(--color-ed-muted);
     cursor: pointer;
@@ -128,7 +128,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     width: 0;
     opacity: 0;
     overflow: hidden;
-    border-left: 1px solid var(--color-ed-faint);
+    border-left: 1px solid var(--color-ed-rule);
     transition:
       width 0.35s ease,
       opacity 0.35s ease,
@@ -149,7 +149,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       bottom: 0;
       height: 100%;
       width: 0;
-      border-left: 1px solid var(--color-ed-faint);
+      border-left: 1px solid var(--color-ed-rule);
       background: var(--color-ed-bg);
       box-shadow: -12px 0 30px rgba(28, 28, 28, 0.12);
       overflow-y: auto;
@@ -173,7 +173,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     font-size: 10px;
     letter-spacing: 0.05em;
     color: var(--color-ed-muted);
-    border: 1px solid var(--color-ed-faint);
+    border: 1px solid var(--color-ed-rule);
     padding: 1px 6px;
     border-radius: 2px;
     margin-bottom: 0.5rem;
@@ -203,7 +203,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     }
     .graph-detail {
       border-left: none;
-      border-top: 1px solid var(--color-ed-faint);
+      border-top: 1px solid var(--color-ed-rule);
     }
     .graph-detail.is-open {
       width: 100%;
