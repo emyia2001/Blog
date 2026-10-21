@@ -7,13 +7,7 @@
 
 import { createCipheriv, randomBytes, pbkdf2Sync } from "node:crypto";
 
-export interface LockPayload {
-  question: string;
-  hint?: string;
-  answer: string; // 明文只在构建期使用，绝不写入产物
-}
-
-export interface EncryptedBlock {
+interface EncryptedBlock {
   ciphertext: string; // base64
   salt: string; // base64
   iv: string; // base64
@@ -23,7 +17,7 @@ const PBKDF2_ITERATIONS = 120_000;
 const KEY_LEN = 32;
 
 // 答案经 PBKDF2 派生 AES 密钥（与浏览器端实现保持一致）
-export function deriveKey(answer: string, salt: Buffer): Buffer {
+function deriveKey(answer: string, salt: Buffer): Buffer {
   return pbkdf2Sync(answer.normalize("NFC").trim(), salt, PBKDF2_ITERATIONS, KEY_LEN, "sha256");
 }
 

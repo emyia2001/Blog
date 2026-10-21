@@ -1,0 +1,33 @@
+# Cloudflare Pages 响应头配置（构建时由 public/_headers 拷贝到 dist/_headers）
+# 语法：路径规则 + 缩进的 Name: Value 行；同一路径后写的同名头会覆盖前面的。
+
+# —— 全站安全头 ——
+# 说明：这里刻意不加完整 Content-Security-Policy。站点用了 Astro 内联脚本/样式、
+# Pagefind 的 WebAssembly、以及 giscus.app 的 iframe，CSP 需要逐条放行并做线上灰度验证，
+# 配错会直接白屏或搜索不可用。防 iframe 嵌入先用 X-Frame-Options（等价 frame-ancestors 'self'）。
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin
+
+# —— 带内容哈希的构建产物：一年、immutable（浏览器不再回源校验）——
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# —— 字体：文件名带字重/分片号，内容稳定；改字体时文件名会变 ——
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# —— 图片：不带哈希，给一天并允许过期后后台再验证 ——
+/images/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# —— 404 不索引 ——
+/404.html
+  X-Robots-Tag: noindex
+
+# 注：HTML 与 /pagefind/* 保持 Cloudflare Pages 默认的 max-age=0, must-revalidate，
+# 保证重建后内容与搜索索引立刻生效（两者 URL 不带哈希）。

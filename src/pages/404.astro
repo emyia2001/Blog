@@ -2,7 +2,11 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="404 — 页面未找到">
+<BaseLayout
+  title="404 — 页面未找到"
+  description="页面不存在。可以回到首页，或看看归档与纪事。"
+  noindex
+>
   <section class="py-32 md:py-48 px-6 text-center">
     <h1 class="font-serif text-8xl md:text-9xl text-[var(--color-ed-fg)]">
       404

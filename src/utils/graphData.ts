@@ -1,5 +1,6 @@
 import type { CollectionEntry } from "astro:content";
 import { SITE_AVATAR } from "../consts";
+import { postPath } from "./urls";
 
 export interface GraphNode {
   id: string;
@@ -65,8 +66,8 @@ export function buildGraphData(
       ? "post"
       : ((e.data.type as string) === "person" ? "person" : "event");
 
-  const urlOf = (id: string, e: AnyEntry): string =>
-    e.collection === "posts" ? `/blog/${id.replace(/\.mdx$/, "")}` : "";
+  const urlOf = (_id: string, e: AnyEntry): string =>
+    e.collection === "posts" ? postPath(e as PostEntry) : "";
 
   const nodes: GraphNode[] = [
     selfNode,
@@ -92,6 +93,8 @@ export function buildGraphData(
   for (const n of nodes) titleToNode.set(n.title, n);
   for (const c of graphContent) {
     const t = c.entry.data.title;
+    // diary 等无 title 的内容不参与「按名匹配」，否则会把 undefined 塞进 Map
+    if (!t) continue;
     if (!titleToNode.has(t)) {
       const node = nodes.find((n) => n.id === c.id);
       if (node) titleToNode.set(t, node);
@@ -109,7 +112,10 @@ export function buildGraphData(
   }
 
   for (const c of graphContent) {
-    const body = String(c.entry.body ?? "");
+    // 代码块与行内代码里的 [[...]] 不是关联声明，先剥离再匹配
+    const body = String(c.entry.body ?? "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`[^`\n]*`/g, " ");
     const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
     for (const refTitle of refs) {
       const target = titleToNode.get(refTitle);

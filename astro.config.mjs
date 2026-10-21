@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 import { editorialLight } from "./src/utils/editorialShikiTheme";
 import { rehypeCodeBlock } from "./src/utils/rehype-code-block";
+import { rehypeImageAttrs } from "./src/utils/rehype-image-attrs";
 import { SITE_URL } from "./src/consts";
 
 // https://astro.build/config
@@ -20,7 +21,7 @@ export default defineConfig({
     shikiConfig: {
       theme: editorialLight,
     },
-    rehypePlugins: [rehypeCodeBlock],
+    rehypePlugins: [rehypeCodeBlock, rehypeImageAttrs],
   },
   vite: {
     plugins: [tailwindcss()],

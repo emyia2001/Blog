@@ -2,9 +2,11 @@ dist/
 .astro/
 node_modules/
 .omo/
-public/pagefind/
 public/fonts/noto-serif-sc/
 .env
 .env.*
 .playwright-mcp/
 .superpowers/
+
+# Wrangler 本地状态（workers/online-counter）
+.wrangler/

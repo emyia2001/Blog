@@ -7,6 +7,7 @@ import MiniPlayer from "../components/MiniPlayer.astro";
 import Giscus from "../components/Giscus.astro";
 import Toc from "../components/Toc.astro";
 import { readingTime } from "../utils/readingTime";
+import { postPath, tagPath } from "../utils/urls";
 
 interface Props {
   post: CollectionEntry<"posts">;
@@ -63,7 +64,12 @@ const related = published
   .slice(0, 3);
 ---
 
-<BaseLayout title={title} description={excerpt} image={heroImage}>
+<BaseLayout
+  title={title}
+  description={excerpt}
+  image={heroImage}
+  article={{ publishedTime: date, tags }}
+>
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
     <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.7fr)_14rem] gap-10 lg:gap-12">
       <!-- Main article -->
@@ -114,7 +120,7 @@ const related = published
             <div class="flex flex-wrap gap-2">
               {tags.map((tag) => (
                 <a
-                  href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                  href={tagPath(tag)}
                   class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
                 >
                   #{tag}
@@ -137,7 +143,7 @@ const related = published
               <div class="flex flex-wrap gap-2">
                 {tags.map((tag) => (
                   <a
-                    href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                    href={tagPath(tag)}
                     class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
                   >
                     #{tag}
@@ -176,7 +182,7 @@ const related = published
                 {related.map((p) => (
                   <li>
                     <a
-                      href={`/blog/${p.id.replace(/\.mdx$/, "")}`}
+                      href={postPath(p)}
                       class="block group"
                     >
                       <span class="font-serif text-sm text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
@@ -208,6 +214,8 @@ const related = published
     class="hidden max-lg:fixed max-lg:bottom-6 max-lg:right-6 max-lg:z-50 max-lg:inline-flex max-lg:h-11 max-lg:items-center max-lg:justify-center max-lg:gap-1.5 max-lg:rounded-full max-lg:px-4 max-lg:font-sans max-lg:text-sm max-lg:tracking-wide"
     style="background: var(--color-ed-fg); color: var(--color-ed-bg);"
     aria-label="打开目录"
+    aria-controls="toc-panel"
+    aria-expanded="false"
   >
     目录
   </button>
@@ -231,7 +239,7 @@ const related = published
     const tocLinks = document.querySelectorAll("[data-toc]");
     if (!headings.length || !tocLinks.length) return;
 
-    const expandAncestors = (link) => {
+    const expandAncestors = (link: Element) => {
       let item = link.closest(".toc-item");
       while (item) {
         item.classList.remove("is-collapsed");
@@ -241,7 +249,7 @@ const related = published
       }
     };
 
-    const activate = (id) => {
+    const activate = (id: string) => {
       tocLinks.forEach((l) => {
         l.classList.remove("toc-active");
         l.classList.remove("toc-active-ancestor");
@@ -261,7 +269,8 @@ const related = published
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            activate(entry.target.getAttribute("id"));
+            const anchorId = entry.target.getAttribute("id");
+            if (anchorId) activate(anchorId);
           }
         }
       },
@@ -271,6 +280,21 @@ const related = published
   }
 
   // ---- 移动端目录抽屉开合 ----
+  // 关闭态要 inert：仅 translateX(100%) 移出屏幕时，目录里的链接仍能被 Tab 到
+  const TOC_MOBILE_QUERY = "(max-width: 1023px)";
+
+  function syncTocInert() {
+    const panel = document.getElementById("toc-panel");
+    const toggle = document.getElementById("toc-toggle");
+    if (!panel) return;
+    const isMobile = window.matchMedia(TOC_MOBILE_QUERY).matches;
+    const isOpen = panel.classList.contains("toc-open");
+    if (isMobile && !isOpen) panel.setAttribute("inert", "");
+    else panel.removeAttribute("inert");
+    toggle?.setAttribute("aria-expanded", String(isMobile && isOpen));
+    if (toggle) toggle.setAttribute("aria-label", isMobile && isOpen ? "关闭目录" : "打开目录");
+  }
+
   function openToc() {
     const panel = document.getElementById("toc-panel");
     const backdrop = document.getElementById("toc-backdrop");
@@ -278,15 +302,32 @@ const related = published
     panel.classList.add("toc-open");
     backdrop.classList.remove("hidden");
     document.body.style.overflow = "hidden";
+    syncTocInert();
+    panel.querySelector<HTMLElement>("a, button")?.focus();
   }
-  function closeToc() {
+  function closeToc(restoreFocus = false) {
     const panel = document.getElementById("toc-panel");
     const backdrop = document.getElementById("toc-backdrop");
     if (!panel || !backdrop) return;
+    const wasOpen = panel.classList.contains("toc-open");
     panel.classList.remove("toc-open");
     backdrop.classList.add("hidden");
     document.body.style.overflow = "";
+    syncTocInert();
+    if (restoreFocus && wasOpen) document.getElementById("toc-toggle")?.focus();
   }
+
+  // 初始化 / 换页 / 改窗口尺寸时同步抽屉的 inert 与 aria 状态
+  function initTocDrawer() {
+    syncTocInert();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const panel = document.getElementById("toc-panel");
+      if (panel) panel.style.transition = "none";
+    }
+  }
+  document.addEventListener("astro:page-load", initTocDrawer);
+  window.addEventListener("resize", syncTocInert, { passive: true });
+  initTocDrawer();
 
   // 事件委托(跨 VT 存活)
   document.addEventListener("click", (e) => {
@@ -313,7 +354,7 @@ const related = published
     }
     // 关闭目录抽屉
     if (target.closest("#toc-close") || target.closest("#toc-backdrop")) {
-      closeToc();
+      closeToc(true);
       return;
     }
     // 点击目录链接:高亮并关闭抽屉(桌面端交给滚动观察器)
@@ -338,12 +379,14 @@ const related = published
     });
     let cur: Element | null = link;
     while (cur) {
-      const p = cur.getAttribute("data-toc-parent");
+      const parentId: string | null = cur.getAttribute("data-toc-parent");
       cur.classList.add("toc-active");
-      if (p) {
-        const parent = document.querySelector(`[data-toc="${p}"]`);
-        if (parent) parent.classList.add("toc-active-ancestor");
-        cur = parent;
+      if (parentId) {
+        const parentEl: Element | null = document.querySelector(
+          `[data-toc="${parentId}"]`
+        );
+        if (parentEl) parentEl.classList.add("toc-active-ancestor");
+        cur = parentEl;
       } else {
         cur = null;
       }

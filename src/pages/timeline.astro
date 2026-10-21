@@ -77,9 +77,6 @@ const entries: TimelineEntry[] = publishedMoments
   }))
   .sort((a, b) => b.date.getTime() - a.date.getTime());
 
-const formatDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
-  d.toLocaleDateString("zh-CN", opts);
-
 const fmtLong = (d: Date) =>
   d.toLocaleDateString("zh-CN", {
     year: "numeric",
@@ -96,7 +93,7 @@ const defaultRendered =
   entries.length > 0 ? renderedAll[entries[0].contentIndex] : null;
 ---
 
-<BaseLayout title="纪事">
+<BaseLayout title="纪事" description="纪事时间线：人物、事件与日常日记，按时间从近到远排列。">
   <div class="mx-auto max-w-[1380px] px-6 md:px-8">
     <section class="pt-10 md:pt-16">
       <h1
@@ -192,6 +189,7 @@ const defaultRendered =
                   role="button"
                   tabindex="0"
                   aria-expanded="false"
+                  aria-controls="timeline-detail"
                   style={`--tl-i: ${i}`}
                 >
                   {/* 段竖线：独立于可缩放内容，入场时逐段生长、悬停时本段高亮 */}
@@ -216,6 +214,21 @@ const defaultRendered =
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
       )}
     </section>
+
+    <!-- 全站搜索索引：纪事的正文原本只存在于 <template>（不进 DOM，Pagefind 抓不到），
+         这里给「人物/事件」补一份隐藏的纯文本；日记按约定不进搜索，加密条目只有密文也跳过。
+         索引后的结果统一落到 /timeline/。 -->
+    <div hidden data-pagefind-body>
+      <h2>纪事</h2>
+      {renderedAll
+        .filter((c) => c.kind !== "diary" && !c.lock)
+        .map((c) => (
+          <article>
+            <h3>{c.entry.data.title ?? fmtLong(c.entry.data.date)}</h3>
+            <p>{String(c.entry.body ?? "")}</p>
+          </article>
+        ))}
+    </div>
 
     <!-- Hidden full-text contents (moments + diary), cloned into detail area on click -->
     <template id="content-templates">
@@ -494,12 +507,17 @@ const defaultRendered =
   // 点击切换详情采用 document 级事件委托：兼容 ViewTransitions 换页后节点被替换、
   // 以及脚本重入的情况，避免“点了没反应”。
   const detail = document.getElementById("timeline-detail");
-  const template = document.getElementById("content-templates");
+  const template = document.getElementById("content-templates") as
+    | HTMLTemplateElement
+    | null;
   if (!detail || !template) {
     console.warn("timeline elements missing");
   } else {
+    // 闭包里丢收窄：显式取局部别名
+    const detailEl: HTMLElement = detail;
+    const templateEl: HTMLTemplateElement = template;
     const contentBodies = Array.from(
-      template.content.querySelectorAll<HTMLElement>(".content-body")
+      templateEl.content.querySelectorAll<HTMLElement>(".content-body")
     );
 
     let activeIndex: number | null = null;
@@ -524,7 +542,7 @@ const defaultRendered =
       if (activeIndex === index) {
         activeIndex = null;
         setActive(null);
-        detail.innerHTML = "";
+        detailEl.innerHTML = "";
         return;
       }
       activeIndex = index;
@@ -535,8 +553,8 @@ const defaultRendered =
         (b) => b.dataset.contentIndex === String(contentIdx)
       );
       if (body) {
-        detail.innerHTML = "";
-        detail.appendChild(body.cloneNode(true) as HTMLElement);
+        detailEl.innerHTML = "";
+        detailEl.appendChild(body.cloneNode(true) as HTMLElement);
       }
     }
 
@@ -687,7 +705,8 @@ const defaultRendered =
     box.querySelector(".lock-input")?.remove();
     box.querySelector(".lock-btn")?.remove();
     box.querySelector(".lock-question")?.remove();
-    if (box.querySelector(".lock-error")) box.querySelector(".lock-error")!.hidden = true;
+    const err = box.querySelector<HTMLElement>(".lock-error");
+    if (err) err.hidden = true;
   }
 
   async function tryUnlock(box: HTMLElement) {

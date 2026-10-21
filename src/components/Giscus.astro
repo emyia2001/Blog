@@ -1,5 +1,5 @@
 ---
-import { execSync } from "node:child_process";
+import { GISCUS_REPO, SITE_URL } from "../consts";
 
 interface Props {
   class?: string;
@@ -7,32 +7,19 @@ interface Props {
 
 const { class: className = "" } = Astro.props;
 
-// 自动取 src/styles/giscus-theme.css 最后一次被提交的 commit hash，
-// 拼成 jsDelivr 直链。改主题 CSS 并提交后，下次构建自动指向新版本，
-// 无需手动更新 hash。jsDelivr 对精确 commit hash 不走普通缓存，立即生效。
-// 构建环境若不是 git 仓库（如 shallow clone 且无历史）则回退到已知有效 hash。
-function getThemeHash(): string {
-  const fallback = "6e91f4f53d4fbe0e56780f13a774797f4d3ee56a";
-  try {
-    const hash = execSync(
-      "git log -1 --format=%H -- src/styles/giscus-theme.css",
-      { encoding: "utf-8" }
-    ).trim();
-    return hash || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-const themeUrl = `https://cdn.jsdelivr.net/gh/emyia2001/Blog@${getThemeHash()}/src/styles/giscus-theme.css`;
+// 自定义主题改为同源 URL：由 src/pages/giscus-theme.css.ts 这个 endpoint 输出，
+// 带 Access-Control-Allow-Origin: *（giscus 在 giscus.app iframe 里以 CORS 模式拉取）。
+// 以前指向 cdn.jsdelivr.net：一是依赖第三方可用性（实测国内线路直接连不上，评论会掉回
+// 默认主题），二是构建期要跑 git log 取 hash，浅克隆下容易退化。
+const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
 ---
 
 <div id="giscus" class={className} data-pagefind-ignore></div>
 
-<script define:vars={{ themeUrl }}>
+<script define:vars={{ themeUrl, repo: GISCUS_REPO }}>
   const GISCUS_CONFIG = {
     src: "https://giscus.app/client.js",
-    "data-repo": "emyia2001/comment",
+    "data-repo": repo,
     "data-repo-id": "R_kgDOT0CTSw",
     "data-category": "Announcements",
     "data-category-id": "DIC_kwDOT0CTS84DDDuA",
@@ -50,11 +37,11 @@ const themeUrl = `https://cdn.jsdelivr.net/gh/emyia2001/Blog@${getThemeHash()}/s
   function loadGiscus() {
     const container = document.getElementById("giscus");
     if (!container || container.dataset.loaded === "1") return;
+    // 已经滚出视口就先不加载：giscus 要拉 client.js + iframe + API，约 1~1.5s，
+    // 文章页首屏根本用不到评论区。
+    if (container.dataset.loading === "deferred") return;
 
-    // 自定义主题：经 jsDelivr CDN 加载。giscus 在 giscus.app 跨域 iframe 内以
-    // <link crossorigin="anonymous"> (CORS 模式) 拉取主题 CSS。jsDelivr 对所有
-    // 文件固定返回 Access-Control-Allow-Origin:*，静态托管下也不会被拦截。
-    // themeUrl 由构建时按 giscus-theme.css 的最新 commit hash 自动生成。
+    // 自定义主题：同源 /giscus-theme.css，见文件头注释。
     const script = document.createElement("script");
     script.async = true;
     script.crossOrigin = GISCUS_CONFIG.crossorigin;
@@ -69,5 +56,25 @@ const themeUrl = `https://cdn.jsdelivr.net/gh/emyia2001/Blog@${getThemeHash()}/s
     container.dataset.loaded = "1";
   }
 
-  document.addEventListener("astro:page-load", loadGiscus);
+  // 评论区进入视口附近再加载（首屏省掉 giscus 的 client.js 与 iframe 请求）
+  function setupLazyLoad() {
+    const container = document.getElementById("giscus");
+    if (!container || container.dataset.loaded === "1") return;
+    if (!("IntersectionObserver" in window)) {
+      loadGiscus();
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          io.disconnect();
+          loadGiscus();
+        }
+      },
+      { rootMargin: "400px 0px" }
+    );
+    io.observe(container);
+  }
+
+  document.addEventListener("astro:page-load", setupLazyLoad);
 </script>

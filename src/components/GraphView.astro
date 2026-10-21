@@ -1,21 +1,5 @@
 ---
-import { SITE_DESCRIPTION } from "../consts";
-
-interface GraphNode {
-  id: string;
-  kind: "post" | "person" | "event" | "self";
-  title: string;
-  url: string;
-  contentIndex: number;
-  avatar?: string;
-  excerpt?: string;
-  heroImage?: string;
-}
-
-interface GraphLink {
-  source: string;
-  target: string;
-}
+import type { GraphLink, GraphNode } from "../utils/graphData";
 
 interface Props {
   nodes: GraphNode[];
@@ -32,8 +16,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       id="graph-svg"
       viewBox="0 0 800 500"
       class="graph-svg h-[26rem] flex-1 min-w-0 cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-faint)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
-      role="img"
-      aria-label="内容关系图谱，支持拖拽缩放"
+      role="group"
+      aria-label="内容关系图谱，支持拖拽缩放；每个节点可用 Tab 聚焦后回车查看详情"
     >
       <g id="graph-zoom">
         <g id="graph-links" stroke="var(--color-ed-faint)" stroke-width="1.2"></g>
@@ -60,6 +44,13 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 </figure>
 
 <style>
+  /* 键盘焦点可见：图谱节点是可聚焦的 role=button，必须有可见焦点环 */
+  :global(.graph-svg .graph-node:focus-visible) {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   .graph-layout {
     display: flex;
     align-items: stretch;
@@ -226,13 +217,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 </style>
 
 <script>
-  const svg = document.getElementById("graph-svg") as SVGSVGElement;
-  const zoomG = document.getElementById("graph-zoom") as SVGGElement;
-  const linksG = document.getElementById("graph-links") as SVGGElement;
-  const nodesG = document.getElementById("graph-nodes") as SVGGElement;
+  import type { GraphLink, GraphNode } from "../utils/graphData";
+
+  const svg = document.querySelector<SVGSVGElement>("#graph-svg")!;
+  const zoomG = document.querySelector<SVGGElement>("#graph-zoom")!;
+  const linksG = document.querySelector<SVGGElement>("#graph-links")!;
+  const nodesG = document.querySelector<SVGGElement>("#graph-nodes")!;
   const data = JSON.parse(
-    (document.getElementById("graph-data") as HTMLScriptElement).textContent ??
-      "{}"
+    document.querySelector<HTMLScriptElement>("#graph-data")?.textContent ?? "{}"
   ) as { nodes: GraphNode[]; links: GraphLink[] };
 
   const {
@@ -248,6 +240,9 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   const W = 800;
   const H = 500;
   const cleanupController = new AbortController();
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
 
   const nodes = data.nodes.map((n) => ({ ...n })) as Array<
     GraphNode & {
@@ -291,7 +286,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   const NS = "http://www.w3.org/2000/svg";
 
-  const linkEls = links.map((l) => {
+  const linkEls = links.map(() => {
     const line = document.createElementNS(NS, "line");
     linksG.appendChild(line);
     return line;
@@ -308,7 +303,7 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     g.setAttribute("tabindex", "0");
     g.setAttribute("aria-label", n.title);
     g.style.cursor = "pointer";
-    g.style.outline = "none";
+    // 焦点样式交给 CSS 的 :focus-visible（原来 outline:none 让键盘用户完全看不到焦点）
 
     // Large transparent hit area: forgiving click/drag targets
     const hit = document.createElementNS(NS, "circle");
@@ -395,15 +390,15 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force(
       "link",
       forceLink(links as never)
-        .id((d) => (d as GraphNode).id)
+        .id((d: GraphNode) => d.id)
         .distance(110)
     )
     .force("charge", forceManyBody().strength(-300))
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
     // "self" is pinned to the center
-    .force("x", forceX(W / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
-    .force("y", forceY(H / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
+    .force("x", forceX(W / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
+    .force("y", forceY(H / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
     .on("tick", ticked);
 
   let resizeObserver: ResizeObserver | null = null;
@@ -510,8 +505,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     simulation.force("center", forceCenter(w / 2, h / 2));
     simulation
-      .force("x", forceX(w / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)))
-      .force("y", forceY(h / 2).strength((d) => ((d as GraphNode).kind === "self" ? 1 : 0)));
+      .force("x", forceX(w / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
+      .force("y", forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)));
     // 画布尺寸变化时：边距/斥力按画布短边自适应，并把卫星节点重新散布到
     // 以 self 为中心的环上（布局自然收敛，非 transform 跳变）
     const short = Math.min(w, h);
@@ -533,7 +528,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       n.x = cx + Math.cos(a) * ringR;
       n.y = cy + Math.sin(a) * ringR;
     });
-    simulation.alpha(0.6).restart();
+    if (prefersReducedMotion) {
+      // 不允许动效时直接把布局算完再画，不做可见的抖动动画
+      simulation.stop();
+      for (let i = 0; i < 280; i++) simulation.tick();
+      ticked();
+    } else {
+      simulation.alpha(0.6).restart();
+    }
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);

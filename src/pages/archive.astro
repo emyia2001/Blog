@@ -2,6 +2,7 @@
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import TagCloud from "../components/TagCloud.astro";
+import { postPath } from "../utils/urls";
 
 const allPosts = await getCollection("posts");
 const allMoments = await getCollection("moments");
@@ -26,13 +27,13 @@ const entries: Entry[] = [
     kind: "post" as const,
     title: p.data.title,
     date: p.data.date,
-    url: `/blog/${p.id.replace(/\.mdx$/, "")}`,
+    url: postPath(p),
   })),
   ...publishedMoments.map((m) => ({
     kind: m.data.type as "person" | "event",
     title: m.data.title ?? fmtShort(m.data.date),
     date: m.data.date,
-    url: "/timeline",
+    url: "/timeline/",
   })),
 ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -53,7 +54,7 @@ const kindLabel = (k: Entry["kind"]) =>
   k === "post" ? "文章" : k === "person" ? "人物" : "事件";
 ---
 
-<BaseLayout title="归档">
+<BaseLayout title="归档" description="按时间倒序浏览全部文章与纪事：长文、人物、事件与日记。">
   <section class="py-24 md:py-32 px-6">
     <div class="mx-auto max-w-2xl">
       <h1

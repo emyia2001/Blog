@@ -4,11 +4,13 @@
   class="fixed inset-0 z-[60] hidden items-start justify-center bg-black/20 px-4 pt-[12vh]"
   role="dialog"
   aria-modal="true"
-  aria-label="搜索"
+  aria-labelledby="search-title"
 >
   <div class="w-full max-w-xl border border-[var(--color-ed-faint)]"
     style="background: var(--color-ed-bg);"
   >
+    <h2 id="search-title" class="sr-only">站内搜索</h2>
+    <label for="search-input" class="sr-only">搜索文章关键词</label>
     <input
       type="search"
       id="search-input"
@@ -16,7 +18,12 @@
       autocomplete="off"
       class="w-full border-b border-[var(--color-ed-faint)] bg-transparent px-5 py-4 text-sm text-[var(--color-ed-fg)] placeholder:text-[var(--color-ed-subtle)] focus:outline-none"
     />
-    <div id="search-results" class="max-h-[50vh] overflow-y-auto px-5 py-2">
+    <div
+      id="search-results"
+      class="max-h-[50vh] overflow-y-auto px-5 py-2"
+      role="status"
+      aria-live="polite"
+    >
       <p class="py-3 text-sm text-[var(--color-ed-muted)]">
         输入关键词开始搜索。
       </p>
@@ -33,7 +40,30 @@
   let pf: any = null;
   let loaded = false;
   let loadPromise: Promise<void> | null = null;
-  let bound = false;
+  // 打开弹层前的焦点元素，关闭时归还（键盘用户不会「关掉后焦点掉到 body」）
+  let lastFocused: HTMLElement | null = null;
+
+  const FOCUSABLE =
+    'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function trapFocus(e: KeyboardEvent) {
+    const { modal } = getRefs();
+    if (!modal || modal.classList.contains("hidden") || e.key !== "Tab") return;
+    const nodes = Array.from(modal.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+      (el) => el.offsetParent !== null
+    );
+    if (!nodes.length) return;
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || !modal.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   function getRefs() {
     return {
@@ -75,6 +105,7 @@
   function open() {
     const { modal, input } = getRefs();
     if (!modal || !input) return;
+    lastFocused = document.activeElement as HTMLElement | null;
     modal.classList.remove("hidden");
     modal.classList.add("flex");
     document.body.style.overflow = "hidden";
@@ -90,6 +121,8 @@
     document.body.style.overflow = "";
     input.value = "";
     setMessage("输入关键词开始搜索。");
+    lastFocused?.focus?.();
+    lastFocused = null;
   }
 
   function isOpen() {
@@ -102,6 +135,7 @@
 
   // Esc closes, Cmd/Ctrl+K opens
   document.addEventListener("keydown", (e) => {
+    trapFocus(e);
     if (e.key === "Escape" && isOpen()) {
       close();
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {

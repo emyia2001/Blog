@@ -17,7 +17,8 @@
 | 图标 | [astro-icon](https://github.com/withastro/astro-icon) + `@iconify-json/mdi` |
 | 关系图谱 | `d3-force`（动态导入，客户端渲染 SVG） |
 | 评论 | [Giscus](https://giscus.app)（GitHub Discussions 驱动） |
-| 部署 | Cloudflare Pages（`git push` 即自动构建） |
+| 部署 | Cloudflare Pages（`git push` 即自动构建；`public/_headers` 管安全头与缓存头） |
+| 校验 | `astro check`（`npm run check`，内容集合类型 + 组件脚本） |
 
 ---
 
@@ -60,7 +61,7 @@ src/
 │   ├── ContributionHeatmap.astro GitHub 贡献热力图渲染
 │   ├── MiniPlayer.astro    背景音乐播放器（Web Component）
 │   ├── SearchModal.astro   搜索弹窗（Pagefind，Cmd/Ctrl+K）
-│   ├── Giscus.astro        评论区（主题 CSS 按 commit hash 自动走 jsDelivr）
+│   ├── Giscus.astro        评论区（主题 CSS 同源输出，滚到附近才加载）
 │   ├── TagCloud.astro      标签云（可复用，按计数排序）
 │   ├── PrevNext.astro      文章上下篇导航
 │   └── BackToTop.astro     回到顶部
@@ -75,19 +76,27 @@ src/
 │   ├── 404.astro           自定义 404
 │   ├── rss.xml.ts          RSS 订阅源
 │   ├── robots.txt.ts       robots 协议
-│   └── giscus-theme.css.ts Giscus 主题 CSS 的构建期 hash 直链
+│   ├── giscus-theme.css.ts Giscus 主题 CSS（同源、带 CORS，供 giscus iframe 拉取）
+│   └── tags/index.astro    标签总览页
 ├── styles/
 │   ├── editorial.css       设计令牌（@theme）+ 全局/排版/Prose 样式
 │   ├── fonts.css           字体 @font-face（本地 woff2）
 │   └── giscus-theme.css    Giscus 暗/亮主题变量
+├── types/
+│   └── d3-force.d.ts       无类型第三方模块的最小声明
 └── utils/
+    ├── urls.ts             站内 URL 统一出口（尾斜杠、文章 slug、标签 slug）
     ├── readingTime.ts      中英混排阅读时长估算
     ├── graphData.ts        关系图谱节点/连线聚合（posts + moments）
+    ├── rehype-code-block.ts 代码块加复制按钮
+    ├── rehype-image-attrs.ts 图片补 lazy/decoding/alt
     └── contributions.ts    GitHub 贡献热力图取数（GraphQL/公开抓取）
 
 public/
-├── fonts/                 本地字体（Playfair Display / Source Sans 3 的 woff2）
-└── images/                banner / graph 图标 / 头像（touxiang.webp）
+├── fonts/                 本地字体（Playfair / Source Sans 3 woff2、Noto Serif SC 分片）
+├── images/                头像、关系图谱图标、OG 分享图（og-default.png）、touch icon
+├── _headers               Cloudflare Pages 响应头（安全头 + 静态资源长缓存）
+└── favicon.svg
 
 .pages.yml                 Pages CMS 配置（posts / moments 两个集合）
 ```

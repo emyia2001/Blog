@@ -5,6 +5,7 @@ import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
 import { fetchContributions } from "../utils/contributions";
+import { postPath, tagPath } from "../utils/urls";
 import {
   SITE_NAME,
   SITE_AVATAR,
@@ -29,7 +30,10 @@ const moments = allMoments
   .filter((m) => !m.data.draft)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
-const heroPost = published[0];
+// featured 生效规则：有置顶就取置顶里最新的一篇，否则取最新一篇。
+// 这样 CMS 里那个「置顶」开关不再是点了没效果的摆设。
+const featuredPosts = published.filter((p) => p.data.featured);
+const heroPost = featuredPosts[0] ?? published[0];
 // 近期笔墨：报头已展示最新一篇，列表从第 2 篇开始排
 const listPosts = published.slice(1, 6);
 
@@ -38,7 +42,6 @@ const now = new Date();
 const daysNum = Math.floor((now.getTime() - SITE_CREATED.getTime()) / 86400000) + 1;
 
 // --- journal helpers ---
-const postUrl = (id: string) => `/blog/${id.replace(/\.mdx$/, "")}`;
 const fmtMonthDay = (d: Date) =>
   d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
 const fmtYearMonth = (d: Date) =>
@@ -60,17 +63,12 @@ const sortedTags = [...tagCounts.entries()].sort(
 const daysStr = String(daysNum).padStart(2, "0");
 ---
 
-<script is:inline>
-  // Must run before .reveal / .char-reveal / .mask-reveal elements render
-  document.documentElement.classList.add("js");
-</script>
-
 <BaseLayout title="首页">
   <div class="mx-auto max-w-[1380px] px-6 md:px-8">
     <!-- ===== 双栏主区：左列（报头头条 + 近期笔墨） | 右列（关于/纪事/标签，贴顶） ===== -->
     <div class="home-layout">
       <!-- 左列 -->
-      <main class="min-w-0">
+      <div class="min-w-0">
         {heroPost && (
           <header class="home-masthead">
             <span class="home-masthead__rail" aria-hidden="true">
@@ -83,7 +81,7 @@ const daysStr = String(daysNum).padStart(2, "0");
                 <span class="home-kicker__no">No.01</span>
                 <span class="home-kicker__vol">Vol. {vol} · 创站第 {daysStr} 天</span>
               </div>
-              <a href={postUrl(heroPost.id)} class="no-underline">
+              <a href={postPath(heroPost)} class="no-underline">
                 <h1 class="home-masthead__title">{heroPost.data.title}</h1>
               </a>
               {heroPost.data.excerpt && (
@@ -98,7 +96,7 @@ const daysStr = String(daysNum).padStart(2, "0");
                   </>
                 )}
               </div>
-              <a href={postUrl(heroPost.id)} class="home-masthead__cta">
+              <a href={postPath(heroPost)} class="home-masthead__cta">
                 阅读全文 →
               </a>
             </div>
@@ -110,7 +108,7 @@ const daysStr = String(daysNum).padStart(2, "0");
             近期笔墨
             <small>Recent Writing</small>
           </span>
-          <a href="/archive" class="home-sec-more">全部文章 →</a>
+          <a href="/archive/" class="home-sec-more">全部文章 →</a>
         </div>
 
         {published.length === 0 ? (
@@ -119,7 +117,7 @@ const daysStr = String(daysNum).padStart(2, "0");
           </p>
         ) : (
           listPosts.map((post) => (
-            <a href={postUrl(post.id)} class="home-post-row">
+            <a href={postPath(post)} class="home-post-row">
               <span class="home-post-no">{issueOf(post.id)}</span>
               <span class="home-post-body">
                 <span class="home-post-title">{post.data.title}</span>
@@ -142,7 +140,7 @@ const daysStr = String(daysNum).padStart(2, "0");
             </a>
           ))
         )}
-      </main>
+      </div>
 
       <!-- 右侧独立栏 -->
       <aside class="home-side">
@@ -207,7 +205,7 @@ const daysStr = String(daysNum).padStart(2, "0");
           <div class="home-side-card">
             <div class="home-side-label">纪事 · Moments</div>
             {moments.slice(0, 4).map((m) => (
-              <a href="/timeline" class="home-moment-line">
+              <a href="/timeline/" class="home-moment-line">
                 <span class="home-moment-dot" aria-hidden="true"></span>
                 <span class="home-moment-title">
                   {m.data.title ?? m.data.date.toISOString().slice(0, 10)}
@@ -218,8 +216,8 @@ const daysStr = String(daysNum).padStart(2, "0");
               </a>
             ))}
             <div class="mt-2 flex items-center justify-end gap-4">
-              <a href="/graph" class="home-sec-more">图谱 →</a>
-              <a href="/timeline" class="home-sec-more">纪事时间线 →</a>
+              <a href="/graph/" class="home-sec-more">图谱 →</a>
+              <a href="/timeline/" class="home-sec-more">纪事时间线 →</a>
             </div>
           </div>
         )}
@@ -231,7 +229,7 @@ const daysStr = String(daysNum).padStart(2, "0");
             <div class="flex flex-wrap gap-2">
               {sortedTags.map(([tag, count]) => (
                 <a
-                  href={`/tags/${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                  href={tagPath(tag)}
                   class="home-tag"
                 >
                   {tag}
