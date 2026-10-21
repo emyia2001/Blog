@@ -1,0 +1,37 @@
+// 博客实时在线人数 Worker 的 Wrangler 配置
+// 部署：cd workers/online-counter && npm install && npx wrangler deploy
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "online-counter",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+
+  // 免费版 Workers 也能用 Durable Object，但只支持 SQLite 存储后端（故 migrations 用 new_sqlite_classes）
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ONLINE_COUNTER",
+        "class_name": "OnlineCounterRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OnlineCounterRoom"]
+    }
+  ],
+
+  // 只允许自己的博客域名连 WebSocket / 读 /count，避免被别的站蹭
+  // 本地调试时保留 http://localhost:4321；上线后可删掉本机项
+  "vars": {
+    "ALLOWED_ORIGINS": "https://blog.snark.casa,http://localhost:4321"
+  },
+
+  // 先给一个 *.workers.dev 域名方便冒烟测试；之后可在 Dashboard 绑定自定义域名（如 online.snark.casa）
+  "workers_dev": true,
+
+  "observability": {
+    "enabled": true
+  }
+}
