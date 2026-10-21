@@ -63,7 +63,7 @@ const kindLabel = (k: Entry["kind"]) =>
         归档
       </h1>
 
-      <div class="mb-20">
+      <div class="mb-20 reveal">
         <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-6">
           标签
         </h2>
@@ -78,7 +78,7 @@ const kindLabel = (k: Entry["kind"]) =>
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
       ) : (
         years.map((year) => (
-          <div class="mb-14">
+          <div class="mb-14 reveal">
             <div class="font-mono text-xs text-[var(--color-ed-subtle)] mb-6 tabular-nums">
               {year}
             </div>

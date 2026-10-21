@@ -203,6 +203,46 @@ if (article) {
           if (label) label.textContent = original;
         }, 1600);
       });
+
+      // 滚动揭示：.reveal / .mask-reveal 进入视口后加 .is-visible（CSS 里做动画）。
+      // 用单个 IntersectionObserver，并在 View Transitions 换页后重建（DOM 已换）。
+      // rootMargin 底部内缩 6%，元素进入可视区下缘约 6% 时开始，滚动时不「追手」。
+      let revealObserver: IntersectionObserver | null = null;
+
+      function initReveal() {
+        revealObserver?.disconnect();
+        const els = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".reveal:not(.is-visible), .mask-reveal:not(.is-visible)"
+          )
+        );
+        if (!els.length) return;
+        if (!("IntersectionObserver" in window)) {
+          els.forEach((el) => el.classList.add("is-visible"));
+          return;
+        }
+        revealObserver = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              entry.target.classList.add("is-visible");
+              revealObserver?.unobserve(entry.target);
+            }
+          },
+          { rootMargin: "0px 0px -6% 0px", threshold: 0.01 }
+        );
+        for (const el of els) {
+          // 浏览器恢复滚动位置时，视口上方的元素不会触发回调，直接标记为已显示
+          if (el.getBoundingClientRect().bottom < 0) {
+            el.classList.add("is-visible");
+            continue;
+          }
+          revealObserver.observe(el);
+        }
+      }
+
+      document.addEventListener("astro:page-load", initReveal);
+      initReveal();
     </script>
   </body>
 </html>

@@ -13,12 +13,30 @@
      原先所有线都压在 10% 墨（1.22:1），纸上几乎看不见，区块之间没有分割感。
      hairline 1.4:1 只用于卡内细节；rule 2.1:1 是结构线；rule-strong 4.3:1 用于分节。 */
   --color-ed-hairline: rgba(28, 28, 28, 0.16);
-  --color-ed-rule: rgba(28, 28, 28, 0.34);
-  --color-ed-rule-strong: rgba(28, 28, 28, 0.6);
+  --color-ed-rule: rgba(28, 28, 28, 0.44);
+  --color-ed-rule-strong: rgba(28, 28, 28, 0.7);
   /* 元信息里的 · 分隔点：0.1 等于没有，0.3 才读得出「这里是分隔」 */
-  --color-ed-sep: rgba(28, 28, 28, 0.32);
+  --color-ed-sep: rgba(28, 28, 28, 0.4);
   --font-serif: 'Playfair Display', 'Noto Serif SC', 'Noto Serif CJK SC', ui-serif, Georgia, serif;
   --font-sans: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* 动效令牌：全站共用一条 expo-out，进入类动画统一 560ms */
+:root {
+  --ease-ed: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-enter: 560ms;
+}
+
+/* 站内锚点（目录、跳至主内容）平滑滚动；View Transitions 换页用的是
+   scrollTo(..., {behavior:"instant"})，不会被这里影响。 */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -102,7 +120,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--color-ed-accent);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 320ms var(--ease-ed);
 }
 
 .hover-underline:hover::after {
@@ -124,11 +142,11 @@ h1, h2, h3, h4, h5, h6 {
    new page rises in from below while the old one fades out upward.
    Same expo-out easing as the rest of the site. */
 ::view-transition-old(root) {
-  animation: page-out 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-out 240ms ease-out both;
 }
 
 ::view-transition-new(root) {
-  animation: page-in 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-in 340ms var(--ease-ed) both;
 }
 
 @keyframes page-out {
@@ -138,14 +156,14 @@ h1, h2, h3, h4, h5, h6 {
   }
   to {
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(-6px);
   }
 }
 
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -388,19 +406,22 @@ h1, h2, h3, h4, h5, h6 {
    IntersectionObserver (in page scripts) adds .is-visible. --- */
 .js .reveal {
   opacity: 0;
-  transform: translateY(24px);
+  transform: translateY(14px);
   transition:
-    opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 800ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity var(--dur-enter) var(--ease-ed),
+    transform var(--dur-enter) var(--ease-ed);
   transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
 }
 
 .js .reveal.is-visible {
   opacity: 1;
   transform: none;
+  will-change: auto;
+  transition-delay: 0ms;
 }
 
-.mask-reveal h2::before {
+.mask-reveal :is(h1, h2, .home-sec-title)::before {
   content: '';
   display: inline-block;
   width: 0.55rem;
@@ -424,14 +445,28 @@ h1, h2, h3, h4, h5, h6 {
   animation-delay: calc(200ms + var(--char-i, 0) * 70ms);
 }
 
-/* --- Section headers: left-to-right clip wipe on scroll --- */
+/* --- Section headers: 从左往右的擦除揭示 ---
+   用「纸色遮板向右收起」而不是给元素本身 clip-path：元素一旦被裁到 0 宽，
+   Chrome 的 IntersectionObserver 会判定它不在视口内，回调永不触发，
+   元素就永久卡在隐藏态（实测 intersectionRatio = 0）。 */
 .js .mask-reveal {
-  clip-path: inset(0 100% 0 0);
-  transition: clip-path 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
 }
 
-.js .mask-reveal.is-visible {
-  clip-path: inset(0 0 0 0);
+.js .mask-reveal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-ed-bg);
+  transform-origin: right center;
+  transform: scaleX(1);
+  transition: transform 620ms var(--ease-ed);
+  transition-delay: var(--reveal-delay, 0ms);
+  pointer-events: none;
+}
+
+.js .mask-reveal.is-visible::after {
+  transform: scaleX(0);
 }
 
 /* --- Reduce motion --- */
@@ -447,8 +482,8 @@ h1, h2, h3, h4, h5, h6 {
     clip-path: none;
   }
 
-  .js .mask-reveal {
-    clip-path: none;
+  .js .mask-reveal::after {
+    display: none;
   }
 
   .hover-underline::after {
@@ -704,11 +739,17 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 1px solid var(--color-ed-rule);
   text-decoration: none;
   color: var(--color-ed-fg);
-  transition: padding-left 0.18s, background 0.15s;
+  transition: background 160ms ease;
 }
 .home-post-row:hover {
-  padding-left: 0.75rem;
-  background: rgba(28, 28, 28, 0.018);
+  background: rgba(28, 28, 28, 0.03);
+}
+/* hover 位移改用 transform（只合成、不重排）：原来动 padding-left 会让整列重排 */
+.home-post-row > * {
+  transition: transform 260ms var(--ease-ed);
+}
+.home-post-row:hover > * {
+  transform: translateX(0.5rem);
 }
 .home-post-no {
   font-family: var(--font-serif);
@@ -786,7 +827,7 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(28, 28, 28, 0.04);
   border: 1px solid var(--color-ed-rule);
   /* 2px 顶线：让三张卡各自像「一个栏目」，而不是三块融在纸里的浅色区 */
-  border-top: 2px solid var(--color-ed-rule-strong);
+  border-top: 3px solid var(--color-ed-rule-strong);
   padding: 1.375rem 1.25rem;
 }
 .home-side-label {
@@ -876,11 +917,15 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-ed-fg);
   text-decoration: none;
   font-size: 0.75rem;
-  transition: all 0.18s;
+  transition:
+    border-color 200ms ease,
+    color 200ms ease,
+    transform 200ms var(--ease-ed);
 }
 .home-soc:hover {
   border-color: var(--color-ed-accent);
   color: var(--color-ed-accent);
+  transform: translateY(-1px);
 }
 
 /* 纪事行 */
