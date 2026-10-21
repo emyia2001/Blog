@@ -73,7 +73,9 @@ const related = published
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
     <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.7fr)_14rem] gap-10 lg:gap-12">
       <!-- Main article -->
-      <article class="min-w-0 order-2 lg:order-1" data-pagefind-body>
+      <!-- max-w-[40em]（≈640px，17px 正文下 ~37 个汉字/行）约束阅读行长；
+           1440 视口下原先是 960px ≈ 56 字/行，远超舒适区 -->
+      <article class="min-w-0 order-2 lg:order-1 max-w-[40em]" data-pagefind-body>
         <header class="mb-10">
           <p class="page-kicker mb-4">
             ARTICLE · {tags[0] || "随笔"}
@@ -121,7 +123,7 @@ const related = published
               {tags.map((tag) => (
                 <a
                   href={tagPath(tag)}
-                  class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
+                  class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline hit-24"
                 >
                   #{tag}
                 </a>
@@ -144,7 +146,7 @@ const related = published
                 {tags.map((tag) => (
                   <a
                     href={tagPath(tag)}
-                    class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline"
+                    class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline hit-24"
                   >
                     #{tag}
                   </a>
@@ -164,7 +166,7 @@ const related = published
             >
               <div class="mb-5 flex items-center justify-between">
                 <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)]">目录</h3>
-                <button id="toc-close" class="hidden max-lg:block p-1 -mr-2" aria-label="关闭目录">
+                <button id="toc-close" class="hidden max-lg:block p-2 -mr-2" aria-label="关闭目录">
                   <span class="block font-serif text-2xl leading-none">&times;</span>
                 </button>
               </div>
