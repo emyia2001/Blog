@@ -103,7 +103,7 @@ const daysStr = String(daysNum).padStart(2, "0");
           </header>
         )}
 
-        <div class="home-sec-head">
+        <div class="home-sec-head mask-reveal">
           <span class="home-sec-title">
             近期笔墨
             <small>Recent Writing</small>
@@ -116,8 +116,12 @@ const daysStr = String(daysNum).padStart(2, "0");
             暂无文章。
           </p>
         ) : (
-          listPosts.map((post) => (
-            <a href={postPath(post)} class="home-post-row">
+          listPosts.map((post, i) => (
+            <a
+              href={postPath(post)}
+              class="home-post-row reveal"
+              style={`--reveal-delay: ${i * 60}ms`}
+            >
               <span class="home-post-no">{issueOf(post.id)}</span>
               <span class="home-post-body">
                 <span class="home-post-title">{post.data.title}</span>
@@ -145,7 +149,7 @@ const daysStr = String(daysNum).padStart(2, "0");
       <!-- 右侧独立栏 -->
       <aside class="home-side">
         <!-- 关于 -->
-        <div class="home-side-card">
+        <div class="home-side-card reveal">
           <div class="home-side-label">关于 · About</div>
           <div class="home-about-head">
             <img
@@ -202,7 +206,7 @@ const daysStr = String(daysNum).padStart(2, "0");
 
         <!-- 纪事 -->
         {moments.length > 0 && (
-          <div class="home-side-card">
+          <div class="home-side-card reveal" style="--reveal-delay: 80ms">
             <div class="home-side-label">纪事 · Moments</div>
             {moments.slice(0, 4).map((m) => (
               <a href="/timeline/" class="home-moment-line">
@@ -224,7 +228,7 @@ const daysStr = String(daysNum).padStart(2, "0");
 
         <!-- 标签 -->
         {sortedTags.length > 0 && (
-          <div class="home-side-card">
+          <div class="home-side-card reveal" style="--reveal-delay: 160ms">
             <div class="home-side-label">标签 · Tags</div>
             <div class="flex flex-wrap gap-2">
               {sortedTags.map(([tag, count]) => (
@@ -244,23 +248,3 @@ const daysStr = String(daysNum).padStart(2, "0");
   </div>
 </BaseLayout>
 
-<script>
-  // Scroll reveal: fades (.reveal) and clip wipes (.mask-reveal) on enter
-  const revealEls = document.querySelectorAll(".reveal, .mask-reveal");
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            io.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 }
-    );
-    revealEls.forEach((el) => io.observe(el));
-  } else {
-    revealEls.forEach((el) => el.classList.add("is-visible"));
-  }
-</script>
