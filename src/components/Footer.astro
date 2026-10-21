@@ -1,7 +1,8 @@
 ---
-import { SITE_NAME, SITE_DESCRIPTION } from "../consts";
+import { SITE_NAME, SITE_SOCIAL } from "../consts";
 const year = new Date().getFullYear();
-const socialLinks = [{ href: "https://github.com/emyia2001", label: "GitHub" }];
+// 与首页「关于」卡同源，避免两处各写一份
+const socialLinks = SITE_SOCIAL.filter((s) => s.icon === "mdi:github");
 // 博客联盟 / 友链接力链接：以后加入新联盟，在此追加一项即可。
 // 注：开往因规则要求"打开网站即可见"，另在 Nav.astro 顶栏保留入口（桌面+移动抽屉）。
 const allianceLinks = [
@@ -22,7 +23,7 @@ const allianceLinks = [
       <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
       <a href="/rss.xml" class="hover-underline no-underline">RSS</a>
       <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>
-      <a href="/timeline" class="hover-underline no-underline">纪事</a>
+      <a href="/timeline/" class="hover-underline no-underline">纪事</a>
       {socialLinks.map((link) => (
         <>
           <span class="text-[var(--color-ed-faint)]" aria-hidden="true">&middot;</span>

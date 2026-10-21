@@ -6,7 +6,9 @@ import { GITHUB_REPO } from "../consts";
 // 令牌读取：import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN
 // （Astro 构建与 Vite dev 都会读 .env.local）
 
-const CAL_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+// 构建期请求的超时：GitHub 偶尔挂起，超时后回退下一条路径，别把整个构建拖死
+const REQUEST_TIMEOUT_MS = 5_000;
+
 const LEVEL_MAP: Record<string, number> = {
   NONE: 0,
   FIRST_QUARTILE: 1,
@@ -24,6 +26,7 @@ async function fromGraphQL(
 ): Promise<ContributionCell[][]> {
   const res = await fetch("https://api.github.com/graphql", {
     method: "POST",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -42,6 +45,7 @@ async function fromGraphQL(
       variables: { login: githubUser },
     }),
   });
+  if (!res.ok) throw new Error(`GraphQL HTTP ${res.status}`);
   const json = await res.json();
   if (json.errors?.length) throw new Error(json.errors[0].message);
   const cal = json.data?.user?.contributionsCollection?.contributionCalendar;
@@ -60,8 +64,10 @@ async function fromGraphQL(
 
 async function fromScraper(): Promise<ContributionCell[][]> {
   const res = await fetch(
-    `https://github-contributions-api.jogruber.de/v4/${githubUser}`
+    `https://github-contributions-api.jogruber.de/v4/${githubUser}`,
+    { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }
   );
+  if (!res.ok) throw new Error(`contributions API HTTP ${res.status}`);
   const data = await res.json();
   const list: ContributionCell[] = data.contributions ?? [];
   // 接口可能返回未来日期的占位数据，必须裁掉，否则窗口会被推到未来
@@ -89,13 +95,25 @@ async function fromScraper(): Promise<ContributionCell[][]> {
   return grid;
 }
 
-/**
- * 拉取最近约 26 周（半年）贡献网格。返回空数组表示获取失败（调用方留空即可）。
- */
-export async function fetchContributions(): Promise<{
+export interface ContributionResult {
   grid: ContributionCell[][];
   total: number | null;
-}> {
+}
+
+// 模块级缓存：dev 下首页每次请求都会重新渲染，没有缓存就等于每次都打 GitHub。
+// 失败结果也会被缓存（返回空网格），避免一次故障引发连续重试。
+let cached: Promise<ContributionResult> | null = null;
+
+/**
+ * 拉取最近约 26 周（半年）贡献网格。返回空数组表示获取失败（调用方留空即可）。
+ * 同一构建进程内只请求一次。
+ */
+export function fetchContributions(): Promise<ContributionResult> {
+  cached ??= fetchContributionsUncached();
+  return cached;
+}
+
+async function fetchContributionsUncached(): Promise<ContributionResult> {
   const token =
     import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN;
   try {

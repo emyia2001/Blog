@@ -16,7 +16,11 @@
 npm run dev       # 开发服务器 http://localhost:4321（server.host=true，局域网可访问）
 npm run build     # 构建到 dist/，并在 postbuild 生成 Pagefind 索引
 npm run preview   # 预览构建产物（含搜索索引）
+npm run check     # astro check：内容集合类型 + 组件内客户端脚本类型（0 错误是提交门槛）
 ```
+
+- **postbuild 会裁剪 Pagefind 的官方 UI 资产**（`scripts/prune-pagefind.mjs`，约 400KB 用不到的文件）；
+  站点搜索弹窗只用 Pagefind 的 `init/search` API，删掉 UI 包不影响搜索。
 
 - **搜索索引只在 `npm run build` 后存在**：dev 模式下搜索弹窗提示「索引尚未生成」属正常现象。
 - 提交前若改动影响构建，先 `npm run build` 验证通过（必要时 `npm run preview` 抽验关键页面）。
@@ -43,9 +47,12 @@ src/
 │                          blog/[slug].astro / tags/[tag].astro /
 │                          404.astro / rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
-└── utils/                 readingTime.ts / graphData.ts（图谱聚合）/ contributions.ts
-│                          （GitHub 热力图取数）/ editorialShikiTheme.ts / rehype-code-block.ts
-public/                    fonts/（本地 woff2）、images/（banner/头像等）
+├── types/                 第三方无类型模块的本地声明（d3-force）
+└── utils/                 urls.ts（站内 URL 统一出口）/ readingTime.ts / graphData.ts（图谱聚合）
+│                          / contributions.ts（GitHub 热力图取数）/ editorialShikiTheme.ts
+│                          / rehype-code-block.ts / rehype-image-attrs.ts
+public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（Pages 响应头）
+scripts/                   materialize-noto-serif-sc.mjs（字体物化）、prune-pagefind.mjs（产物裁剪）
 .pages.yml                 Pages CMS 配置（posts + moments 集合）
 ```
 
@@ -55,7 +62,8 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 - **双份 schema 警告**：`.pages.yml` 与 `content.config.ts` 必须保持一致。若改了 content schema 的字段/类型/枚举，**必须同步 `.pages.yml`**，否则 CMS 新建的内容可能通不过 Zod 校验。
 
 ### posts（文章）
-- 必备字段：`title`、`date`、`excerpt`。常用可选：`slug`（决定 `/blog/<slug>`，英文短名）、`tags`、`heroImage`、`articleLayout: sidebar`（目前唯一）、`draft`、`featured`、`pullQuote`、`dropCap`、`bgm`、`graph`。
+- 必备字段：`title`、`date`、`excerpt`。常用可选：`slug`（**决定** `/blog/<slug>`，英文短名；不填则用文件名——URL 统一由 `src/utils/urls.ts` 的 `postPath()` 生成）、`tags`、`heroImage`、`articleLayout: sidebar`（目前唯一）、`draft`、`featured`、`pullQuote`、`dropCap`、`bgm`、`graph`。
+- `featured: true` 会让该文成为首页头条（多篇置顶时取最新；都没有则取最新一篇）。
 - 排版约定（来自 `src/content/posts/example-post.mdx`）：正文标题从 `##` 起（`#` 留给页面标题），可到 `####`，都会进右侧目录；文章以 800~1500 字为宜；首段自动下沉首字（除非 `dropCap: false`）。
 - **关系图谱**：正文用 wiki-link `[[锚点]]` 声明关联，锚点 = 目标节点在图谱中的 `graph.name`（默认取文章 `title`）。注意目前 `[[...]]` 只生成图谱连线，正文会原样显示方括号文字——**不要为了做内链而用 `[[...]]`**。
 - 示例模板：`src/content/posts/example-post.mdx`（复制改字段即可）。
@@ -88,7 +96,7 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档，无「关于」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（换仓库需同步 `data-repo` 等）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档，无「关于」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；评论区还做了「滚到附近才加载」。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
@@ -96,9 +104,10 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 > 原则：改动**影响构建或渲染**时，先 `npm run build` 确认通过；纯静态站没有运行时测试，**关键交互靠手动抽验**。下面按「每次构建必查」→「按改动范围加查」分层。
 
 ### 7.1 每次构建后必查（基础门禁）
+- [ ] `npm run check` 零错误（内容集合类型 + 组件脚本；`src/env.d.ts` 里那条 reference 不能删，否则内容类型会退化成 any）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/archive`、`/timeline`（person/event/diary 三类混排）、`/graph`、`/tags`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`（person/event/diary 三类混排）、`/graph`、`/tags`（标签总览）、`/tags/<tag>`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查
@@ -110,10 +119,13 @@ public/                    fonts/（本地 woff2）、images/（banner/头像等
 
 **改布局/组件/交互（Nav、Sidebar、搜索、图谱、移动端、ViewTransitions、MiniPlayer）**
 - [ ] **桌面 + 移动端**都过一遍：菜单抽屉 / 目录 / 搜索弹窗在**站内跳转后**仍可点开（历史回归点）
-- [ ] 搜索：`npm run build` 后（Pagefind 索引存在）在 `/` 上搜到新增内容；dev 下提示「索引尚未生成」属正常
+- [ ] 搜索：`npm run build` 后（Pagefind 索引存在）在 `/` 上搜到新增内容；**纪事（person/event）正文也要能搜到**（索引来自 `/timeline` 里的隐藏 `data-pagefind-body` 区块，日记按约定不入索引）；dev 下提示「索引尚未生成」属正常
 - [ ] 图谱（/graph）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放/放大全屏正常；改过 `graph.enabled/name` 的条目已复查
 - [ ] 评论 Giscus、MiniPlayer BGM、`.reveal`/`.mask-reveal` 动画在目标页面仍工作
 - [ ] 换过 `src/consts.ts` 站点信息后：站名/URL/社交链接在各处一致（无残留旧值）
+- [ ] 站内链接一律带尾斜杠（统一走 `src/utils/urls.ts`；`href="/blog/x"` 会被 Cloudflare Pages 307 到 `/blog/x/`，多一次往返）
+- [ ] 改过 `public/_headers` 后：线上 `curl -sI` 能看到 HSTS / nosniff / Referrer-Policy，且 `/_astro/*` 为 `immutable` 长缓存
+- [ ] 改过字体加载方式后：首屏渲染不被 Noto 分片 CSS 阻塞（Network 里 `/fonts/noto-serif-sc/*.css` 出现在主 CSS 之后）
 
 **升级依赖 / 重构 / 改构建配置（astro.config、package.json、Vite/Tailwind/Pagefind 版本）**
 - [ ] `npm run build` 通过，且产物体积/`dist/pagefind` 无异常

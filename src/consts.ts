@@ -29,3 +29,7 @@ export const SITE_SOCIAL: { label: string; href: string; icon: string }[] = [
 
 // 用于「关于」页构建时拉取提交数的 GitHub 仓库（owner/repo）
 export const GITHUB_REPO = "emyia2001/Blog";
+
+// Giscus 评论所挂的 GitHub 仓库（与博客源码仓库分开）。换仓库时要同步更新
+// repo-id / category / category-id，见 src/components/Giscus.astro。
+export const GISCUS_REPO = "emyia2001/comment";

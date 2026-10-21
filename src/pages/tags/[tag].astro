@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { postPath, tagSlug } from "../../utils/urls";
 
 export async function getStaticPaths() {
   const allPosts = await getCollection("posts");
@@ -12,7 +13,7 @@ export async function getStaticPaths() {
     }
   }
   return [...tagSet].map((tag) => ({
-    params: { tag: tag.toLowerCase().replace(/\s+/g, "-") },
+    params: { tag: tagSlug(tag) },
     props: { tag },
   }));
 }
@@ -24,14 +25,15 @@ const posts = allPosts
   .filter(
     (p) =>
       !p.data.draft &&
-      p.data.tags.some(
-        (t) => t.toLowerCase().replace(/\s+/g, "-") === Astro.params.tag
-      )
+      p.data.tags.some((t) => tagSlug(t) === Astro.params.tag)
   )
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 ---
 
-<BaseLayout title={`#${tag}`}>
+<BaseLayout
+  title={`#${tag}`}
+  description={`标签「${tag}」下的全部文章（${posts.length} 篇）。`}
+>
   <section class="py-24 md:py-32 px-6">
     <div class="mx-auto max-w-3xl">
       <h1 class="font-serif text-3xl tracking-tighter text-[var(--color-ed-fg)] mb-2">
@@ -46,7 +48,7 @@ const posts = allPosts
           {posts.map((post, i) => (
             <li class="border-b border-[var(--color-ed-faint)] py-6 first:border-t">
               <a
-                href={`/blog/${post.id.replace(/\.mdx$/, "")}`}
+                href={postPath(post)}
                 class="group flex items-baseline gap-6 no-underline"
               >
                 <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">

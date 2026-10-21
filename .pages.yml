@@ -30,8 +30,9 @@ content:
         type: date
         required: true
       - name: excerpt
-        label: 摘要
+        label: 摘要（必填，用于列表、分享卡与相关文章）
         type: text
+        required: true
       - name: heroImage
         label: 封面图 URL
         type: string
@@ -58,6 +59,11 @@ content:
       - name: pullQuote
         label: 引语
         type: text
+      - name: dropCap
+        label: 首字下沉
+        type: boolean
+        default: true
+        help: "关闭后正文首段不做下沉首字"
       - name: bgm
         label: 背景音乐
         type: object
@@ -96,7 +102,8 @@ content:
       - name: type
         label: 类型
         type: select
-        required: true
+        required: false
+        default: event
         options:
           values: [person, event, diary]
           labels: [人物, 事件, 日记]

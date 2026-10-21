@@ -20,8 +20,8 @@ const label = "回到顶部";
 
   function onScroll() {
     const show = window.scrollY > SHOW_AFTER;
-    btn.classList.toggle("hidden", !show);
-    btn.classList.toggle("flex", show);
+    btn!.classList.toggle("hidden", !show);
+    btn!.classList.toggle("flex", show);
   }
 
   window.addEventListener("scroll", onScroll, { passive: true });

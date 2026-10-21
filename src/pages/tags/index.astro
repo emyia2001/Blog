@@ -1,0 +1,20 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import TagCloud from "../../components/TagCloud.astro";
+---
+
+<BaseLayout
+  title="标签"
+  description="按标签浏览文章：每个标签下是该主题的全部文章。"
+>
+  <section class="mx-auto max-w-4xl px-6 py-16 md:py-24">
+    <h1 class="font-serif text-3xl md:text-4xl text-[var(--color-ed-fg)]">标签</h1>
+    <p class="mt-4 text-sm text-[var(--color-ed-subtle)]">
+      按主题浏览全部文章。
+    </p>
+
+    <div class="mt-12">
+      <TagCloud />
+    </div>
+  </section>
+</BaseLayout>

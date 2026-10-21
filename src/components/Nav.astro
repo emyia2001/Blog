@@ -1,9 +1,12 @@
 ---
+import { SITE_NAME } from "../consts";
+import { ROUTES } from "../utils/urls";
+
 const navLinks = [
-  { href: "/", label: "首页" },
-  { href: "/timeline", label: "纪事" },
-  { href: "/graph", label: "图谱" },
-  { href: "/archive", label: "归档" },
+  { href: ROUTES.home, label: "首页" },
+  { href: ROUTES.timeline, label: "纪事" },
+  { href: ROUTES.graph, label: "图谱" },
+  { href: ROUTES.archive, label: "归档" },
 ];
 
 // 开往（Travellings）友链接力：外链需放在打开网站即可见的位置（顶栏/侧栏）
@@ -28,7 +31,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       href="/"
       class="flex items-baseline gap-3 font-serif text-lg tracking-[0.08em] text-[var(--color-ed-fg)] no-underline"
     >
-      <span>Snark</span>
+      <span>{SITE_NAME}</span>
     </a>
 
     <!-- Desktop nav -->
@@ -75,6 +78,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       class="md:hidden flex flex-col gap-1.5 p-2"
       aria-label="切换菜单"
       aria-expanded="false"
+      aria-controls="nav-drawer"
     >
       <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
       <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-opacity duration-300"></span>
@@ -97,6 +101,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       class="absolute inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-faint)] p-8 transition-transform duration-300 pointer-events-auto"
       style="background: var(--color-ed-bg);"
       aria-hidden="true"
+      inert
     >
       <div class="flex justify-end mb-12">
         <button id="nav-close" class="p-2" aria-label="关闭菜单">
@@ -149,22 +154,29 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     };
   }
 
+  // 关闭态用 inert：仅靠 translate-x-full 隐藏时，抽屉里的 6 个链接仍在 Tab 序列里
   function open() {
     const { drawer, backdrop, toggle } = getRefs();
     drawer?.classList.remove("translate-x-full");
+    drawer?.removeAttribute("inert");
     backdrop?.classList.remove("hidden");
     toggle?.setAttribute("aria-expanded", "true");
     drawer?.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    // 焦点移入抽屉，键盘用户不会「打开后还在原地」
+    drawer?.querySelector<HTMLElement>("a, button")?.focus();
   }
 
-  function closeDrawer() {
+  function closeDrawer(restoreFocus = false) {
     const { drawer, backdrop, toggle } = getRefs();
+    const wasOpen = toggle?.getAttribute("aria-expanded") === "true";
     drawer?.classList.add("translate-x-full");
+    drawer?.setAttribute("inert", "");
     backdrop?.classList.add("hidden");
     toggle?.setAttribute("aria-expanded", "false");
     drawer?.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+    if (restoreFocus && wasOpen) toggle?.focus();
   }
 
   // 每次页面加载(VT 换页后也会触发)重新绑定可点击区域的状态,并兜底关闭残留抽屉
@@ -190,7 +202,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     }
     // 抽屉内的关闭按钮 / 背板点击关闭
     if (target.closest("#nav-close") || target.closest("#nav-backdrop")) {
-      closeDrawer();
+      closeDrawer(true);
       return;
     }
     // 抽屉内的搜索按钮:关闭抽屉后打开搜索弹层(SearchModal 监听 open-search)
@@ -204,7 +216,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       const { toggle } = getRefs();
-      if (toggle?.getAttribute("aria-expanded") === "true") closeDrawer();
+      if (toggle?.getAttribute("aria-expanded") === "true") closeDrawer(true);
     }
   });
 </script>

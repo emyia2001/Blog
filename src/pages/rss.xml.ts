@@ -1,6 +1,7 @@
 import rss from "@astrojs/rss";
 import { getCollection } from "astro:content";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "../consts";
+import { postPath } from "../utils/urls";
 
 export async function GET() {
   const posts = await getCollection("posts");
@@ -16,7 +17,7 @@ export async function GET() {
       title: post.data.title,
       description: post.data.excerpt,
       pubDate: post.data.date,
-      link: `/blog/${post.id.replace(/\.mdx$/, "")}`,
+      link: postPath(post),
     })),
     customData: `<language>zh-cn</language>`,
   });
