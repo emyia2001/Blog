@@ -619,11 +619,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-ed-accent);
   margin-bottom: 1.125rem;
 }
-.home-kicker::after {
-  content: '';
-  flex: 1;
-  border-bottom: 1px solid var(--color-ed-rule);
-}
 .home-kicker__label {
   letter-spacing: 0.14em; /* 中文标签：0.3em 会把字拆散，收到 0.14em */
 }
@@ -634,9 +629,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.06em;
   color: var(--color-ed-fg);
   text-transform: none;
-  padding: 0.125rem 0.5rem;
-  border: 1px solid var(--color-ed-hairline);
-  border-radius: 2px;
+  padding: 0 0.25rem;
   line-height: 1.4;
 }
 .home-kicker__vol {
@@ -688,12 +681,12 @@ h1, h2, h3, h4, h5, h6 {
   align-items: start;
 }
 
-/* 区块题（近期笔墨 / 纪事 等） */
+/* 区块题（近期笔墨 / 纪事 等）：全页只保留这一条结构线 */
 .home-sec-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  border-bottom: 2px solid var(--color-ed-fg);
+  border-bottom: 1px solid var(--color-ed-rule-strong);
   padding-bottom: 0.6875rem;
   margin-bottom: 0.375rem;
 }
@@ -731,12 +724,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* --- 文章行（近期笔墨） --- */
+/* 不再逐行画分隔线：靠行距 + hover 底色区分，整张列表只留上方区块线 */
 .home-post-row {
   display: flex;
   align-items: baseline;
   gap: 1.25rem;
-  padding: 1.25rem 0.25rem;
-  border-bottom: 1px solid var(--color-ed-rule);
+  padding: 1.4rem 0.25rem;
   text-decoration: none;
   color: var(--color-ed-fg);
   transition: background 160ms ease;
@@ -792,18 +785,19 @@ h1, h2, h3, h4, h5, h6 {
   margin-top: 0.5rem;
   flex-wrap: wrap;
 }
+/* 标签改成无描边的浅底 chip：保留点击区，不增加线条 */
 .chip-inline {
   font-size: 0.6875rem;
   letter-spacing: 0.05em;
   color: var(--color-ed-subtle);
-  border: 1px solid var(--color-ed-hairline);
+  background: rgba(28, 28, 28, 0.05);
   padding: 0.0625rem 0.5rem;
   border-radius: 999px;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, background-color 0.15s;
 }
 .home-post-row:hover .chip-inline {
   color: var(--color-ed-accent);
-  border-color: var(--color-ed-accent);
+  background: rgba(166, 58, 43, 0.08);
 }
 .home-post-meta {
   text-align: right;
@@ -823,11 +817,9 @@ h1, h2, h3, h4, h5, h6 {
   position: sticky;
   top: 4.75rem;
 }
+/* 卡片只用浅底+留白分组，不再加外框和顶线 */
 .home-side-card {
   background: rgba(28, 28, 28, 0.04);
-  border: 1px solid var(--color-ed-rule);
-  /* 2px 顶线：让三张卡各自像「一个栏目」，而不是三块融在纸里的浅色区 */
-  border-top: 3px solid var(--color-ed-rule-strong);
   padding: 1.375rem 1.25rem;
 }
 .home-side-label {
@@ -839,11 +831,6 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.home-side-label::after {
-  content: '';
-  flex: 1;
-  border-bottom: 1px solid var(--color-ed-rule);
 }
 
 /* 关于卡 */
@@ -858,7 +845,6 @@ h1, h2, h3, h4, h5, h6 {
   height: 3.625rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--color-ed-rule);
 }
 .home-about-name {
   font-family: var(--font-serif);
@@ -881,9 +867,7 @@ h1, h2, h3, h4, h5, h6 {
 .home-about-stats {
   display: flex;
   gap: 0.5rem;
-  border-top: 1px solid var(--color-ed-rule);
-  border-bottom: 1px solid var(--color-ed-rule);
-  padding: 0.625rem 0;
+  padding: 0.25rem 0 0.75rem;
   margin-bottom: 0.875rem;
 }
 .home-stat {
@@ -913,17 +897,16 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-ed-rule);
   color: var(--color-ed-fg);
   text-decoration: none;
   font-size: 0.75rem;
   transition:
-    border-color 200ms ease,
+    background-color 200ms ease,
     color 200ms ease,
     transform 200ms var(--ease-ed);
 }
 .home-soc:hover {
-  border-color: var(--color-ed-accent);
+  background: rgba(28, 28, 28, 0.06);
   color: var(--color-ed-accent);
   transform: translateY(-1px);
 }
@@ -933,13 +916,9 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5625rem 0;
-  border-bottom: 1px solid var(--color-ed-hairline);
+  padding: 0.7rem 0;
   text-decoration: none;
   color: var(--color-ed-fg);
-}
-.home-moment-line:last-child {
-  border-bottom: none;
 }
 .home-moment-dot {
   width: 0.375rem;
@@ -964,19 +943,20 @@ h1, h2, h3, h4, h5, h6 {
   font-variant-numeric: tabular-nums;
 }
 
-/* 标签 chips（紧凑） */
+/* 标签 chips（无描边，浅底） */
 .home-tag {
   font-size: 0.6875rem;
   color: var(--color-ed-muted);
   text-decoration: none;
-  border: 1px solid var(--color-ed-rule);
+  /* 卡片本身已有 4% 墨底，chip 用 8% 才能看出「胶囊」轮廓 */
+  background: rgba(28, 28, 28, 0.08);
   padding: 0.25rem 0.6875rem;
   border-radius: 999px;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, background-color 0.15s;
 }
 .home-tag:hover {
   color: var(--color-ed-accent);
-  border-color: var(--color-ed-accent);
+  background: rgba(166, 58, 43, 0.12);
 }
 .home-tag b {
   color: var(--color-ed-subtle);
@@ -1005,14 +985,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* --- 分栏结构线：正文栏与右侧边栏之间立一条线，区块不再「糊」在纸里 --- */
-@media (min-width: 1001px) {
-  /* 线挂左栏右缘：右侧边栏保持 320px 原宽，不会被竖线挤窄 */
-  .home-layout > div:first-child {
-    border-right: 1px solid var(--color-ed-rule);
-    padding-right: 2rem;
-  }
-}
+/* 分栏不再立竖线：4.5rem 栏距 + 右侧浅底卡已经足够分隔两栏 */
 
 /* ==========================================================================
    首次访问延迟提示（首页左下角小浮条，单行「延迟 42 ms」）
