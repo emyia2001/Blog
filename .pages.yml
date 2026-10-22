@@ -45,9 +45,10 @@ content:
         default: sidebar
       - name: tags
         label: 标签
-        type: list
-        options:
-          item_type: string
+        # Pages CMS 2.x 没有 type: list；数组用字段级 list: true 声明，
+        # 每个元素按 type 渲染（这里即字符串输入框），最终写回 string[]。
+        type: string
+        list: true
       - name: draft
         label: 草稿（不发布）
         type: boolean
