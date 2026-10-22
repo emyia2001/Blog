@@ -1,23 +1,23 @@
 ---
-title: "在 macOS 上搭建按博客项目自动归档的截图工作流"
+slug: mac截图工作流
+title: 在 macOS 上搭建按博客项目自动归档的截图工作流
 date: 2026-09-01
-excerpt: "系统截图默认保存到 Pictures/Screenshots；启用项目后，截图会自动按项目名和时间戳归档到本地素材库。"
+excerpt: 系统截图默认保存到 Pictures/Screenshots；启用项目后，截图会自动按项目名和时间戳归档到本地素材库。
 articleLayout: sidebar
-tags: ["macOS", "Automator", "Shell", "效率工具", "博客工作流"]
+tags:
+  - macOS
+  - Automator
+  - Shell
+  - 效率工具
+  - 博客工作流
 draft: false
 featured: false
-pullQuote: "截图不是立刻要发布的图片，而是为未来文章保留的过程证据。"
-bgm:
-  src: ""
-  title: ""
-
+pullQuote: 截图不是立刻要发布的图片，而是为未来文章保留的过程证据。
 dropCap: false
 graph:
-  name: "macOS 博客截图自动归档工作流"
+  name: macOS 博客截图自动归档工作流
   enabled: true
-  # avatar: "/images/your-icon.svg"
 ---
-
 我写博客时通常会先完整做完一个项目、排障过程或实验，再回头整理素材和写文章。过程中的截图需要被可靠保存，但也不希望每张普通截图都混进某一篇博客文章的素材中。
 
 这套工作流把系统截图统一保存到 `~/Pictures/Screenshots/`。当我开始一个准备写成博客的项目时，运行一次 `bsp <文章-slug>`，之后新截图会自动移动到该项目的本地素材目录，并以“项目名 + 时间戳”命名。项目完成后运行 `bstop`，新截图会继续保留在 `Screenshots` 目录，整个过程大概有10s。
@@ -100,13 +100,15 @@ mkdir -p "$HOME/bin"
       └─ 2026-09-astro-r2-image-pipeline/
 ```
 
+
 | 路径 | 用途 |
-| --- | --- |
+| -------------------------------- | ------------------------------ |
 | `~/Pictures/Screenshots/` | macOS 系统截图默认保存位置；未启用项目时，截图留在这里 |
 | `~/Pictures/Blog-Material/` | 本地博客截图素材库根目录 |
 | `~/Pictures/Blog-Material/2026/` | 按年份保存各文章或项目的截图 |
 | `.current-project` | 当前项目状态文件；存在时启用自动归档 |
 | `~/bin/` | 存放本地 Shell 脚本 |
+
 
 ## 设置截图保存位置
 
@@ -335,34 +337,28 @@ Automator 使用“文件夹操作”监控 `~/Pictures/Screenshots`。当有新
 4. 窗口顶部应显示“文件夹操作接收添加到这个位置的文件和文件夹”。
 5. 点击顶部右侧目录下拉菜单，选择“其他位置”。
 6. 选择：
-
-   ```text
+  ```text
    ~/Pictures/Screenshots
-   ```
+  ```
 
 ![在 Automator 中选择截图目录 ~/Pictures/Screenshots](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-161045.png)
 
 7. 左侧"实用工具" —— "运行 Shell 脚本"，拖到右侧工作流区域。
 8. 设置：
-
-   ```text
+  ```text
    Shell：/bin/zsh
    传递输入：作为自变量
-   ```
-
+  ```
 9. 在脚本框中粘贴：
-
-   ```zsh
+  ```zsh
    while IFS= read -r file; do
      "$HOME/bin/process-blog-screenshot" "$file"
    done
-   ```
-
+  ```
 10. 按 `⌘S` 保存，命名为：
-
-    ```text
+  ```text
     Blog Screenshot Router
-    ```
+  ```
 
 ![文件夹操作保存为 Blog Screenshot Router](https://img.snark.casa/photo/post_3/2026-09-post-3-20260901-160906.png)
 
