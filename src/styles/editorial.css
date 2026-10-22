@@ -1013,3 +1013,87 @@ h1, h2, h3, h4, h5, h6 {
     padding-right: 2rem;
   }
 }
+
+/* ==========================================================================
+   首次访问延迟提示（首页左下角小浮条，单行「延迟 42 ms」）
+   ========================================================================== */
+.latency-note {
+  position: fixed;
+  left: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 40;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.6rem;
+  background: var(--color-ed-bg);
+  border: 1px solid var(--color-ed-rule);
+  box-shadow: 0 14px 32px -24px rgba(28, 28, 28, 0.55);
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 240ms var(--ease-ed),
+    transform var(--dur-enter) var(--ease-ed);
+}
+
+/* 上面的 display:flex 会盖过 UA 的 [hidden]{display:none}，必须显式补回来 */
+.latency-note[hidden] {
+  display: none;
+}
+
+.latency-note.is-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.latency-note__bar {
+  flex: none;
+  align-self: stretch;
+  width: 3px;
+  background: var(--color-ed-accent);
+}
+
+.latency-note__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  color: var(--color-ed-subtle);
+}
+
+.latency-note__value {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.latency-note__unit {
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  color: var(--color-ed-subtle);
+}
+
+/* 浮条显示期间「回到顶部」上移避让（浮条约 2.25rem 高，留 0.5rem 间隙），
+   收起后自动落回左下角，两者不会叠在一起。 */
+#back-to-top {
+  transition: bottom 240ms var(--ease-ed);
+}
+
+html.latency-note-open #back-to-top {
+  bottom: calc(1.5rem + 2.75rem);
+}
+
+@media (max-width: 640px) {
+  .latency-note {
+    left: 1rem;
+    bottom: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .latency-note {
+    transform: none;
+    transition: opacity 160ms linear;
+  }
+}
