@@ -4,6 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
+import LatencyNote from "../components/LatencyNote.astro";
 import { fetchContributions } from "../utils/contributions";
 import { postPath, tagPath } from "../utils/urls";
 import {
@@ -246,5 +247,8 @@ const daysStr = String(daysNum).padStart(2, "0");
       </aside>
     </div>
   </div>
+
+  <!-- 首次访问（每会话一次）在左下角提示一次本站响应延迟 -->
+  <LatencyNote />
 </BaseLayout>
 
