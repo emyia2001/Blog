@@ -1,0 +1,6 @@
+# 2026-10：文章 slug 改为英文后，旧的文件名 URL 301 到新地址
+# 带与不带尾斜杠各一条（Pages 对无斜杠请求会先做 307 规范化，这里直接接住）
+/blog/post-1 /blog/coming-back/ 301
+/blog/post-1/ /blog/coming-back/ 301
+/blog/post-3 /blog/mac-screenshot-workflow/ 301
+/blog/post-3/ /blog/mac-screenshot-workflow/ 301
