@@ -38,11 +38,13 @@ export function tagPath(tag: string): string {
 }
 
 type PostEntry = CollectionEntry<"posts">;
-type PostLike = Pick<PostEntry, "id" | "data">;
+// Astro 会把 frontmatter 的 `slug` 作为条目自身的 slug，并从 data 里剥掉
+// （所以 post.data.slug 恒为 undefined）；这里显式接住条目级 slug。
+type PostLike = Pick<PostEntry, "id" | "data"> & { slug?: string };
 
 /** 文章 slug：frontmatter `slug` 优先（可在 CMS 里改），否则用文件名 */
 export function postSlug(post: PostLike): string {
-  const custom = post.data.slug?.trim().replace(/^\/+|\/+$/g, "");
+  const custom = (post.slug ?? post.data.slug)?.trim().replace(/^\/+|\/+$/g, "");
   return custom && custom.length > 0 ? custom : post.id.replace(/\.mdx?$/, "");
 }
 

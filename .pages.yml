@@ -20,6 +20,9 @@ content:
         label: 链接 slug
         type: string
         required: true
+        pattern:
+          regex: "^[a-z0-9-]+$"
+          message: "只能用英文小写、数字和连字符，如 hello-world"
         help: "英文短链接，如 hello-world（决定 /blog/xxx 的网址）"
       - name: title
         label: 标题
