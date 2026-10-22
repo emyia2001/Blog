@@ -71,11 +71,15 @@ const related = published
   article={{ publishedTime: date, tags }}
 >
   <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
-    <div class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] gap-10 lg:gap-12">
+    <!-- 两栏铺满容器宽度：目录作为右侧边栏贴齐内容右边界（与导航右端对齐），
+         正文在剩余左区内居中（1fr 列 + mx-auto），不再整块居中。
+         正文 752px ≈ 44 字/行（17px 字号），仍在中文舒适区（30~45 字）内。 -->
+    <div class="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-12">
       <!-- Main article -->
-      <!-- max-w-[40em]（≈640px，17px 正文下 ~37 个汉字/行）约束阅读行长；
-           1440 视口下原先是 960px ≈ 56 字/行，远超舒适区 -->
-      <article class="min-w-0 order-2 lg:order-1 max-w-[40em]" data-pagefind-body>
+      <!-- max-w-[47rem]（752px，17px 正文下约 44 字/行）：桌面端在 1fr 左区内居中，
+           与右侧目录之间留出行距；1024px 以下两栏堆叠时兜住行长并居中，避免平板
+           横屏把正文拉成 55+ 字/行的长条。 -->
+      <article class="min-w-0 order-2 mx-auto w-full max-w-[47rem] lg:order-1" data-pagefind-body>
         <header class="mb-10">
           <p class="page-kicker mb-4">
             ARTICLE · {tags[0] || "随笔"}

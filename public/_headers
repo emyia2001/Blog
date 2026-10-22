@@ -17,6 +17,14 @@
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
 
+# —— giscus 评论主题：由 giscus.app 的 iframe 跨域拉取，必须显式放行 CORS ——
+# 注意：Astro 是 output: static，endpoint（src/pages/giscus-theme.css.ts）里写的
+# Response 头不会写进静态产物（线上实测没有 ACAO），只保留 CSS 内容。
+# 少了这个头，浏览器会拦截主题样式，giscus 回退默认 light 主题，评论区整块变白。
+/giscus-theme.css
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
 # —— 字体：文件名带字重/分片号，内容稳定；改字体时文件名会变 ——
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
