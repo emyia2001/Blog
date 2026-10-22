@@ -5,7 +5,18 @@
  * Base structure from giscus styles/themes/light.css (MIT, GitHub Inc.)
  */
 
+/* giscus 在 giscus.app 的 iframe 里渲染，是独立文档：主题只定义 main 上的变量时，
+   iframe 根画布仍可能按 color-scheme: light dark 画成白色（系统深色模式下更深），
+   评论区就会整块「发白」。这里显式铺纸色并把配色锁在浅色，与站点保持一致。 */
+html,
+body {
+  background-color: #f9f8f6;
+  color-scheme: light;
+}
+
 main {
+  background-color: #f9f8f6;
+
   /* Syntax (kept monochrome-leaning, matches editorial restraint) */
   --color-prettylights-syntax-comment: #8a8a8a;
   --color-prettylights-syntax-constant: #4a4a4a;
@@ -70,8 +81,10 @@ main {
   --color-fg-default: #1c1c1c;
   --color-fg-muted: rgb(28 28 28 / 60%);
   --color-fg-subtle: rgb(28 28 28 / 40%);
-  --color-canvas-default: transparent;
-  --color-canvas-overlay: transparent;
+  /* 用纸色而不是 transparent：iframe 的透明画布不可控（见文件头），
+     显式同色既能「融进」页面，也不依赖 iframe 是否真的透明。 */
+  --color-canvas-default: #f9f8f6;
+  --color-canvas-overlay: #f9f8f6;
   --color-canvas-inset: rgb(28 28 28 / 4%);
   --color-canvas-subtle: rgb(28 28 28 / 4%);
   --color-border-default: rgb(28 28 28 / 10%);
