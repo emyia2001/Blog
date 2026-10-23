@@ -21,7 +21,6 @@ Use kebab-case English slugs: `my-article-slug.mdx` → URL `/blog/my-article-sl
 | `articleLayout` | ✅ | 固定 `sidebar`，不要改 |
 | `tags` | 可选 | 标签数组，用英文小写，尽量复用已有标签 |
 | `featured` | 可选 | `true` 置顶到首页 hero 大图位 |
-| `pullQuote` | 可选 | 居中引语，显示在正文上方 |
 | `draft` | 可选 | `true` 时不发布，不在任何列表中出现 |
 | `heroImage` | 可选 | 头图路径，如 `/images/photo.jpg`，图片放在 `public/images/` |
 | `bgm` | 可选 | 背景音乐，`src` 路径 + `title` 曲名 |
@@ -36,7 +35,6 @@ excerpt: "一句话摘要。"
 articleLayout: sidebar
 tags: ["tag1", "tag2"]
 featured: false
-pullQuote: "引语"
 heroImage: "/images/photo.jpg"
 bgm:
   src: "/music/track.mp3"

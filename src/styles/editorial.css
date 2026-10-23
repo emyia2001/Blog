@@ -388,20 +388,6 @@ h1, h2, h3, h4, h5, h6 {
   text-indent: 0;
 }
 
-/* Pull quote */
-.pull-quote {
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  color: var(--color-ed-muted);
-  padding: 1.5em 0;
-  margin: 2em 0;
-  border-top: 1px solid var(--color-ed-rule-strong);
-  border-bottom: 1px solid var(--color-ed-rule-strong);
-  text-align: center;
-}
-
 /* --- Scroll reveal: .js gate prevents invisible content when JS is off.
    IntersectionObserver (in page scripts) adds .is-visible. --- */
 .js .reveal {

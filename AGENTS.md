@@ -63,7 +63,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - **双份 schema 警告**：`.pages.yml` 与 `content.config.ts` 必须保持一致。若改了 content schema 的字段/类型/枚举，**必须同步 `.pages.yml`**，否则 CMS 新建的内容可能通不过 Zod 校验。
 
 ### posts（文章）
-- 必备字段：`title`、`date`、`excerpt`。常用可选：`slug`（**决定** `/blog/<slug>`，英文短名；不填则用文件名——URL 统一由 `src/utils/urls.ts` 的 `postPath()` 生成）、`tags`、`heroImage`、`articleLayout: sidebar`（目前唯一）、`draft`、`featured`、`pullQuote`、`dropCap`、`bgm`、`graph`。
+- 必备字段：`title`、`date`、`excerpt`。常用可选：`slug`（**决定** `/blog/<slug>`，英文短名；不填则用文件名——URL 统一由 `src/utils/urls.ts` 的 `postPath()` 生成）、`tags`、`heroImage`、`articleLayout: sidebar`（目前唯一）、`draft`、`featured`、`dropCap`、`bgm`、`graph`。
 - `featured: true` 会让该文成为首页头条（多篇置顶时取最新；都没有则取最新一篇）。
 - 排版约定（来自 `src/content/posts/example-post.mdx`）：正文标题从 `##` 起（`#` 留给页面标题），可到 `####`，都会进右侧目录；文章以 800~1500 字为宜；首段自动下沉首字（除非 `dropCap: false`）。
 - **关系图谱**：正文用 wiki-link `[[锚点]]` 声明关联，锚点 = 目标节点在图谱中的 `graph.name`（默认取文章 `title`）。注意目前 `[[...]]` 只生成图谱连线，正文会原样显示方括号文字——**不要为了做内链而用 `[[...]]`**。

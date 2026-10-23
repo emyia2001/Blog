@@ -11,7 +11,6 @@ articleLayout: sidebar # 目前唯一布局
 tags: ["示例", "标签"] # 标签列表，自动生成 /tags/<标签> 页；不需要可留 []
 draft: true
 featured: false # 预留字段：首页头条自动取最新一篇，此字段暂未消费
-pullQuote: "" # 引语（可选）：渲染在正文之前；留空不显示
 bgm: # 该文专属背景音乐（可选）
   src: "" # https://example.com/your-track.mp3
   title: "" # 示例曲目 - 替换为真实音频地址
@@ -34,7 +33,6 @@ bgm: # 该文专属背景音乐（可选）
 ## 可选字段速查
 
 - `heroImage`：图 URL（可选）。封面体系已移除，不再渲染为文章头图；仅用作分享卡 `og:image` 与图谱节点图标来源，留空自动回退站点头像
-- `pullQuote`：引语块，渲染在正文之前
 - `bgm`：右下角迷你播放器（循环播放 + 淡入淡出 + 切页交叉淡化）；`src` 留空则不显示
 - `dropCap: false`：关闭首段首字下沉（默认开启）
 - `featured`：schema 预留字段，当前未消费——首页头条自动取日期最新的一篇

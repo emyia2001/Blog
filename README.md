@@ -29,7 +29,7 @@
 - **字体与色彩**：标题用衬线 `Playfair Display` + `Noto Serif SC`，正文用 `Source Sans 3`；纸张底色 `#F9F8F6`、墨色 `#1C1C1C`、点缀色砖红 `#A63A2B`。
 - **固定装饰框**：大屏下页面四周有一圈细线边框，顶部为砖红强调线；左侧竖排写着 `SNARK · EDITORIAL JOURNAL`。
 - **首页报头头条 + 双栏版面**：最新一篇以「本期头条」大字呈现（附 Vol 刊号与坚持天数），右侧独立栏承载关于卡（个人信息 + GitHub 贡献热力图）、纪事、标签——全程不依赖封面图维护。
-- **首字下沉 + 引语（drop-cap / pull-quote）**：文章正文首段首字下沉，可选引语块独立呈现。
+- **首字下沉（drop-cap）**：文章正文首段首字下沉，`dropCap: false` 可关闭。
 - **阅读时长**：`readingTime` 工具对中英混排做智能估算（中文 ~300 字/分，英文 ~200 词/分）。
 - **右侧目录（TOC）**：文章页右侧 sticky 目录，带滚动高亮（scroll-spy）；移动端变为右侧抽屉。
 - **滚动入场动画**：`.reveal`（淡入）与 `.mask-reveal`（擦除）在元素进入视口时触发。
@@ -120,7 +120,6 @@ public/
 | `tags` | string[] | 标签 |
 | `draft` | boolean | 草稿（`true` 不发布） |
 | `featured` | boolean | 置顶 |
-| `pullQuote` | string? | 引语 |
 | `bgm` | `{ src, title }?` | 该文专属背景音乐 |
 | `graph` | `{ name?, avatar?, enabled? }?` | 关系图谱配置（`enabled:false` 可把该文排除出图谱） |
 
@@ -143,7 +142,7 @@ public/
 | 关系图谱 | 节点跳 `/blog` | ✅ 节点 | ❌ 不入图 |
 | 归档 | ✅ | ✅ | ❌ |
 | 标签页 / RSS | ✅ | ❌ | ❌ |
-| 关键字段 | `slug`/`tags`/`pullQuote`… | `type`(person/event) + title/excerpt | `type: diary`，title? |
+| 关键字段 | `slug`/`tags`/`featured`… | `type`(person/event) + title/excerpt | `type: diary`，title? |
 
 ---
 

@@ -22,7 +22,6 @@ const posts = defineCollection({
     tags: z.array(z.string()).optional().default([]),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
-    pullQuote: z.string().optional(),
     dropCap: z.boolean().optional().default(true),
     bgm: z
       .object({
