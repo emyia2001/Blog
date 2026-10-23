@@ -14,7 +14,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const { title, date, excerpt, heroImage, pullQuote, bgm, tags, dropCap } = post.data;
+const { title, date, excerpt, heroImage, bgm, tags, dropCap } = post.data;
 const { Content, headings: renderedHeadings } = await post.render();
 const bodyText = String(post.body || "");
 const readMin = readingTime(bodyText);
@@ -99,12 +99,6 @@ const related = published
             <span>{readMin} 分钟阅读</span>
           </div>
         </header>
-
-        {pullQuote && (
-          <div class="pull-quote max-w-[45ch] mb-12">
-            &ldquo;{pullQuote}&rdquo;
-          </div>
-        )}
 
         <div class={`prose max-w-none${dropCap ? " drop-cap" : ""}`}>
           <Content />

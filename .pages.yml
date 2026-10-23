@@ -60,9 +60,6 @@ content:
         label: 置顶
         type: boolean
         default: false
-      - name: pullQuote
-        label: 引语
-        type: text
       - name: dropCap
         label: 首字下沉
         type: boolean
