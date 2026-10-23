@@ -12,6 +12,7 @@ const [allPosts, allMoments] = await Promise.all([
 const graphData = buildGraphData(allPosts, allMoments);
 const graphNodes = graphData.nodes;
 const graphLinks = graphData.links;
+const contentNodes = graphNodes.filter((n) => n.kind !== "self");
 ---
 
 <BaseLayout title="图谱">
@@ -30,33 +31,72 @@ const graphLinks = graphData.links;
           <div class="graph-tall">
             <GraphView nodes={graphNodes} links={graphLinks} />
           </div>
-          <ul class="mt-6 flex flex-wrap items-center gap-x-8 gap-y-2 text-xs text-[var(--color-ed-muted)]">
-            <li class="flex items-center gap-2">
-              <span class="inline-block h-3 w-3 rounded-full" style="background:var(--color-ed-fg)"></span>
-              我 / 文章
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="inline-block h-3 w-3 rounded-full border" style="border-color:var(--color-ed-muted)"></span>
-              人物
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="inline-block h-3 w-3 rotate-45" style="background:var(--color-ed-muted)"></span>
-              事件
-            </li>
-          </ul>
+          <div class="graph-meta">
+            <p>
+              共 <strong>{graphNodes.length}</strong> 个节点 ·
+              <strong>{graphLinks.length}</strong> 条关联
+            </p>
+            <p>连线来自正文引用，或内容与作者、人物之间的归属关系。</p>
+          </div>
         </>
       ) : (
         <p class="py-20 text-center text-[var(--color-ed-muted)]">
           暂无内容。
         </p>
       )}
+
+      <noscript>
+        <ul class="graph-fallback">
+          {
+            contentNodes.map((n) => (
+              <li>
+                {n.url ? <a href={n.url}>{n.title}</a> : <span>{n.title}</span>}
+              </li>
+            ))
+          }
+        </ul>
+      </noscript>
     </section>
   </div>
 </BaseLayout>
 
 <style>
-  /* 独立图谱页：画布更高，充分利用整页宽度 */
-  .graph-tall :global(#graph-svg) {
-    height: 34rem;
+  /* 独立图谱页：画布更高，充分利用整页宽度；高度随视口自适应 */
+  .graph-tall {
+    --graph-h: clamp(26rem, 62vh, 42rem);
+  }
+
+  /* 手机上画布太窄，62vh 会拉成细长条：压到接近方形，图形不至于悬在中间 */
+  @media (max-width: 640px) {
+    .graph-tall {
+      --graph-h: 27rem;
+    }
+  }
+
+  .graph-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
+    margin-top: 0.9rem;
+    color: var(--color-ed-subtle);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+  }
+  .graph-meta p {
+    margin: 0;
+  }
+  .graph-meta strong {
+    color: var(--color-ed-fg);
+    font-weight: 600;
+  }
+
+  /* JS 关闭时的降级：把节点列成清单，至少还能点进文章 */
+  .graph-fallback {
+    margin-top: 1.5rem;
+    padding-left: 1rem;
+    color: var(--color-ed-muted);
+    font-size: 0.8125rem;
+    line-height: 1.8;
   }
 </style>

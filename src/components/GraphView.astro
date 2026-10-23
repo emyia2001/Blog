@@ -8,83 +8,356 @@ interface Props {
 
 const { nodes, links } = Astro.props;
 const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
+const nodeCount = nodes.length;
+const linkCount = links.length;
 ---
 
-<figure id="graph-view" aria-label="关系图谱">
+<figure id="graph-view" class="graph-view">
   <div class="graph-layout" id="graph-layout">
-    <svg
-      id="graph-svg"
-      viewBox="0 0 800 500"
-      class="graph-svg h-[26rem] flex-1 min-w-0 cursor-grab touch-none select-none rounded-md border border-[var(--color-ed-rule)] bg-[var(--color-ed-bg)] shadow-[0_8px_30px_rgba(28,28,28,0.10)] active:cursor-grabbing"
-      role="group"
-      aria-label="内容关系图谱，支持拖拽缩放；每个节点可用 Tab 聚焦后回车查看详情"
-    >
-      <g id="graph-zoom">
-        <g id="graph-links" stroke="var(--color-ed-rule)" stroke-width="1.2"></g>
-        <g id="graph-nodes"></g>
-      </g>
-    </svg>
-
-    <aside id="graph-detail" class="graph-detail" aria-live="polite"></aside>
-
-    <!-- 放大 / 还原 -->
-    <button
-      type="button"
-      id="graph-expand"
-      class="graph-expand"
-      aria-label="放大关系图谱"
-      title="放大关系图谱"
-    >
-      <svg id="graph-expand-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
+    <div class="graph-canvas">
+      <svg
+        id="graph-svg"
+        viewBox="0 0 800 500"
+        class="graph-svg"
+        role="group"
+        aria-labelledby="graph-svg-title"
+        aria-describedby="graph-svg-desc graph-hint"
+      >
+        <title id="graph-svg-title">内容关系图谱</title>
+        <desc id="graph-svg-desc">{`共 ${nodeCount} 个节点、${linkCount} 条关联。用 Tab 键逐个聚焦节点，回车查看详情。`}</desc>
+        <defs>
+          <pattern
+            id="graph-dots"
+            width="26"
+            height="26"
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx="1.5" cy="1.5" r="1" fill="rgba(28, 28, 28, 0.13)"
+            ></circle>
+          </pattern>
+        </defs>
+        <rect
+          class="graph-paper"
+          width="100%"
+          height="100%"
+          fill="url(#graph-dots)"
+          aria-hidden="true"></rect>
+        <g id="graph-zoom">
+          <g id="graph-links" stroke-linecap="round"></g>
+          <g id="graph-nodes"></g>
+        </g>
       </svg>
-    </button>
+
+      <div class="graph-controls" role="group" aria-label="图谱视图控制">
+        <button
+          type="button"
+          id="graph-expand"
+          class="graph-ctrl"
+          aria-label="放大关系图谱"
+          title="放大"
+        >
+          <svg
+            id="graph-expand-icon"
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
+          </svg>
+        </button>
+        <span class="graph-ctrl-sep" aria-hidden="true"></span>
+        <button
+          type="button"
+          id="graph-zoom-in"
+          class="graph-ctrl"
+          aria-label="放大地图"
+          title="放大 (滚轮向上)"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+        </button>
+        <button
+          type="button"
+          id="graph-zoom-out"
+          class="graph-ctrl"
+          aria-label="缩小地图"
+          title="缩小 (滚轮向下)"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M5 12h14"></path>
+          </svg>
+        </button>
+        <button
+          type="button"
+          id="graph-reset"
+          class="graph-ctrl"
+          aria-label="复位视图"
+          title="复位视图"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 2.65-6.35"></path>
+            <path d="M3 4v5h5"></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="graph-hint" id="graph-hint">
+        <span aria-hidden="true">拖拽节点 · 缩放 · 点击查看详情</span>
+        <span class="sr-only">
+          在图上可用 Tab 键切换节点，按回车查看节点详情，方向键不移动视图，请使用「放大地图」「缩小地图」「复位视图」按钮缩放。
+        </span>
+      </p>
+
+      <ul class="graph-legend" aria-label="节点图例">
+        <li>
+          <span class="graph-legend-glyph" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="5.6" fill="var(--color-ed-fg)"></circle>
+              <circle cx="8" cy="8" r="7" fill="none" stroke="var(--color-ed-accent)" stroke-width="1"></circle>
+            </svg>
+          </span>
+          我
+        </li>
+        <li>
+          <span class="graph-legend-glyph" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="3.6" fill="var(--color-ed-fg)"></circle>
+            </svg>
+          </span>
+          文章
+        </li>
+        <li>
+          <span class="graph-legend-glyph" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="4.2" fill="none" stroke="var(--color-ed-fg)" stroke-width="1.4"></circle>
+            </svg>
+          </span>
+          人物
+        </li>
+        <li>
+          <span class="graph-legend-glyph" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <polygon points="8,2.8 13.2,8 8,13.2 2.8,8" fill="none" stroke="var(--color-ed-fg)" stroke-width="1.4"></polygon>
+            </svg>
+          </span>
+          事件
+        </li>
+      </ul>
+
+      <aside
+        id="graph-detail"
+        class="graph-detail"
+        aria-label="节点详情"
+        aria-live="polite"
+        aria-hidden="true"></aside>
+    </div>
   </div>
+
   <script type="application/json" id="graph-data" set:html={graphData}></script>
 </figure>
 
 <style>
-  /* 键盘焦点可见：图谱节点是可聚焦的 role=button，必须有可见焦点环 */
-  :global(.graph-svg .graph-node:focus-visible) {
-    outline: 2px solid var(--color-ed-accent);
-    outline-offset: 2px;
-    border-radius: 4px;
+  .graph-view {
+    margin: 0;
   }
 
   .graph-layout {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
     position: relative;
     container-type: inline-size;
   }
 
-  /* 放大按钮：悬浮在图右上角 */
-  .graph-expand {
+  /* 画布：纸底 + 点阵网格 + 极浅的内阴影，让图谱像印在纸上的一张图版 */
+  .graph-canvas {
+    position: relative;
+    height: var(--graph-h, 26rem);
+    overflow: hidden;
+    border: 1px solid var(--color-ed-rule);
+    border-radius: 4px;
+    background:
+      radial-gradient(
+        120% 92% at 50% 0%,
+        rgba(255, 255, 255, 0.72),
+        transparent 68%
+      ),
+      var(--color-ed-bg);
+    box-shadow:
+      0 1px 0 rgba(28, 28, 28, 0.04),
+      0 22px 44px -36px rgba(28, 28, 28, 0.6);
+    transition: box-shadow 0.3s var(--ease-ed);
+  }
+
+  .graph-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* 触屏：纵向滑动交给页面滚动（整块画布几乎占满手机屏，否则会把页面滚死），
+     横向拖拽与双指缩放仍由图谱接管 */
+  @media (hover: none) and (pointer: coarse) {
+    .graph-svg {
+      touch-action: pan-y;
+    }
+  }
+  .graph-svg:active {
+    cursor: grabbing;
+  }
+
+  .graph-paper {
+    pointer-events: none;
+  }
+
+  /* 悬浮控制条：竖排一组圆角按钮，纸底 + 极细描边 */
+  .graph-controls {
     position: absolute;
-    top: 0.625rem;
-    right: 0.625rem;
-    z-index: 5;
+    top: 0.7rem;
+    right: 0.7rem;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 3px;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 999px;
+    background: rgba(249, 248, 246, 0.88);
+    box-shadow: 0 1px 2px rgba(28, 28, 28, 0.06);
+    backdrop-filter: blur(6px);
+  }
+
+  .graph-ctrl {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 2rem;
     height: 2rem;
+    padding: 0;
+    border: 0;
     border-radius: 999px;
-    border: 1px solid var(--color-ed-rule);
-    background: rgba(249, 248, 246, 0.9);
+    background: transparent;
     color: var(--color-ed-muted);
     cursor: pointer;
     transition:
-      color 0.2s,
-      border-color 0.2s,
-      background 0.2s;
+      color 0.18s ease,
+      background 0.18s ease;
+  }
+  .graph-ctrl:hover {
+    color: var(--color-ed-accent);
+    background: rgba(166, 58, 43, 0.08);
+  }
+  .graph-ctrl:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: 1px;
+  }
+  .graph-ctrl:disabled {
+    color: var(--color-ed-faint);
+    cursor: default;
+    background: transparent;
+  }
+
+  .graph-ctrl-sep {
+    width: 1.1rem;
+    height: 1px;
+    background: var(--color-ed-hairline);
+    margin: 2px 0;
+  }
+
+  /* 操作提示：首次交互后淡出，不遮挡长期阅读 */
+  .graph-hint {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.8rem;
+    z-index: 3;
+    max-width: 60%;
+    margin: 0;
+    padding: 0.2rem 0.45rem;
+    border-radius: 2px;
+    background: rgba(249, 248, 246, 0.7);
+    color: var(--color-ed-subtle);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    line-height: 1.5;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .graph-layout.has-interacted .graph-hint {
+    opacity: 0;
+  }
+
+  /* 图例：浮在画布左下角，形状与真实节点一一对应 */
+  .graph-legend {
+    position: absolute;
+    left: 0.7rem;
+    bottom: 0.7rem;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.8rem;
+    margin: 0;
+    padding: 0.35rem 0.55rem;
+    list-style: none;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 3px;
+    background: rgba(249, 248, 246, 0.82);
+    color: var(--color-ed-subtle);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
     backdrop-filter: blur(4px);
   }
-  .graph-expand:hover {
-    color: var(--color-ed-accent);
-    border-color: var(--color-ed-accent);
-    background: var(--color-ed-bg);
+  .graph-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+  }
+  .graph-legend-glyph {
+    display: inline-flex;
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+  .graph-legend-glyph svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 详情抽屉：浮层盖在画布右侧，不改变画布尺寸，避免每次点节点都重排布局 */
+  .graph-detail {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    width: min(21rem, 100%);
+    overflow: hidden;
+    background: rgba(249, 248, 246, 0.97);
+    border-left: 1px solid var(--color-ed-rule);
+    box-shadow: -18px 0 40px -28px rgba(28, 28, 28, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(102%);
+    transition:
+      transform 0.38s var(--ease-ed),
+      opacity 0.2s ease,
+      visibility 0s linear 0.38s;
+  }
+  .graph-detail.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      transform 0.38s var(--ease-ed),
+      opacity 0.2s ease,
+      visibility 0s;
   }
 
   /* 全屏展开态 */
@@ -92,126 +365,286 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     position: fixed;
     inset: 1rem;
     z-index: 100;
-    gap: 0;
+    display: flex;
+    align-items: stretch;
     padding: 1rem;
-    background: rgba(28, 28, 28, 0.5);
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(28, 28, 28, 0.55);
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(3px);
   }
-  .graph-layout.is-expanded .graph-svg {
+  .graph-layout.is-expanded .graph-canvas {
+    flex: 1;
     height: auto;
-    max-height: none;
-    box-shadow: none;
     border-color: rgba(255, 255, 255, 0.15);
-  }
-  .graph-layout.is-expanded .graph-expand {
-    width: 2.5rem;
-    height: 2.5rem;
-    top: 1.25rem;
-    right: 1.25rem;
-    background: var(--color-ed-fg);
-    color: var(--color-ed-bg);
-    border-color: var(--color-ed-fg);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  }
-  .graph-layout.is-expanded .graph-expand:hover {
-    background: var(--color-ed-accent);
-    border-color: var(--color-ed-accent);
-    color: var(--color-ed-bg);
+    box-shadow: none;
   }
   .graph-layout.is-expanded .graph-detail {
+    border-radius: 4px;
+    border: 1px solid var(--color-ed-rule);
     background: var(--color-ed-bg);
   }
 
-  .graph-detail {
-    flex: 0 0 auto;
-    width: 0;
-    opacity: 0;
-    overflow: hidden;
-    border-left: 1px solid var(--color-ed-rule);
-    transition:
-      width 0.35s ease,
-      opacity 0.35s ease,
-      padding 0.35s ease;
+  /* --- 动态生成的 SVG 元素 --- */
+  /* 键盘焦点可见：图谱节点是可聚焦的 role=button，必须有可见焦点环 */
+  :global(.graph-svg .graph-node:focus-visible) {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
-  .graph-detail.is-open {
-    width: 20rem;
-    opacity: 1;
-    padding-left: 1.5rem;
+  :global(.graph-node) {
+    transition: opacity 0.25s ease;
+  }
+  :global(.graph-node-halo) {
+    fill: none;
+    stroke: rgba(166, 58, 43, 0);
+    stroke-width: 1.2;
+    transition: stroke 0.2s ease;
+  }
+  :global(.graph-node.is-hover .graph-node-halo),
+  :global(.graph-node.is-active .graph-node-halo) {
+    stroke: rgba(166, 58, 43, 0.55);
+  }
+  :global(.graph-node.is-active .graph-node-halo) {
+    stroke: var(--color-ed-accent);
+  }
+  :global(.graph-node.is-hover .graph-node-shape),
+  :global(.graph-node.is-active .graph-node-shape) {
+    stroke: var(--color-ed-accent);
   }
 
-  /* 窄容器（如首页右栏 / 时间线右栏内的图谱）：详情改为浮层盖在图上 */
+  :global(.graph-label) {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    fill: var(--color-ed-muted);
+    /* 纸色描边垫在文字下面：标签压在连线/其它节点上也读得清 */
+    paint-order: stroke fill;
+    stroke: var(--color-ed-bg);
+    stroke-width: 3.5px;
+    stroke-linejoin: round;
+    pointer-events: none;
+    transition:
+      fill 0.2s ease,
+      opacity 0.2s ease;
+  }
+  /* 节点很多时标签一定会互相压字：只保留悬停/选中节点的标签，其余交给抽屉 */
+  .graph-layout.is-dense :global(.graph-label) {
+    opacity: 0;
+  }
+  .graph-layout.is-dense :global(.graph-node.is-hover .graph-label),
+  .graph-layout.is-dense :global(.graph-node.is-active .graph-label) {
+    opacity: 1;
+  }
+  :global(.graph-node.is-hover .graph-label),
+  :global(.graph-node.is-active .graph-label) {
+    fill: var(--color-ed-fg);
+    font-weight: 600;
+  }
+
+  :global(.graph-link) {
+    transition:
+      opacity 0.25s ease,
+      stroke 0.25s ease;
+  }
+  :global(.graph-link--self) {
+    stroke: rgba(28, 28, 28, 0.24);
+    stroke-width: 1;
+  }
+  :global(.graph-link--peer) {
+    stroke: rgba(28, 28, 28, 0.44);
+    stroke-width: 1.4;
+  }
+  :global(.graph-link.is-hot) {
+    stroke: var(--color-ed-accent);
+  }
+
+  @keyframes graph-in {
+    from {
+      opacity: 0;
+    }
+  }
+  :global(.graph-node),
+  :global(.graph-link) {
+    animation: graph-in 0.5s var(--ease-ed) backwards;
+  }
+
+  /* 详情抽屉内容（DOM 由脚本拼装） */
+  :global(.graph-detail-inner) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1.2rem 1.35rem 1.5rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  :global(.graph-detail-top) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+  }
+  :global(.graph-detail-close) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-ed-muted);
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease;
+  }
+  :global(.graph-detail-close:hover) {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+  }
+  :global(.graph-preview-img) {
+    width: 100%;
+    height: 8.5rem;
+    margin-bottom: 0.85rem;
+    border-radius: 3px;
+    object-fit: cover;
+    filter: saturate(0.95);
+  }
+  :global(.graph-preview-kind) {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid rgba(166, 58, 43, 0.4);
+    border-radius: 2px;
+    background: rgba(166, 58, 43, 0.06);
+    color: var(--color-ed-accent);
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+  }
+  :global(.graph-preview-title) {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 1.35rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-ed-fg);
+    text-wrap: balance;
+  }
+  :global(.graph-preview-excerpt) {
+    display: -webkit-box;
+    margin: 0.55rem 0 0;
+    overflow: hidden;
+    color: var(--color-ed-muted);
+    font-size: 0.8125rem;
+    line-height: 1.68;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+  }
+  :global(.graph-detail-rel) {
+    margin-top: 1.1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--color-ed-hairline);
+  }
+  :global(.graph-rel-head) {
+    margin: 0 0 0.5rem;
+    color: var(--color-ed-subtle);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+  }
+  :global(.graph-rel-head b) {
+    color: var(--color-ed-fg);
+    font-weight: 600;
+  }
+  :global(.graph-rel-list) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  :global(.graph-rel-chip) {
+    padding: 0.26rem 0.5rem;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--color-ed-fg);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition:
+      color 0.18s ease,
+      border-color 0.18s ease;
+  }
+  :global(.graph-rel-chip:hover) {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+  }
+  :global(.graph-preview-link) {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--color-ed-fg);
+    font-size: 0.8125rem;
+  }
+
+  /* 窄容器（手机 / 侧栏）：详情改为底部抽屉 */
   @container (max-width: 620px) {
     .graph-detail {
-      position: absolute;
-      top: 0;
+      top: auto;
+      left: 0;
       right: 0;
       bottom: 0;
-      height: 100%;
-      width: 0;
-      border-left: 1px solid var(--color-ed-rule);
-      background: var(--color-ed-bg);
-      box-shadow: -12px 0 30px rgba(28, 28, 28, 0.12);
-      overflow-y: auto;
+      width: auto;
+      max-height: 78%;
+      border-left: 0;
+      border-top: 1px solid var(--color-ed-rule);
+      border-radius: 6px 6px 0 0;
+      transform: translateY(101%);
+      box-shadow: 0 -18px 40px -28px rgba(28, 28, 28, 0.5);
     }
     .graph-detail.is-open {
-      width: 100%;
-      padding: 1rem;
-      opacity: 1;
+      transform: none;
     }
-  }
-
-  .graph-preview-img {
-    width: 100%;
-    height: 9rem;
-    object-fit: cover;
-    border-radius: 4px;
-    margin-bottom: 0.75rem;
-  }
-  .graph-preview-kind {
-    display: inline-block;
-    font-size: 10px;
-    letter-spacing: 0.05em;
-    color: var(--color-ed-muted);
-    border: 1px solid var(--color-ed-rule);
-    padding: 1px 6px;
-    border-radius: 2px;
-    margin-bottom: 0.5rem;
-  }
-  .graph-preview-title {
-    font-family: var(--font-serif);
-    font-size: 1.25rem;
-    color: var(--color-ed-fg);
-    line-height: 1.3;
-  }
-  .graph-preview-excerpt {
-    margin-top: 0.5rem;
-    font-size: 0.8125rem;
-    line-height: 1.6;
-    color: var(--color-ed-muted);
-  }
-  .graph-preview-link {
-    display: inline-block;
-    margin-top: 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--color-ed-fg);
+    .graph-legend {
+      gap: 0.25rem 0.6rem;
+      padding: 0.3rem 0.45rem;
+    }
   }
 
   @media (max-width: 767px) {
-    .graph-layout {
-      flex-direction: column;
+    .graph-hint {
+      max-width: 55%;
+      font-size: 0.625rem;
     }
-    .graph-detail {
-      border-left: none;
-      border-top: 1px solid var(--color-ed-rule);
+    .graph-ctrl {
+      width: 2.25rem;
+      height: 2.25rem;
     }
-    .graph-detail.is-open {
-      width: 100%;
-      padding-left: 0;
-      padding-top: 1.5rem;
+    :global(.graph-label) {
+      font-size: 11.5px;
+      stroke-width: 3px;
     }
-    .graph-label {
-      display: none;
+    .graph-layout.is-expanded {
+      inset: 0.5rem;
+      padding: 0.5rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .graph-detail,
+    .graph-ctrl,
+    .graph-hint,
+    :global(.graph-node),
+    :global(.graph-link),
+    :global(.graph-label) {
+      transition: none;
+    }
+    :global(.graph-node),
+    :global(.graph-link) {
+      animation: none;
     }
   }
 </style>
@@ -223,6 +656,8 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   const zoomG = document.querySelector<SVGGElement>("#graph-zoom")!;
   const linksG = document.querySelector<SVGGElement>("#graph-links")!;
   const nodesG = document.querySelector<SVGGElement>("#graph-nodes")!;
+  const layoutEl = document.getElementById("graph-layout");
+  const panel = document.getElementById("graph-detail");
   const data = JSON.parse(
     document.querySelector<HTMLScriptElement>("#graph-data")?.textContent ?? "{}"
   ) as { nodes: GraphNode[]; links: GraphLink[] };
@@ -244,38 +679,54 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     "(prefers-reduced-motion: reduce)"
   ).matches;
 
-  const nodes = data.nodes.map((n) => ({ ...n })) as Array<
-    GraphNode & {
-      x?: number;
-      y?: number;
-      fx?: number | null;
-      fy?: number | null;
-    }
-  >;
+  type SimNode = GraphNode & {
+    x: number;
+    y: number;
+    fx?: number | null;
+    fy?: number | null;
+  };
+
+  const nodes = data.nodes.map((n) => ({ ...n })) as SimNode[];
   const links = data.links.map((l) => ({ ...l }));
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
-  // 节点大小随节点总数自动缩放：节点少时略收敛、多时递减，避免拥挤/过大。
-  // 4 个节点 → ≈0.82；10 个 → ≈0.60；上限 1、下限 0.5。
+  // 节点较多时隐藏常驻标签（见 .graph-layout.is-dense），避免整页叠字
+  if (nodes.length > 18) {
+    layoutEl?.classList.add("is-dense");
+    const hintText = document.querySelector<HTMLElement>(
+      ".graph-hint [aria-hidden]"
+    );
+    if (hintText) hintText.textContent = "拖拽节点 · 缩放 · 悬停查看名称";
+  }
+
+  // 节点尺寸随节点总数缓慢收敛：6 个以内保持满尺寸，之后每多 1 个缩 1.4%，
+  // 下限 0.72（原先按 1.25/n^0.35 缩放，10 个节点时半径只剩 4px，标签反而比点还大）
   const nodeScale = Math.max(
-    0.5,
-    Math.min(1, 1.25 / Math.pow(Math.max(nodes.length, 1), 0.35))
+    0.72,
+    Math.min(1, 1 - (nodes.length - 6) * 0.014)
   );
-  // 半径（diamond 的 L1 半径）
+  // 半径（事件的菱形按 L1 半径计）
   const R = {
-    avatarSelf: 13 * nodeScale,
-    avatar: 10 * nodeScale,
-    self: 11 * nodeScale,
-    node: 7 * nodeScale, // post / person
-    event: 9 * nodeScale,
-    hit: 24 * nodeScale,
-    collide: 34 * nodeScale,
-    labelY: 26 * nodeScale + 4,
+    self: 20 * nodeScale,
+    avatarSelf: 18 * nodeScale,
+    avatar: 13.5 * nodeScale,
+    node: 9 * nodeScale, // 文章
+    person: 10 * nodeScale,
+    event: 11.5 * nodeScale,
+    hit: 27 * nodeScale,
+    collide: 46 * nodeScale,
+  };
+
+  const radiusOf = (n: GraphNode): number => {
+    if (n.avatar) return n.kind === "self" ? R.avatarSelf : R.avatar;
+    if (n.kind === "self") return R.self;
+    if (n.kind === "event") return R.event;
+    if (n.kind === "person") return R.person;
+    return R.node;
   };
 
   nodes.forEach((n, i) => {
     const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
-    // 按实际容器散布：短边方向铺满 ~72%，长边按比例延伸，充分利用画布
     const cw = svg.clientWidth || W;
     const ch = svg.clientHeight || H;
     const rx = Math.max(30, cw * 0.36);
@@ -286,11 +737,22 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 
   const NS = "http://www.w3.org/2000/svg";
 
-  const linkEls = links.map(() => {
+  const linkEls = links.map((l, i) => {
     const line = document.createElementNS(NS, "line");
+    const isSelfLink = l.source === "self" || l.target === "self";
+    line.setAttribute(
+      "class",
+      isSelfLink ? "graph-link graph-link--self" : "graph-link graph-link--peer"
+    );
+    line.style.animationDelay = `${i * 24}ms`;
     linksG.appendChild(line);
     return line;
   });
+
+  // 标签最大字数：窄屏更容易顶到画布边缘，截短一点
+  const maxLabelChars = (svg.clientWidth || window.innerWidth) < 480 ? 9 : 14;
+  const labelEls: SVGTextElement[] = [];
+  const labelMeta: { sign: number; r: number }[] = [];
 
   const nodeEls = nodes.map((n, ni) => {
     const g = document.createElementNS(NS, "g");
@@ -301,22 +763,28 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     g.dataset.url = n.url;
     g.setAttribute("role", "button");
     g.setAttribute("tabindex", "0");
-    g.setAttribute("aria-label", n.title);
+    g.setAttribute("aria-label", `${kindLabel(n.kind)}：${n.title}`);
     g.style.cursor = "pointer";
-    // 焦点样式交给 CSS 的 :focus-visible（原来 outline:none 让键盘用户完全看不到焦点）
+    g.style.animationDelay = `${80 + ni * 40}ms`;
+
+    const r = radiusOf(n);
+    const isEvent = n.kind === "event";
+    const isSelf = n.kind === "self";
+
+    // 纸色光晕：连线/其它节点压过来时仍能读清节点轮廓
+    const halo = document.createElementNS(NS, "circle");
+    halo.setAttribute("class", "graph-node-halo");
+    halo.setAttribute("r", String(r + 6));
+    g.appendChild(halo);
 
     // Large transparent hit area: forgiving click/drag targets
     const hit = document.createElementNS(NS, "circle");
-    hit.setAttribute("r", String(R.hit));
+    hit.setAttribute("r", String(Math.max(R.hit, r + 12)));
     hit.setAttribute("fill", "transparent");
     hit.style.pointerEvents = "all";
     g.appendChild(hit);
 
-    const isEvent = n.kind === "event";
-    const isSelf = n.kind === "self";
-
     if (n.avatar) {
-      const r = isSelf ? R.avatarSelf : R.avatar;
       const clipId = `graph-clip-${ni}`;
       const defs = document.createElementNS(NS, "defs");
       const clip = document.createElementNS(NS, "clipPath");
@@ -327,7 +795,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       defs.appendChild(clip);
       g.appendChild(defs);
 
+      // 头像下面垫一圈纸色，避免头像与连线糊在一起
+      const backing = document.createElementNS(NS, "circle");
+      backing.setAttribute("r", String(r + 2.5));
+      backing.setAttribute("fill", "var(--color-ed-bg)");
+      g.appendChild(backing);
+
       const img = document.createElementNS(NS, "image");
+      img.setAttribute("class", "graph-node-shape");
       img.setAttribute("href", n.avatar);
       img.setAttributeNS(
         "http://www.w3.org/1999/xlink",
@@ -341,50 +816,81 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       img.setAttribute("clip-path", `url(#${clipId})`);
       img.setAttribute("preserveAspectRatio", "xMidYMid slice");
       g.appendChild(img);
-    } else {
-      const shape = document.createElementNS(
-        NS,
-        isEvent ? "polygon" : "circle"
-      );
-      if (isEvent) {
-        // diamond outline to keep it distinct from post (dot) and person (ring)
-        const er = R.event;
-        shape.setAttribute("points", `0,${-er} ${er},0 0,${er} ${-er},0`);
-        shape.setAttribute("fill", "none");
-        shape.setAttribute("stroke", "var(--color-ed-muted)");
-        shape.setAttribute("stroke-width", "1.5");
-      } else if (isSelf) {
-        shape.setAttribute("r", String(R.self));
-        shape.setAttribute("fill", "var(--color-ed-fg)");
-        shape.setAttribute("stroke", "var(--color-ed-bg)");
-        shape.setAttribute("stroke-width", "3");
-      } else {
-        shape.setAttribute("r", String(R.node));
-        if (n.kind === "post") {
-          shape.setAttribute("fill", "var(--color-ed-fg)");
-        } else {
-          shape.setAttribute("fill", "var(--color-ed-bg)");
-          shape.setAttribute("stroke", "var(--color-ed-muted)");
-          shape.setAttribute("stroke-width", "1.5");
-        }
+
+      if (isSelf) {
+        const ring = document.createElementNS(NS, "circle");
+        ring.setAttribute("class", "graph-node-shape");
+        ring.setAttribute("r", String(r + 2.5));
+        ring.setAttribute("fill", "none");
+        ring.setAttribute("stroke", "var(--color-ed-accent)");
+        ring.setAttribute("stroke-width", "1.4");
+        g.appendChild(ring);
       }
+    } else if (isEvent) {
+      const er = R.event;
+      const shape = document.createElementNS(NS, "polygon");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute(
+        "points",
+        `0,${-er} ${er},0 0,${er} ${-er},0`
+      );
+      shape.setAttribute("fill", "var(--color-ed-bg)");
+      shape.setAttribute("stroke", "var(--color-ed-fg)");
+      shape.setAttribute("stroke-width", "1.6");
+      shape.setAttribute("stroke-linejoin", "round");
+      g.appendChild(shape);
+    } else if (isSelf) {
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.self));
+      shape.setAttribute("fill", "var(--color-ed-fg)");
+      shape.setAttribute("stroke", "var(--color-ed-bg)");
+      shape.setAttribute("stroke-width", "3");
+      g.appendChild(shape);
+    } else if (n.kind === "post") {
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.node));
+      shape.setAttribute("fill", "var(--color-ed-fg)");
+      shape.setAttribute("stroke", "var(--color-ed-bg)");
+      shape.setAttribute("stroke-width", "2");
+      g.appendChild(shape);
+    } else {
+      // person：空心圆环，与实心文章点区分
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.person));
+      shape.setAttribute("fill", "var(--color-ed-bg)");
+      shape.setAttribute("stroke", "var(--color-ed-fg)");
+      shape.setAttribute("stroke-width", "1.6");
       g.appendChild(shape);
     }
 
+    // 标签上下交错，减少同一水平线上的叠字
+    const sign = ni % 2 === 0 ? 1 : -1;
     const label = document.createElementNS(NS, "text");
     label.setAttribute("class", "graph-label");
     label.setAttribute("text-anchor", "middle");
-    label.setAttribute("y", String(R.labelY));
-    label.setAttribute(
-      "style",
-      `font-family: 'Source Sans 3', sans-serif; font-size: 12px; fill: var(--color-ed-muted);${isSelf ? " font-weight: 600;" : ""}`
-    );
-    label.textContent = n.title;
+    label.setAttribute("dominant-baseline", "middle");
+    label.setAttribute("y", String(sign * (r + 13)));
+    if (isSelf) label.style.fontWeight = "600";
+    label.textContent =
+      n.title.length > maxLabelChars
+        ? `${n.title.slice(0, maxLabelChars - 1)}…`
+        : n.title;
     g.appendChild(label);
+    labelEls.push(label);
+    labelMeta.push({ sign, r });
 
     nodesG.appendChild(g);
     return g;
   });
+
+  function kindLabel(kind: GraphNode["kind"]): string {
+    return (
+      { post: "文章", person: "人物", event: "事件", self: "我" }[kind] ?? "节点"
+    );
+  }
 
   const simulation = forceSimulation(nodes as never)
     .force(
@@ -397,8 +903,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
     // "self" is pinned to the center
-    .force("x", forceX(W / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
-    .force("y", forceY(H / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
+    .force(
+      "x",
+      forceX(W / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
+    )
+    .force(
+      "y",
+      forceY(H / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
+    )
     .on("tick", ticked);
 
   let resizeObserver: ResizeObserver | null = null;
@@ -410,15 +922,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     simulation.stop();
     document.body.style.overflow = "";
     // 若正展开：把 layout 移回原位，避免离开页面后 layout 残留在 body 末尾
-    const lay = document.getElementById("graph-layout");
-    if (lay && lay.classList.contains("is-expanded") && layoutOrigin) {
+    if (layoutEl?.classList.contains("is-expanded") && layoutOrigin) {
       const { parent, next } = layoutOrigin;
       if (next && next.parentNode === parent) {
-        parent.insertBefore(lay, next);
+        parent.insertBefore(layoutEl, next);
       } else {
-        parent.appendChild(lay);
+        parent.appendChild(layoutEl);
       }
-      lay.classList.remove("is-expanded");
+      layoutEl.classList.remove("is-expanded");
       layoutOrigin = null;
     }
   }
@@ -439,13 +950,12 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   }
 
   // Distance from a node center to its shape edge along a unit direction.
-  // Circles are constant-radius; the diamond is an L1 ball (R = 9).
+  // Circles are constant-radius; the diamond is an L1 ball.
   function radial(n: GraphNode, ux: number, uy: number): number {
-    if (n.kind === "event") {
-      return R.event / (Math.abs(ux) + Math.abs(uy));
+    if (n.kind === "event" && !n.avatar) {
+      return R.event / (Math.abs(ux) + Math.abs(uy) || 1);
     }
-    if (n.kind === "self") return R.self;
-    return R.node; // post, person
+    return radiusOf(n);
   }
 
   // Shorten each link so it touches the node edges instead of crossing to centers
@@ -469,6 +979,21 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     ];
   }
 
+  // 标签宽度缓存：换字体 / 断点改变字号后重测一次，避免每帧读布局
+  let labelWidths: number[] = [];
+  let viewW = 0;
+  let viewH = 0;
+  function measureLabels() {
+    labelWidths = labelEls.map((l) => {
+      try {
+        return l.getComputedTextLength();
+      } catch {
+        return 0;
+      }
+    });
+  }
+  measureLabels();
+
   function ticked() {
     linkEls.forEach((line, i) => {
       const l = links[i];
@@ -481,9 +1006,28 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       line.setAttribute("x2", String(x2));
       line.setAttribute("y2", String(y2));
     });
+    const w = viewW || W;
+    const h = viewH || H;
     nodeEls.forEach((g, i) => {
       const n = nodes[i];
       g.setAttribute("transform", `translate(${n.x},${n.y})`);
+
+      // 标签贴着节点但在画布内：越界的部分向内收，避免被裁掉
+      const label = labelEls[i];
+      const meta = labelMeta[i];
+      if (label && meta) {
+        const half = (labelWidths[i] ?? 0) / 2;
+        const x = Math.min(
+          Math.max(n.x, half + 6),
+          Math.max(half + 6, w - half - 6)
+        );
+        const y = Math.min(
+          Math.max(n.y + meta.sign * (meta.r + 13), 12),
+          h - 12
+        );
+        label.setAttribute("x", String(x - n.x));
+        label.setAttribute("y", String(y - n.y));
+      }
     });
   }
 
@@ -502,18 +1046,30 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       return;
     }
     fitTries = 0;
+    viewW = w;
+    viewH = h;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    measureLabels();
     simulation.force("center", forceCenter(w / 2, h / 2));
     simulation
-      .force("x", forceX(w / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)))
-      .force("y", forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0)));
+      .force(
+        "x",
+        forceX(w / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
+      )
+      .force(
+        "y",
+        forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
+      );
     // 画布尺寸变化时：边距/斥力按画布短边自适应，并把卫星节点重新散布到
     // 以 self 为中心的环上（布局自然收敛，非 transform 跳变）
     const short = Math.min(w, h);
-    const linkForce = simulation.force("link") as { distance: (v: number) => unknown } | null;
-    linkForce?.distance(Math.max(100, short * 0.42));
+    const linkForce = simulation.force("link") as {
+      distance: (v: number) => unknown;
+    } | null;
+    // 半径同时受短边和宽度约束：窄屏不至于把节点顶到画布边缘
+    linkForce?.distance(Math.max(90, Math.min(short * 0.4, w * 0.33)));
     const others = nodes.filter((n) => n.kind !== "self");
-    const ringR = Math.max(40, short * 0.3);
+    const ringR = Math.max(40, Math.min(short * 0.3, w * 0.24));
     const cx = w / 2;
     const cy = h / 2;
     const selfNode = nodes.find((n) => n.kind === "self");
@@ -547,16 +1103,26 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitViewBox);
 
   // --- Pan & zoom ---
+  const ZMIN = 0.45;
+  const ZMAX = 3.5;
   let zoom = { k: 1, tx: 0, ty: 0 };
+  const resetBtn = document.getElementById(
+    "graph-reset"
+  ) as HTMLButtonElement | null;
+
   function applyZoom() {
     zoomG.setAttribute(
       "transform",
       `translate(${zoom.tx},${zoom.ty}) scale(${zoom.k})`
     );
+    if (resetBtn) {
+      resetBtn.disabled =
+        Math.abs(zoom.k - 1) < 0.001 && zoom.tx === 0 && zoom.ty === 0;
+    }
   }
   applyZoom();
 
-  function svgPoint(e: PointerEvent | WheelEvent | Touch) {
+  function svgPoint(e: { clientX: number; clientY: number }) {
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
@@ -567,9 +1133,10 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     "wheel",
     (e) => {
       e.preventDefault();
+      markInteracted();
       const p = svgPoint(e);
       const factor = Math.exp(-e.deltaY * 0.001);
-      const newK = Math.min(4, Math.max(0.4, zoom.k * factor));
+      const newK = Math.min(ZMAX, Math.max(ZMIN, zoom.k * factor));
       zoom.tx = p.x - ((p.x - zoom.tx) / zoom.k) * newK;
       zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
       zoom.k = newK;
@@ -577,6 +1144,49 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     },
     { passive: false, signal: cleanupController.signal }
   );
+
+  function zoomBy(factor: number) {
+    const p = svgPoint({
+      clientX: svg.getBoundingClientRect().left + svg.clientWidth / 2,
+      clientY: svg.getBoundingClientRect().top + svg.clientHeight / 2,
+    });
+    const newK = Math.min(ZMAX, Math.max(ZMIN, zoom.k * factor));
+    zoom.tx = p.x - ((p.x - zoom.tx) / zoom.k) * newK;
+    zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
+    zoom.k = newK;
+    applyZoom();
+  }
+
+  document
+    .getElementById("graph-zoom-in")
+    ?.addEventListener(
+      "click",
+      () => {
+        zoomBy(1.3);
+      },
+      { signal: cleanupController.signal }
+    );
+  document
+    .getElementById("graph-zoom-out")
+    ?.addEventListener(
+      "click",
+      () => {
+        zoomBy(1 / 1.3);
+      },
+      { signal: cleanupController.signal }
+    );
+  resetBtn?.addEventListener(
+    "click",
+    () => {
+      zoom = { k: 1, tx: 0, ty: 0 };
+      applyZoom();
+    },
+    { signal: cleanupController.signal }
+  );
+
+  function markInteracted() {
+    layoutEl?.classList.add("has-interacted");
+  }
 
   // --- Drag nodes (click vs drag distinguished by movement threshold) ---
   let pointerId: string | null = null;
@@ -587,6 +1197,17 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
   let downY = 0;
   const dragOffset = { x: 0, y: 0 };
 
+  // 双指捏合缩放（移动端没有滚轮）
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch: {
+    dist: number;
+    k: number;
+    tx: number;
+    ty: number;
+    px: number;
+    py: number;
+  } | null = null;
+
   function selectOrToggle(id: string) {
     if (activeId === id) {
       clearActive();
@@ -595,48 +1216,109 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     }
   }
 
-  svg.addEventListener("pointerdown", (e) => {
-    const target = (e.target as Element).closest?.(
-      ".graph-node"
-    ) as SVGGElement | null;
-    downOnNode = !!target;
-    dragged = false;
-    downX = e.clientX;
-    downY = e.clientY;
-    if (!target) {
-      clearActive();
-      return;
-    }
-    pointerId = target.dataset.id ?? null;
-    if (pointerId) {
-      const n = nodeById.get(pointerId)!;
-      const p = svgPoint(e);
-      dragOffset.x = (p.x - zoom.tx) / zoom.k - (n.x ?? 0);
-      dragOffset.y = (p.y - zoom.ty) / zoom.k - (n.y ?? 0);
-      target.focus();
-    }
-  });
+  svg.addEventListener(
+    "pointerdown",
+    (e) => {
+      markInteracted();
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-  window.addEventListener("pointermove", (e) => {
-    if (!pointerId) return;
-    if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
-      dragged = true;
-      // Keep the simulation warm but steady while dragging (official d3 pattern:
-      // alphaTarget holds alpha at 0.3 instead of re-heating on every move)
-      if (!dragActive) {
-        dragActive = true;
-        simulation.alphaTarget(0.3).restart();
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const mid = svgPoint({
+          clientX: (a.x + b.x) / 2,
+          clientY: (a.y + b.y) / 2,
+        });
+        pinch = {
+          dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+          k: zoom.k,
+          tx: zoom.tx,
+          ty: zoom.ty,
+          px: mid.x,
+          py: mid.y,
+        };
+        if (pointerId) {
+          const n = nodeById.get(pointerId);
+          if (n) {
+            n.fx = null;
+            n.fy = null;
+          }
+        }
+        pointerId = null;
+        downOnNode = false;
+        dragged = false;
+        if (dragActive) {
+          dragActive = false;
+          simulation.alphaTarget(0);
+        }
+        return;
       }
-    }
-    if (!dragged) return;
-    const n = nodeById.get(pointerId);
-    if (!n) return;
-    const p = svgPoint(e);
-    n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
-    n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
-  }, { signal: cleanupController.signal });
 
-  window.addEventListener("pointerup", () => {
+      const target = (e.target as Element).closest?.(
+        ".graph-node"
+      ) as SVGGElement | null;
+      downOnNode = !!target;
+      dragged = false;
+      downX = e.clientX;
+      downY = e.clientY;
+      if (!target) {
+        // 点空白处清空选中，并把焦点从节点上移开（否则悬停高亮会残留）
+        const el = document.activeElement as HTMLElement | null;
+        if (el && el.closest?.(".graph-node")) el.blur();
+        clearActive();
+        return;
+      }
+      pointerId = target.dataset.id ?? null;
+      if (pointerId) {
+        const n = nodeById.get(pointerId)!;
+        const p = svgPoint(e);
+        dragOffset.x = (p.x - zoom.tx) / zoom.k - (n.x ?? 0);
+        dragOffset.y = (p.y - zoom.ty) / zoom.k - (n.y ?? 0);
+        target.focus();
+      }
+    },
+    { signal: cleanupController.signal }
+  );
+
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      if (pinch && pointers.size >= 2) {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const [a, b] = [...pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        const newK = Math.min(
+          ZMAX,
+          Math.max(ZMIN, (pinch.k * dist) / pinch.dist)
+        );
+        zoom.tx = pinch.px - ((pinch.px - pinch.tx) / pinch.k) * newK;
+        zoom.ty = pinch.py - ((pinch.py - pinch.ty) / pinch.k) * newK;
+        zoom.k = newK;
+        applyZoom();
+        return;
+      }
+      if (!pointerId) return;
+      if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
+        dragged = true;
+        // Keep the simulation warm but steady while dragging (official d3 pattern:
+        // alphaTarget holds alpha at 0.3 instead of re-heating on every move)
+        if (!dragActive) {
+          dragActive = true;
+          simulation.alphaTarget(0.3).restart();
+        }
+      }
+      if (!dragged) return;
+      const n = nodeById.get(pointerId);
+      if (!n) return;
+      const p = svgPoint(e);
+      n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
+      n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
+    },
+    { signal: cleanupController.signal }
+  );
+
+  function endPointer(e: PointerEvent | undefined, cancelled = false) {
+    if (e) pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
     if (pointerId) {
       const n = nodeById.get(pointerId);
       if (n) {
@@ -648,19 +1330,30 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       dragActive = false;
       simulation.alphaTarget(0);
     }
-    if (downOnNode && !dragged && pointerId) {
+    if (!cancelled && downOnNode && !dragged && pointerId) {
       selectOrToggle(pointerId);
     }
     pointerId = null;
     downOnNode = false;
     dragged = false;
-  }, { signal: cleanupController.signal });
+  }
+
+  window.addEventListener(
+    "pointerup",
+    (e) => endPointer(e),
+    { signal: cleanupController.signal }
+  );
+  window.addEventListener(
+    "pointercancel",
+    (e) => endPointer(e, true),
+    { signal: cleanupController.signal }
+  );
 
   // --- Active / highlight ---
   let activeId: string | null = null;
+  let hoverId: string | null = null;
 
   // --- 放大 / 还原（全屏） ---
-  const layoutEl = document.getElementById("graph-layout");
   const expandBtn = document.getElementById("graph-expand");
   // 展开时把 layout 移到 body 直属：sticky/transform 父级会锁死 fixed 定位，
   // 导致全屏层被限制在右栏内、被顶部 nav 盖住（层叠上下文困住）。
@@ -685,7 +1378,10 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     }
     layoutEl.classList.toggle("is-expanded", on);
     if (expandBtn) {
-      expandBtn.setAttribute("aria-label", on ? "还原关系图谱" : "放大关系图谱");
+      expandBtn.setAttribute(
+        "aria-label",
+        on ? "还原关系图谱" : "放大关系图谱"
+      );
       expandBtn.title = on ? "还原 (Esc)" : "放大";
     }
     // 图标切换：⤢ 放大 ⇄ ✕ 还原
@@ -713,10 +1409,14 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
       })
     );
   }
-  expandBtn?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    setExpanded(!layoutEl?.classList.contains("is-expanded"));
-  }, { signal: cleanupController.signal });
+  expandBtn?.addEventListener(
+    "click",
+    (e) => {
+      e.stopPropagation();
+      setExpanded(!layoutEl?.classList.contains("is-expanded"));
+    },
+    { signal: cleanupController.signal }
+  );
 
   function linkEndIds(l: GraphLink): [string, string] {
     const s = resolveNode(l.source as never);
@@ -734,60 +1434,117 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     return out;
   }
 
-  function clearActive() {
-    activeId = null;
+  // 悬停/选中统一走同一条高亮逻辑：只压暗无关节点，不改变布局
+  function refreshHighlight() {
+    const focus = activeId ?? hoverId;
+    const nb = focus ? neighborsOf(focus) : null;
+    const dim = activeId ? 0.22 : 0.4;
+
     nodeEls.forEach((g) => {
-      g.style.opacity = "1";
-      g.classList.remove("is-active");
+      const id = g.dataset.id ?? "";
+      const on = !nb || nb.has(id);
+      g.style.opacity = on ? "1" : String(dim);
+      g.classList.toggle("is-active", id === activeId);
+      g.classList.toggle("is-hover", id === hoverId && id !== activeId);
     });
-    linkEls.forEach((line) => {
-      line.setAttribute("opacity", "1");
+
+    linkEls.forEach((line, i) => {
+      const [sid, tid] = linkEndIds(links[i]);
+      const hot = !!focus && (sid === focus || tid === focus);
+      line.setAttribute("opacity", !nb ? "1" : hot ? "1" : "0.12");
+      line.classList.toggle("is-hot", hot);
     });
-    const panel = document.getElementById("graph-detail");
-    if (panel) {
-      panel.classList.remove("is-open");
-      panel.innerHTML = "";
-    }
   }
 
-  function buildPreview(n: GraphNode & { x?: number; y?: number }) {
+  function clearActive() {
+    activeId = null;
+    refreshHighlight();
+    closePanel();
+  }
+
+  function closePanel() {
+    if (!panel) return;
+    panel.classList.remove("is-open");
+    panel.setAttribute("aria-hidden", "true");
+    panel.innerHTML = "";
+  }
+
+  function buildPreview(n: GraphNode) {
     const wrap = document.createElement("div");
-    wrap.className = "graph-preview";
+    wrap.className = "graph-detail-inner";
+
+    const top = document.createElement("div");
+    top.className = "graph-detail-top";
+
+    const kind = document.createElement("span");
+    kind.className = "graph-preview-kind";
+    kind.textContent = kindLabel(n.kind);
+    top.appendChild(kind);
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "graph-detail-close";
+    close.setAttribute("aria-label", "关闭节点详情");
+    close.innerHTML =
+      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>';
+    top.appendChild(close);
+    wrap.appendChild(top);
 
     const imgSrc = n.heroImage || n.avatar;
     if (imgSrc) {
       const img = document.createElement("img");
       img.src = imgSrc;
       img.alt = n.title;
+      img.loading = "lazy";
       img.className = "graph-preview-img";
       wrap.appendChild(img);
     }
 
-    const head = document.createElement("div");
-    const kindLabel: Record<string, string> = {
-      post: "文章",
-      person: "人物",
-      event: "事件",
-      self: "我",
-    };
-    const label = kindLabel[n.kind];
-    if (label) {
-      const k = document.createElement("span");
-      k.className = "graph-preview-kind";
-      k.textContent = label;
-      head.appendChild(k);
-    }
     const h = document.createElement("h3");
     h.className = "graph-preview-title";
     h.textContent = n.title;
-    head.appendChild(h);
-    wrap.appendChild(head);
+    wrap.appendChild(h);
 
     if (n.excerpt) {
       const p = document.createElement("p");
       p.className = "graph-preview-excerpt";
       p.textContent = n.excerpt;
       wrap.appendChild(p);
+    }
+
+    // 关联节点：可直接点进去，省得在图上找
+    const relIds = [...neighborsOf(n.id)].filter(
+      (id) => id !== n.id && nodeById.has(id)
+    );
+    if (relIds.length) {
+      const rel = document.createElement("div");
+      rel.className = "graph-detail-rel";
+
+      const head = document.createElement("p");
+      head.className = "graph-rel-head";
+      head.append("关联 ");
+      const b = document.createElement("b");
+      b.textContent = String(relIds.length);
+      head.appendChild(b);
+      head.append(" 个节点");
+      rel.appendChild(head);
+
+      const list = document.createElement("ul");
+      list.className = "graph-rel-list";
+      for (const id of relIds.slice(0, 8)) {
+        const target = nodeById.get(id)!;
+        const li = document.createElement("li");
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "graph-rel-chip";
+        chip.dataset.goto = id;
+        chip.textContent = target.title;
+        chip.title = `查看「${target.title}」`;
+        li.appendChild(chip);
+        list.appendChild(li);
+      }
+      rel.appendChild(list);
+      wrap.appendChild(rel);
     }
 
     if (n.kind === "post" && n.url) {
@@ -800,56 +1557,104 @@ const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
     return wrap;
   }
 
-  function showDetail(n: GraphNode & { x?: number; y?: number }) {
-    const panel = document.getElementById("graph-detail");
+  function showDetail(n: GraphNode) {
     if (!panel) return;
     panel.innerHTML = "";
-    const preview = buildPreview(n);
-    if (preview) panel.appendChild(preview);
+    panel.appendChild(buildPreview(n));
     panel.classList.add("is-open");
+    panel.setAttribute("aria-hidden", "false");
   }
 
   function selectNode(id: string) {
     const n = nodeById.get(id);
     if (!n) return;
-    const nb = neighborsOf(id);
     activeId = id;
-    nodeEls.forEach((g) => {
-      const on = nb.has(g.dataset.id ?? "");
-      g.style.opacity = on ? "1" : "0.25";
-      g.classList.toggle("is-active", g.dataset.id === id);
-    });
-    linkEls.forEach((line, i) => {
-      const [sid, tid] = linkEndIds(links[i]);
-      const on = nb.has(sid) && nb.has(tid);
-      line.setAttribute("opacity", on ? "1" : "0.1");
-    });
+    refreshHighlight();
     showDetail(n);
     window.dispatchEvent(new CustomEvent("graph:select"));
   }
 
-  nodeEls.forEach((g) => {
-    g.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        const id = g.dataset.id;
-        if (!id) return;
-        if (activeId === id) clearActive();
-        else selectNode(id);
+  panel?.addEventListener(
+    "click",
+    (e) => {
+      const t = e.target as Element;
+      if (t.closest(".graph-detail-close")) {
+        const id = activeId;
+        clearActive();
+        if (id) nodeEls.find((g) => g.dataset.id === id)?.focus();
+        return;
       }
-    });
+      const chip = t.closest<HTMLElement>(".graph-rel-chip");
+      if (chip?.dataset.goto) {
+        selectNode(chip.dataset.goto);
+        const target = nodeEls.find((g) => g.dataset.id === chip.dataset.goto);
+        target?.focus();
+      }
+    },
+    { signal: cleanupController.signal }
+  );
+
+  // 鼠标悬停：只做高亮提示，不打开抽屉
+  nodeEls.forEach((g) => {
+    g.addEventListener(
+      "pointerenter",
+      (e) => {
+        if (e.pointerType !== "mouse") return;
+        hoverId = g.dataset.id ?? null;
+        refreshHighlight();
+      },
+      { signal: cleanupController.signal }
+    );
+    g.addEventListener(
+      "pointerleave",
+      (e) => {
+        if (e.pointerType !== "mouse") return;
+        if (hoverId === g.dataset.id) {
+          hoverId = null;
+          refreshHighlight();
+        }
+      },
+      { signal: cleanupController.signal }
+    );
+    g.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const id = g.dataset.id;
+          if (!id) return;
+          if (activeId === id) {
+            clearActive();
+            g.focus();
+          } else {
+            selectNode(id);
+            // 键盘打开详情后把焦点交给抽屉的关闭按钮，Tab 不会卡在节点列表里
+            panel?.querySelector<HTMLElement>(".graph-detail-close")?.focus();
+          }
+        }
+      },
+      { signal: cleanupController.signal }
+    );
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape") return;
       if (layoutEl?.classList.contains("is-expanded")) {
         setExpanded(false);
-      } else {
-        clearActive();
+        (expandBtn as HTMLElement | null)?.focus();
+        return;
       }
-    }
-  }, { signal: cleanupController.signal });
+      const id = activeId;
+      clearActive();
+      if (id) nodeEls.find((g) => g.dataset.id === id)?.focus();
+    },
+    { signal: cleanupController.signal }
+  );
 
   // timeline selected something -> clear graph highlight
-  window.addEventListener("timeline:select", clearActive, { signal: cleanupController.signal });
+  window.addEventListener("timeline:select", clearActive, {
+    signal: cleanupController.signal,
+  });
 </script>
