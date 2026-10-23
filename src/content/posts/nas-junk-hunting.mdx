@@ -1,0 +1,58 @@
+---
+title: 我的「捡垃圾」之旅
+date: 2026-10-23
+excerpt: 从 30 块的玩客云到 j1900 工控机，再到准系统加 PVE 的 all in one——这台 NAS 的每一步升级，都是一次「捡垃圾」。
+slug: nas-junk-hunting
+tags:
+  - NAS
+  - 自托管
+  - PVE
+  - FNOS
+  - 二手硬件
+featured: false
+pullQuote: 这个价格要什么自行车，能跑就行。
+dropCap: true
+heroImage: https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-163245.webp
+articleLayout: sidebar
+draft: false
+---
+
+早在几年前我就想搞一台属于自己的nas，可惜当时上大学没什么多余的资金支持我折腾，并且只想着存储一点照片、视频。最开始是玩客云，然后是j1900工控机，到最后的大品牌的准系统工作站，成本从100块慢慢加到了1500。
+## 玩客云+CasaOS
+
+当时网上冲浪发现了一个矿渣洋垃圾玩客云刷CasaOS，价格30不到，配置是8+16还是8+32来着，总之这个价格要什么自行车，能跑就行。于是激情下单，顺便买了一块二手的2.5的机械硬盘加一个硬盘盒总计不到100块钱拿下。最终组装了一个 <del>(不知道什么时候会炸的c4)</del> 带有nas功能的盒子。我刷好系统把casaos的webui通过CF隧道穿透出来后就直接丢我学校的工作室角落插根网线24小时运行。
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-163245.webp)
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-162627.webp)
+
+折腾了几周，把青龙和一个照片备份的工具装上后就没怎么管。
+
+因为这个玩客云是arm32的，CasaOS商店的很多应用都不支持，虽然当时有一些专为玩客云这种arm32开发的软件仓库。但还是太少了，并且受限于玩客云这个芯片实在是太过于羸弱，只能拿来当个玩具。
+
+## FnOS+j1900
+
+后面又从闲鱼淘了一块j1900的工控机主板，又去pdd买了一根4g内存和64g的固态，再加上之前那块机械硬盘，最后用积木拼了一个外壳。这下终于能用了，至少不会因为arm32的芯片导致很多docker都使用不。j1900至少是个正儿八经的x86CPU，自带核显，对于视频的编解码也够用，并且低功耗+静音，放家里角落也不至于太起眼。
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-162454.webp)
+
+那时候正好飞牛这个nas系统内测刚出来，看起来感觉不错就将我的CasaOS转移到了FnOS。目前来看这个nas系统确实很不错，有官方的公网方案和配套app，尽管在今年年初爆了一个大的漏洞，好在修复的也比较及时，并且暂时关闭官方的公网通道也可以解决这个问题。
+
+这个机器陪了我大概有大半年，运行还是比较稳定，中途还把硬盘升级到了1t。换掉它纯属因为我更想要的是all in one的效果，这个工控机的板子拓展性还是差了一点。
+## HPz240准系统+PVE
+
+最终的方案就是一个准系统+PVE作为底层来打造我的一个all in one方案，这一次总算有一点服务器的样子。最开始的配置只有8g内存、128g拆机固态硬盘、256g机械、1t的2.5机械、1t的3.5机械。虚拟机也就只有一台FnOS和一个ubuntu。
+
+后来工作有了一点闲钱后，再加上当时流行「小龙虾」，于是又想着折腾升级一下配置。顶着内存条高价的情况下，买了两根三星的16g内存条，和一块intel企业级sata固态，CPU从g4560升级到了e3 1230v6外加一块710作为亮机卡。
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-075945.webp)
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-075901.webp)
+
+升级配置后重新规划了一下，不在使用那块不知名的二手拆机m2固态作为pve系统，将两块1t的机械硬盘直通给nas使用，两块硬盘组RAID1。
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-081234.webp)
+
+等以后硬盘好价后再入几块硬盘，目前存储还够用，最终效果：
+
+![](https://img.snark.casa/photo/nas-junk-hunting/2026-10-nas-junk-hunting-20261023-153644.webp)
