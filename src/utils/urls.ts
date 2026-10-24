@@ -24,6 +24,7 @@ export const ROUTES = {
   archive: "/archive/",
   timeline: "/timeline/",
   graph: "/graph/",
+  friends: "/friends/",
   rss: "/rss.xml",
 } as const;
 

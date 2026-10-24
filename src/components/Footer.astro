@@ -24,6 +24,8 @@ const allianceLinks = [
       <a href="/rss.xml" class="hover-underline no-underline hit-24">RSS</a>
       <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
       <a href="/timeline/" class="hover-underline no-underline hit-24">纪事</a>
+      <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
+      <a href="/friends/" class="hover-underline no-underline hit-24">友链</a>
       {socialLinks.map((link) => (
         <>
           <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
@@ -41,7 +43,7 @@ const allianceLinks = [
 
     {allianceLinks.length > 0 && (
       <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs tracking-[0.05em] text-[var(--color-ed-muted)]">
-        <span class="text-[var(--color-ed-subtle)]">友链</span>
+        <span class="text-[var(--color-ed-subtle)]">联盟</span>
         <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
         {allianceLinks.map((link) => (
           <a
