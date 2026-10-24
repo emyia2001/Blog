@@ -4,5 +4,5 @@
   "compatibility_date": "2026-01-01",
   // KV 命名空间需要先在 Dashboard（或 wrangler kv namespace create）建好，
   // 把下面 id 换成实际的 namespace id。
-  "kv_namespaces": [{ "binding": "VIEW_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }]
+  "kv_namespaces": [{ "binding": "VIEW_KV", "id": "bbb52f34df744511b752b794ef002a3f" }]
 }

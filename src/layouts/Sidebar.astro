@@ -408,7 +408,7 @@ const related = published
   initTocSpy();
 
   // ---- 阅读量:文章页打开时上报(24h 内同一篇不重复计数),Worker 返回最新值 ----
-  const VIEW_API = "https://view-counter.blog-snark.workers.dev/views";
+  const VIEW_API = "https://blog-view-counter.dai1762855928.workers.dev/views";
 
   function formatViews(n: number): string {
     if (n < 1000) return `${n} 次阅读`;
