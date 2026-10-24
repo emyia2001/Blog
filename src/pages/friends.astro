@@ -1,0 +1,234 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import {
+  SITE_NAME,
+  SITE_URL,
+  SITE_AVATAR,
+  SITE_DESCRIPTION,
+  SITE_SOCIAL,
+} from "../consts";
+import { FRIENDS } from "../data/friends";
+
+const github = SITE_SOCIAL.find((s) => s.icon === "mdi:github");
+const avatarUrl = new URL(SITE_AVATAR, SITE_URL).href;
+const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+---
+
+<BaseLayout title="友链" description="友链：独立博客之间的互相推荐与交换。">
+  <div class="page-shell page-shell--medium">
+    <header class="page-head">
+      <div class="page-head__row">
+        <h1 class="page-head__title">友链 <small>Friends</small></h1>
+        <a
+          href="https://www.travellings.cn/go.html"
+          class="page-head__aside"
+          target="_blank"
+          rel="noopener noreferrer">开往 →</a
+        >
+      </div>
+    </header>
+
+    <section class="mb-14" aria-labelledby="friends-label">
+      <h2 class="section-label" id="friends-label">友链</h2>
+
+      {FRIENDS.length > 0 ? (
+        <ul class="friend-grid">
+          {FRIENDS.map((friend) => (
+            <li>
+              <a
+                class="friend-card"
+                href={friend.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {friend.avatar ? (
+                  <img
+                    class="friend-avatar"
+                    src={friend.avatar}
+                    alt=""
+                    width="44"
+                    height="44"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span class="friend-avatar friend-avatar--fallback" aria-hidden="true">
+                    {friend.name.slice(0, 1)}
+                  </span>
+                )}
+                <span class="friend-body">
+                  <span class="friend-name">{friend.name}</span>
+                  {friend.desc && <span class="friend-desc">{friend.desc}</span>}
+                  <span class="friend-host">{bare(friend.url)}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="friend-empty">友链位开放中，欢迎交换。</p>
+      )}
+    </section>
+
+    <section aria-labelledby="site-info-label">
+      <h2 class="section-label" id="site-info-label">本站信息</h2>
+
+      <dl class="friend-info">
+        <div>
+          <dt>名称</dt>
+          <dd>{SITE_NAME}</dd>
+        </div>
+        <div>
+          <dt>地址</dt>
+          <dd>{bare(SITE_URL)}</dd>
+        </div>
+        <div>
+          <dt>头像</dt>
+          <dd>{bare(avatarUrl)}</dd>
+        </div>
+        <div class="friend-info__wide">
+          <dt>简介</dt>
+          <dd>{SITE_DESCRIPTION}</dd>
+        </div>
+      </dl>
+
+      {github && (
+        <p class="friend-apply">
+          欢迎交换友链：把本站信息加到你的友链页后，到
+          <a href={github.href} target="_blank" rel="noopener noreferrer">GitHub</a>
+          告诉我。
+        </p>
+      )}
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .friend-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .friend-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    height: 100%;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 3px;
+    color: var(--color-ed-fg);
+    text-decoration: none;
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+  .friend-card:hover,
+  .friend-card:focus-visible {
+    border-color: var(--color-ed-accent);
+    background: rgba(28, 28, 28, 0.02);
+  }
+
+  .friend-avatar {
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(28, 28, 28, 0.06);
+  }
+  .friend-avatar--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    color: var(--color-ed-muted);
+  }
+
+  .friend-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .friend-name {
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.4;
+  }
+  .friend-desc {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .friend-host {
+    overflow-wrap: anywhere;
+    font-size: 0.6875rem;
+    color: var(--color-ed-subtle);
+  }
+
+  .friend-empty {
+    margin: 0;
+    padding: 1.25rem 0;
+    font-size: 0.875rem;
+    color: var(--color-ed-muted);
+  }
+
+  .friend-info {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 2.5rem;
+    margin: 0;
+  }
+  .friend-info > div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+  }
+  .friend-info__wide {
+    grid-column: 1 / -1;
+  }
+  .friend-info dt {
+    flex: 0 0 2.5rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ed-subtle);
+  }
+  .friend-info dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+    color: var(--color-ed-fg);
+  }
+
+  .friend-apply {
+    margin-top: 1.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.75;
+    color: var(--color-ed-muted);
+  }
+  .friend-apply a {
+    color: var(--color-ed-fg);
+    text-decoration: underline;
+    text-decoration-color: var(--color-ed-subtle);
+    text-underline-offset: 0.15em;
+  }
+
+  @media (max-width: 640px) {
+    .friend-grid,
+    .friend-info {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
