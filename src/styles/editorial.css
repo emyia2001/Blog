@@ -970,11 +970,12 @@ a:hover .home-masthead__title {
 .home-post-row:hover {
   background: rgba(28, 28, 28, 0.03);
 }
-/* hover 位移改用 transform（只合成、不重排）：原来动 padding-left 会让整列重排 */
+/* hover 位移改用 transform（只合成、不重排）：原来动 padding-left 会让整列重排。
+   右侧 meta 紧贴容器右缘，一并位移会超出 hover 底色/页面边框，故排除 */
 .home-post-row > * {
   transition: transform 260ms var(--ease-ed);
 }
-.home-post-row:hover > * {
+.home-post-row:hover > :not(.home-post-meta) {
   transform: translateX(0.5rem);
 }
 .home-post-no {
