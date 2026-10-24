@@ -217,13 +217,6 @@ h1, h2, h3, h4, h5, h6 {
 a.page-head__aside:hover {
   color: var(--color-ed-accent);
 }
-.page-head__dek {
-  max-width: 42em;
-  margin-top: 0.9rem;
-  font-size: 0.875rem;
-  line-height: 1.75;
-  color: var(--color-ed-muted);
-}
 .page-head__meta {
   margin-top: 0.55rem;
   font-size: 0.75rem;

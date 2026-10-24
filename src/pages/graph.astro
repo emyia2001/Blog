@@ -23,10 +23,6 @@ const contentNodes = graphNodes.filter((n) => n.kind !== "self");
           <h1 class="page-head__title">关系图谱 <small>Connections</small></h1>
           <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
         </div>
-        <p class="page-head__dek">
-          每个节点是一篇文章或一条人物 / 事件纪事。连线来自正文里的引用，
-          以及内容与作者之间的归属关系；点节点即可查看出处。
-        </p>
         <p class="page-head__meta">
           共 {graphNodes.length} 个节点 · {graphLinks.length} 条关联
         </p>
