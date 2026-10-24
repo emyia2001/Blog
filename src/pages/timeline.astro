@@ -195,7 +195,7 @@ const defaultRendered =
               data-default-index="0"
             >
             {defaultRendered && (
-              <article class="border-t border-[var(--color-ed-rule)] pt-8 pb-4">
+              <article class="pt-8 pb-4">
                 <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
                   {defaultRendered.entry.data.title ??
                     fmtLong(defaultRendered.entry.data.date)}
@@ -296,7 +296,7 @@ const defaultRendered =
       {
         renderedAll.map((c, idx) => (
           <div class="content-body" data-content-index={idx}>
-            <article class="border-t border-[var(--color-ed-rule)] pt-8 pb-4">
+            <article class="pt-8 pb-4">
               <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
                 {c.entry.data.title ?? fmtLong(c.entry.data.date)}
               </h2>
