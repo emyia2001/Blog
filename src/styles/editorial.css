@@ -1372,22 +1372,6 @@ html.latency-note-open #back-to-top {
   outline: none;
 }
 
-.search-kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.3rem;
-  border: 1px solid var(--color-ed-rule);
-  border-radius: 2px;
-  background: rgba(28, 28, 28, 0.03);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.625rem;
-  line-height: 1;
-  color: var(--color-ed-muted);
-}
-
 .search-results {
   max-height: min(54vh, 26rem);
   overflow-y: auto;
@@ -1454,16 +1438,7 @@ html.latency-note-open #back-to-top {
 .search-count {
   font-variant-numeric: tabular-nums;
 }
-.search-shortcuts {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
 @media (max-width: 480px) {
-  .search-shortcuts {
-    display: none;
-  }
   .search-modal {
     padding-top: 8vh;
   }
