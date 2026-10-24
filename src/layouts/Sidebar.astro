@@ -97,6 +97,8 @@ const related = published
             </time>
             <span>&middot;</span>
             <span>{readMin} 分钟阅读</span>
+            <span>&middot;</span>
+            <span data-view-count data-slug={post.slug ?? post.id.replace(/\.mdx?$/, "")}>…</span>
           </div>
         </header>
 
@@ -404,6 +406,44 @@ const related = published
   // 每次页面加载(VT 换页后也触发)重建目录滚动监听
   document.addEventListener("astro:page-load", initTocSpy);
   initTocSpy();
+
+  // ---- 阅读量:文章页打开时上报(24h 内同一篇不重复计数),Worker 返回最新值 ----
+  const VIEW_API = "https://view-counter.blog-snark.workers.dev/views";
+
+  function formatViews(n: number): string {
+    if (n < 1000) return `${n} 次阅读`;
+    return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k 次阅读`;
+  }
+
+  function reportViews() {
+    const el = document.querySelector<HTMLElement>("[data-view-count]");
+    if (!el) return;
+    const slug = el.dataset.slug;
+    if (!slug) return;
+
+    const dedupeKey = `vc:${slug}`;
+    const last = localStorage.getItem(dedupeKey);
+    const counted = last !== null && Date.now() - Number(last) < 24 * 3600 * 1000;
+
+    fetch(`${VIEW_API}?slug=${encodeURIComponent(slug)}`, {
+      method: counted ? "GET" : "POST",
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { views?: number }) => {
+        if (typeof data.views === "number") {
+          el.textContent = formatViews(data.views);
+          if (!counted) localStorage.setItem(dedupeKey, String(Date.now()));
+        }
+      })
+      .catch(() => {
+        // Worker 不可达时静默降级:去掉占位和它前面的分隔点
+        el.previousElementSibling?.remove();
+        el.remove();
+      });
+  }
+
+  document.addEventListener("astro:page-load", reportViews);
+  reportViews();
 </script>
 
 <style>
