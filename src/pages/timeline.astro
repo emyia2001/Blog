@@ -60,22 +60,38 @@ const renderedAll: RenderedAll[] = await Promise.all(
 const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
 
 interface TimelineEntry {
+  /** 深链接锚点：由内容 id 去掉扩展名（稳定、可分享） */
+  anchor: string;
   date: Date;
   kind: Kind;
   title: string;
   label: string; // 轴点小标签：人物 / 事件 / 日记
   contentIndex: number;
+  locked: boolean;
+  hasBgm: boolean;
+  /** 只在年份切换（或第一条）时显示年份，避免每行重复 */
+  showYear: boolean;
 }
 
 const entries: TimelineEntry[] = publishedMoments
   .map((m) => ({
+    anchor: m.id.replace(/\.mdx?$/, ""),
     date: m.data.date,
     kind: m.data.type as Kind,
-    title: m.data.title ?? "", // diary 可无标题，轴点用日期兜底（模板处理）
+    title: m.data.title ?? "",
     label: KIND_LABEL[m.data.type as Kind],
     contentIndex: contentIndex.get(m.id)!,
+    locked: Boolean(m.data.lock?.answer),
+    hasBgm: Boolean(m.data.bgm?.src),
+    showYear: false,
   }))
   .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+// 年份分组：降序排列时，第一条和每次跨年才标出年份
+entries.forEach((entry, i) => {
+  entry.showYear =
+    i === 0 || entry.date.getFullYear() !== entries[i - 1].date.getFullYear();
+});
 
 const fmtLong = (d: Date) =>
   d.toLocaleDateString("zh-CN", {
@@ -85,8 +101,9 @@ const fmtLong = (d: Date) =>
     weekday: "short",
   });
 
-const fmtShort = (d: Date) =>
-  d.toLocaleDateString("zh-CN", { year: "numeric", month: "short" });
+// 轴点日期：08.20（年份只在跨年时前缀显示，见上面的 showYear）
+const fmtPoint = (d: Date) =>
+  `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 
 // 默认展开最新一条（轴点默认高亮它）
 const defaultRendered =
@@ -109,14 +126,74 @@ const defaultRendered =
       </header>
 
       {entries.length > 0 ? (
-        <div class="grid gap-10 md:grid-cols-[minmax(0,1fr)_320px] items-start">
-          <!-- 左侧：选中的节点正文 -->
-          <div
-            id="timeline-detail"
-            class="min-h-40"
-            aria-live="polite"
-            data-default-index="0"
-          >
+        <div class="timeline-layout">
+          <!-- 时间轴：手机端在正文上方横向滑动，桌面端是右侧竖轴 -->
+          <aside id="view-timeline" class="timeline-rail" aria-label="纪事时间线">
+            <div class="tl-title-row">时间线</div>
+            <ol class="tl-simple">
+              {entries.map((entry, i) => (
+                <li
+                  id={entry.anchor}
+                  class="timeline-point group"
+                  data-kind={entry.kind}
+                  data-index={i}
+                  data-content-index={entry.contentIndex}
+                  data-anchor={entry.anchor}
+                  role="button"
+                  tabindex="0"
+                  aria-current={i === 0 ? "true" : undefined}
+                  aria-controls="timeline-detail"
+                  style={`--tl-i: ${i}`}
+                >
+                  {/* 段竖线：独立于可缩放内容，入场时逐段生长、悬停时本段高亮 */}
+                  <span class="tl-seg" aria-hidden="true"></span>
+                  {/* 圆点：圆心钉在竖线上，dock 放大时不随文字缩放，始终骑线 */}
+                  <span class="tl-simple__dot" aria-hidden="true"></span>
+                  <span class="tl-simple__body">
+                    <time class="tl-simple__date" datetime={entry.date.toISOString()}>
+                      {entry.showYear && (
+                        <span class="tl-simple__year">{entry.date.getFullYear()}</span>
+                      )}
+                      {fmtPoint(entry.date)}
+                    </time>
+                    <span class="tl-title block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-accent)]">
+                      {entry.title || "日记"}
+                    </span>
+                    <span class="tl-simple__meta">
+                      <span class="tl-simple__label">{entry.label}</span>
+                      {entry.locked && (
+                        <span class="tl-mark" title="需要答案解锁">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                          </svg>
+                          <span class="sr-only">需要答案解锁</span>
+                        </span>
+                      )}
+                      {entry.hasBgm && (
+                        <span class="tl-mark" title="含背景音乐">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 18V5l11-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="17" cy="16" r="3"></circle>
+                          </svg>
+                          <span class="sr-only">含背景音乐</span>
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </aside>
+
+          <div class="timeline-main">
+            <div
+              id="timeline-detail"
+              class="timeline-detail"
+              aria-live="polite"
+              data-default-index="0"
+            >
             {defaultRendered && (
               <article class="border-t border-[var(--color-ed-rule)] pt-8 pb-4">
                 <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
@@ -180,41 +257,19 @@ const defaultRendered =
                 )}
               </article>
             )}
-          </div>
+            </div>
 
-          <!-- 右侧固定栏：简约时间轴 -->
-          <aside id="view-timeline" class="md:sticky md:top-24 min-w-0">
-            <div class="tl-title-row mb-1">时间线</div>
-            <ol class="tl-simple">
-              {entries.map((entry, i) => (
-                <li
-                  class="timeline-point group"
-                  data-kind={entry.kind}
-                  data-index={i}
-                  data-content-index={entry.contentIndex}
-                  role="button"
-                  tabindex="0"
-                  aria-expanded="false"
-                  aria-controls="timeline-detail"
-                  style={`--tl-i: ${i}`}
-                >
-                  {/* 段竖线：独立于可缩放内容，入场时逐段生长、悬停时本段高亮 */}
-                  <span class="tl-seg" aria-hidden="true"></span>
-                  {/* 圆点：圆心钉在竖线上，dock 放大时不随文字缩放，始终骑线 */}
-                  <span class="tl-simple__dot" aria-hidden="true"></span>
-                  <span class="tl-simple__body">
-                    <time class="tl-simple__date" datetime={entry.date.toISOString()}>
-                      {fmtShort(entry.date)}
-                    </time>
-                    <span class="tl-title block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-accent)]">
-                      {entry.title || "日记"}
-                    </span>
-                    <span class="tl-simple__label">{entry.label}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </aside>
+            <nav id="timeline-nav" class="timeline-nav" aria-label="纪事翻页" hidden>
+              <button type="button" class="tl-step tl-step--prev" data-tl-step="-1">
+                <span class="tl-step__dir">← 更新一条</span>
+                <span class="tl-step__title" data-tl-step-title></span>
+              </button>
+              <button type="button" class="tl-step tl-step--next" data-tl-step="1">
+                <span class="tl-step__dir">更早一条 →</span>
+                <span class="tl-step__title" data-tl-step-title></span>
+              </button>
+            </nav>
+          </div>
         </div>
       ) : (
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
@@ -311,13 +366,14 @@ const defaultRendered =
 <style>
   /* 右栏区块小标题 */
   .tl-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
     font-size: 0.6875rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--color-ed-subtle);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
   }
   .tl-title-row::after {
     content: '';
@@ -346,6 +402,7 @@ const defaultRendered =
   .timeline-point {
     position: relative;
     display: flex;
+    scroll-margin-top: 6rem;
     padding: 0.625rem 0 0.625rem 1.5rem; /* 左 padding 让位给线/点 */
     cursor: pointer;
     border-radius: 4px;
@@ -444,20 +501,47 @@ const defaultRendered =
     color: var(--color-ed-subtle);
     letter-spacing: 0.06em;
   }
+  .tl-simple__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
   .tl-simple__label {
-    display: inline-block;
-    margin-top: 0.125rem;
     font-size: 0.6875rem;
     letter-spacing: 0.1em;
     color: var(--color-ed-subtle);
     text-transform: uppercase;
   }
+  .tl-mark {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-ed-subtle);
+  }
+  .tl-mark svg {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+  /* 年份只在跨年时出现，避免每行重复 */
+  .tl-simple__year {
+    margin-right: 0.3rem;
+    color: var(--color-ed-subtle);
+  }
   .timeline-point.is-active .tl-title {
     color: var(--color-ed-accent);
   }
+  /* 日记是流水，轴点上弱一档；人物/事件保持主级 */
+  .timeline-point[data-kind="diary"] .tl-title {
+    color: var(--color-ed-muted);
+    font-size: 0.8125rem;
+  }
+  .timeline-point[data-kind="diary"].is-active .tl-title {
+    color: var(--color-ed-accent);
+  }
+  /* 焦点环内缩：横轴/竖轴的 overflow 会裁掉外扩的 outline */
   .timeline-point:focus-visible {
     outline: 2px solid var(--color-ed-accent);
-    outline-offset: 3px;
+    outline-offset: -2px;
   }
 
   /* —— 纪事内容解锁（加密文章）—— */
@@ -506,128 +590,444 @@ const defaultRendered =
     font-size: 0.8rem;
     color: var(--color-ed-accent);
   }
+
+  /* ===== 版面：桌面「左文右轴」，手机「横轴在上、正文在下」 ===== */
+  .timeline-layout {
+    display: grid;
+    gap: 1.75rem;
+  }
+  .timeline-rail {
+    min-width: 0;
+  }
+  .tl-simple {
+    min-width: 0;
+  }
+  .timeline-main {
+    width: 100%;
+    min-width: 0;
+    /* 单列时也不要把正文拉成 50+ 字/行；桌面端在该列内居中 */
+    max-width: 47rem;
+    margin-inline: auto;
+  }
+  .timeline-detail {
+    min-height: 10rem;
+    scroll-margin-top: 6rem;
+  }
+  @media (min-width: 1024px) {
+    .timeline-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      grid-template-areas: "detail rail";
+      gap: 3rem;
+      align-items: start;
+    }
+    .timeline-main {
+      grid-area: detail;
+    }
+    .timeline-rail {
+      grid-area: rail;
+      position: sticky;
+      top: 6rem;
+      min-width: 0;
+    }
+  }
+
+  /* 详情底部：更新 / 更早 一条 */
+  .timeline-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-ed-hairline);
+  }
+  .timeline-nav[hidden] {
+    display: none;
+  }
+  .tl-step {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    max-width: 48%;
+    padding: 0.35rem 0.45rem;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: var(--color-ed-fg);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 160ms ease;
+  }
+  .tl-step--next {
+    margin-left: auto;
+    text-align: right;
+  }
+  .tl-step:hover:not(:disabled) {
+    background: rgba(28, 28, 28, 0.03);
+  }
+  .tl-step:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+  .tl-step__dir {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ed-subtle);
+  }
+  .tl-step__title {
+    font-family: var(--font-serif);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 1023px) {
+    .timeline-layout {
+      gap: 1.5rem;
+    }
+    .timeline-rail {
+      width: 100%;
+      max-width: 47rem;
+      margin-inline: auto;
+    }
+    .tl-title-row {
+      margin-bottom: 0.6rem;
+    }
+    /* 横轴：不再有 22rem 的嵌套滚动，改为整行横向滑动 */
+    .tl-simple {
+      display: flex;
+      gap: 0.55rem;
+      height: auto;
+      padding: 0.15rem 0.15rem 0.7rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x proximity;
+      overscroll-behavior-x: contain;
+    }
+    .timeline-point {
+      flex: 0 0 auto;
+      width: 11.5rem;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--color-ed-hairline);
+      border-radius: 3px;
+      scroll-snap-align: start;
+    }
+    .timeline-point.is-active {
+      border-color: var(--color-ed-accent);
+      background: rgba(166, 58, 43, 0.04);
+    }
+    .tl-seg,
+    .tl-simple__dot {
+      display: none;
+    }
+    .tl-simple__body {
+      padding-bottom: 0;
+    }
+    .tl-simple__date {
+      font-size: 0.625rem;
+    }
+    .timeline-point .tl-title {
+      font-size: 0.875rem;
+    }
+    .timeline-point[data-kind="diary"] .tl-title {
+      font-size: 0.8125rem;
+    }
+    .tl-step {
+      max-width: 46%;
+    }
+  }
 </style>
 
 <script>
-  // ===== 纪事时间线交互 =====
-  // 点击切换详情采用 document 级事件委托：兼容 ViewTransitions 换页后节点被替换、
-  // 以及脚本重入的情况，避免“点了没反应”。
-  const detail = document.getElementById("timeline-detail");
-  const template = document.getElementById("content-templates") as
-    | HTMLTemplateElement
-    | null;
-  if (!detail || !template) {
-    console.warn("timeline elements missing");
-  } else {
-    // 闭包里丢收窄：显式取局部别名
-    const detailEl: HTMLElement = detail;
-    const templateEl: HTMLTemplateElement = template;
-    const contentBodies = Array.from(
-      templateEl.content.querySelectorAll<HTMLElement>(".content-body")
-    );
+  // ===== 纪事时间线 =====
+  // 本站启用 View Transitions：脚本只执行一次，换页后 DOM 已替换。
+  // 因此引用一律在事件发生时现查，状态挂在 window 上，并在 astro:page-load 重新初始化。
+  type TLState = { active: number | null; bound: boolean };
+  const tlWindow = window as Window & { __timelineState?: TLState };
+  const TL: TLState = (tlWindow.__timelineState ??= {
+    active: null,
+    bound: false,
+  });
+  const TL_MOBILE = window.matchMedia("(max-width: 1023px)");
+  const TL_REDUCED = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
 
-    let activeIndex: number | null = null;
+  const tlPoints = () =>
+    Array.from(document.querySelectorAll<HTMLElement>(".timeline-point"));
+  const tlDetail = () => document.getElementById("timeline-detail");
+  const tlTemplate = () =>
+    document.getElementById("content-templates") as HTMLTemplateElement | null;
+  const tlTitleOf = (el?: HTMLElement | null) =>
+    el?.querySelector(".tl-title")?.textContent?.trim() ?? "";
 
-    // 服务端默认已展开最新一条（轴点 index 0）
-    const initialIndex = Number(detail.dataset.defaultIndex ?? "0");
-    activeIndex = initialIndex;
-
-    function setActive(i: number | null) {
-      const points = document.querySelectorAll<HTMLElement>(".timeline-point");
-      points.forEach((p, idx) => {
-        const on = idx === i;
-        p.setAttribute("aria-expanded", String(on));
-        p.classList.toggle("is-active", on);
-      });
+  function tlHash(): string {
+    const raw = location.hash.replace(/^#/, "");
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
     }
-    setActive(activeIndex);
+  }
 
-    function selectPoint(el: HTMLElement) {
-      const index = Number(el.dataset.index ?? "-1");
-      if (Number.isNaN(index) || index < 0) return;
-      if (activeIndex === index) {
-        activeIndex = null;
-        setActive(null);
-        detailEl.innerHTML = "";
-        return;
-      }
-      activeIndex = index;
-      setActive(index);
+  function tlSetHash(anchor: string, push: boolean) {
+    if (!anchor || location.hash === `#${anchor}`) return;
+    const url = `${location.pathname}${location.search}#${anchor}`;
+    if (push) history.pushState(null, "", url);
+    else history.replaceState(null, "", url);
+  }
 
-      const contentIdx = Number(el.dataset.contentIndex);
-      const body = contentBodies.find(
-        (b) => b.dataset.contentIndex === String(contentIdx)
-      );
-      if (body) {
-        detailEl.innerHTML = "";
-        detailEl.appendChild(body.cloneNode(true) as HTMLElement);
-      }
+  function tlScrollToDetail(force = false) {
+    const detail = tlDetail();
+    if (!detail) return;
+    // 桌面：正文已经可见时不打断；只有滚过正文顶部或深链进入才回顶
+    if (!force && !TL_MOBILE.matches && detail.getBoundingClientRect().top >= 80) {
+      return;
     }
-
-    document.addEventListener("click", (e) => {
-      const target = e.target as HTMLElement | null;
-      const point = target?.closest?.(".timeline-point");
-      if (point) selectPoint(point as HTMLElement);
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      const target = e.target as HTMLElement | null;
-      const point = target?.closest?.(".timeline-point");
-      if (point) {
-        e.preventDefault();
-        selectPoint(point as HTMLElement);
-      }
+    const top = detail.getBoundingClientRect().top + window.scrollY - 84;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: TL_REDUCED ? "auto" : "smooth",
     });
   }
 
-  // ===== mac dock 鱼眼动画（右侧时间轴）=====
-  // 鼠标在轴上移动时，靠近光标的条目放大、邻近条目次级放大，离开复位。
-  const axis = document.querySelector<HTMLElement>(".tl-simple");
-  const dockItems = Array.from(
-    document.querySelectorAll<HTMLElement>(".timeline-point")
-  );
-  if (axis && dockItems.length > 0) {
-    const MAX_SCALE = 1.45; // 最近条目最大放大
-    const NEIGHBOR_SCALE = 1.18; // 相邻条目次级放大
-    const EFFECT_RADIUS = 120; // 影响半径 px（超出则不变形）
-    let raf = 0;
+  function tlUpdateNav(index: number) {
+    const nav = document.getElementById("timeline-nav");
+    if (!nav) return;
+    const pts = tlPoints();
+    const setBtn = (dir: -1 | 1, empty: string) => {
+      const btn = nav.querySelector<HTMLButtonElement>(
+        `[data-tl-step="${dir}"]`
+      );
+      if (!btn) return;
+      const target = pts[index + dir];
+      btn.disabled = !target;
+      const label = btn.querySelector<HTMLElement>("[data-tl-step-title]");
+      if (label) label.textContent = target ? tlTitleOf(target) : empty;
+    };
+    setBtn(-1, "已经是最新一条");
+    setBtn(1, "已经是最早一条");
+    nav.hidden = false;
+  }
 
-    function applyDock(clientY: number | null) {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        dockItems.forEach((item) => {
-          // 只缩放文字主体 .tl-simple__body：竖线与圆点保持原位，圆点始终骑线
-          const body = item.querySelector<HTMLElement>(".tl-simple__body");
-          const rect = item.getBoundingClientRect();
-          if (clientY === null || !body) {
-            if (body) body.style.transform = "";
-            item.classList.remove("is-dock-hot");
-            return;
-          }
-          const itemCenterY = rect.top + rect.height / 2;
-          const dist = Math.abs(clientY - itemCenterY);
-          let scale = 1;
-          if (dist < EFFECT_RADIUS) {
-            // 距离越近放大越多：1 → MAX_SCALE 平滑衰减
-            scale = 1 + (MAX_SCALE - 1) * Math.pow(1 - dist / EFFECT_RADIUS, 1.6);
-            scale = Math.min(scale, MAX_SCALE);
-            if (scale > NEIGHBOR_SCALE) {
-              item.classList.add("is-dock-hot");
-            } else {
-              item.classList.remove("is-dock-hot");
-            }
-          } else {
-            item.classList.remove("is-dock-hot");
-          }
-          body.style.transform =
-            scale > 1.0001 ? `scale(${scale.toFixed(3)})` : "";
+  function tlSetActive(index: number) {
+    tlPoints().forEach((p, i) => {
+      const on = i === index;
+      p.classList.toggle("is-active", on);
+      if (on) p.setAttribute("aria-current", "true");
+      else p.removeAttribute("aria-current");
+    });
+  }
+
+  function tlRender(index: number, scroll = false) {
+    const detail = tlDetail();
+    const template = tlTemplate();
+    const point = tlPoints()[index];
+    if (!detail || !template || !point) return;
+    const body = Array.from(
+      template.content.querySelectorAll<HTMLElement>(".content-body")
+    ).find((b) => b.dataset.contentIndex === String(point.dataset.contentIndex));
+    if (!body) return;
+
+    detail.replaceChildren(body.cloneNode(true) as HTMLElement);
+    tlRestoreLocks(detail);
+
+    if (!TL_REDUCED && typeof detail.animate === "function") {
+      detail.animate(
+        [
+          { opacity: 0, transform: "translateY(4px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+      );
+    }
+    if (scroll) tlScrollToDetail();
+  }
+
+  // 只滚时间轴自身：桌面向上下、手机向左右，不抢正文的滚动
+  function tlRevealPoint(point: HTMLElement) {
+    const scroller = point.closest<HTMLElement>(".tl-simple");
+    if (!scroller) return;
+    if (TL_MOBILE.matches) {
+      const left = point.offsetLeft - 8;
+      const right = left + point.offsetWidth;
+      if (
+        left < scroller.scrollLeft ||
+        right > scroller.scrollLeft + scroller.clientWidth
+      ) {
+        scroller.scrollTo({
+          left: Math.max(0, left),
+          behavior: TL_REDUCED ? "auto" : "smooth",
         });
+      }
+      return;
+    }
+    const p = point.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    if (p.top < box.top + 4) scroller.scrollTop += p.top - box.top - 8;
+    else if (p.bottom > box.bottom - 4)
+      scroller.scrollTop += p.bottom - box.bottom + 8;
+  }
+
+  function tlSelect(
+    index: number,
+    opts: {
+      push?: boolean;
+      scroll?: boolean;
+      force?: boolean;
+      /** 从历史/hash 恢复时不再改写 URL（否则会把后退清掉的 hash 又写回去） */
+      hash?: boolean;
+    } = {}
+  ) {
+    const point = tlPoints()[index];
+    if (!point) return;
+    // 点当前条目不再清空正文（误触会丢内容）；手机上再点一次则滚回正文
+    if (index === TL.active && !opts.force) {
+      if (opts.scroll && TL_MOBILE.matches) tlScrollToDetail();
+      return;
+    }
+    TL.active = index;
+    tlSetActive(index);
+    tlRender(index, opts.scroll ?? false);
+    tlUpdateNav(index);
+    if (opts.hash !== false) {
+      tlSetHash(point.dataset.anchor ?? "", opts.push ?? true);
+    }
+    tlRevealPoint(point);
+  }
+
+  function tlInit() {
+    const detail = tlDetail();
+    const pts = tlPoints();
+    if (!detail || pts.length === 0) {
+      TL.active = null;
+      return;
+    }
+    const hash = tlHash();
+    const byHash = hash
+      ? pts.findIndex((p) => p.dataset.anchor === hash)
+      : -1;
+
+    if (byHash > 0) {
+      TL.active = null;
+      tlSelect(byHash, {
+        push: false,
+        scroll: false,
+        force: true,
+        hash: false,
       });
+    } else {
+      // 服务端默认渲染最新一条（index 0）；hash 指向它时不需要重渲染
+      TL.active = 0;
+      tlSetActive(0);
+      tlUpdateNav(0);
+      tlRestoreLocks(detail);
     }
 
-    axis.addEventListener("mousemove", (e) => applyDock(e.clientY));
-    axis.addEventListener("mouseleave", () => applyDock(null));
+    if (byHash >= 0) {
+      // 浏览器会先滚到锚点（时间轴里的那条），这里再把正文顶到导航下方；
+      // 延迟一次兜底，避免锚点滚动晚于脚本执行。
+      requestAnimationFrame(() => tlScrollToDetail(true));
+      window.setTimeout(() => tlScrollToDetail(true), 180);
+    }
+  }
+
+  function tlHistory() {
+    if (!tlDetail()) return;
+    const hash = tlHash();
+    // 后退到没有 hash 的初始状态时，回到最新一条
+    if (!hash) {
+      if (TL.active !== 0)
+        tlSelect(0, { push: false, force: true, hash: false });
+      return;
+    }
+    const idx = tlPoints().findIndex((p) => p.dataset.anchor === hash);
+    if (idx < 0 || idx === TL.active) return;
+    tlSelect(idx, { push: false, scroll: true, force: true, hash: false });
+  }
+
+  function tlClick(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const point = target.closest<HTMLElement>(".timeline-point");
+    if (point) {
+      const idx = Number(point.dataset.index ?? "-1");
+      if (idx >= 0) tlSelect(idx, { push: true, scroll: true });
+      return;
+    }
+    const step = target.closest<HTMLElement>("[data-tl-step]");
+    if (!step || TL.active === null) return;
+    const next = TL.active + Number(step.dataset.tlStep ?? "0");
+    if (next >= 0 && next < tlPoints().length) {
+      tlSelect(next, { push: true, scroll: true });
+    }
+  }
+
+  function tlKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    const point = target?.closest?.(".timeline-point") as HTMLElement | null;
+    if (!point) return;
+    const pts = tlPoints();
+    const idx = Number(point.dataset.index ?? "-1");
+
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      tlSelect(idx, { push: true, scroll: true });
+      return;
+    }
+
+    let next: number | null = null;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight")
+      next = Math.min(pts.length - 1, idx + 1);
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft")
+      next = Math.max(0, idx - 1);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = pts.length - 1;
+    if (next === null) return;
+
+    e.preventDefault();
+    pts[next]?.focus();
+    tlSelect(next, { push: false, scroll: false });
+  }
+
+  // mac dock 鱼眼：只在桌面（≥1024）生效；DOM 现查以兼容换页
+  let tlDockRaf = 0;
+  function tlApplyDock(clientY: number | null, axis: HTMLElement | null) {
+    if (tlDockRaf) cancelAnimationFrame(tlDockRaf);
+    tlDockRaf = requestAnimationFrame(() => {
+      if (!axis) return;
+      axis.querySelectorAll<HTMLElement>(".timeline-point").forEach((item) => {
+        const body = item.querySelector<HTMLElement>(".tl-simple__body");
+        const rect = item.getBoundingClientRect();
+        if (clientY === null || !body) {
+          if (body) body.style.transform = "";
+          item.classList.remove("is-dock-hot");
+          return;
+        }
+        const dist = Math.abs(clientY - (rect.top + rect.height / 2));
+        let scale = 1;
+        if (dist < 120) {
+          scale = Math.min(1.45, 1 + 0.45 * Math.pow(1 - dist / 120, 1.6));
+          item.classList.toggle("is-dock-hot", scale > 1.18);
+        } else {
+          item.classList.remove("is-dock-hot");
+        }
+        body.style.transform = scale > 1.0001 ? `scale(${scale.toFixed(3)})` : "";
+      });
+    });
+  }
+  function tlDockMove(e: MouseEvent) {
+    if (TL_MOBILE.matches) return;
+    const axis = (e.target as Element | null)?.closest?.(".tl-simple") as
+      | HTMLElement
+      | null;
+    if (axis) tlApplyDock(e.clientY, axis);
+  }
+  function tlDockOut(e: MouseEvent) {
+    const axis = (e.target as Element | null)?.closest?.(".tl-simple") as
+      | HTMLElement
+      | null;
+    if (!axis) return;
+    const to = e.relatedTarget as Node | null;
+    if (!to || !axis.contains(to)) tlApplyDock(null, axis);
   }
 
   // ===== 纪事内容解锁（AES-GCM，答案解密）=====
@@ -715,6 +1115,16 @@ const defaultRendered =
     if (err) err.hidden = true;
   }
 
+  // 克隆详情后用会话记忆恢复已解锁条目
+  function tlRestoreLocks(root: HTMLElement | null) {
+    if (!root) return;
+    const memo = loadLocks();
+    root.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
+      const id = box.dataset.lockId ?? "";
+      if (id && memo[id]) fillLocked(box, memo[id]);
+    });
+  }
+
   async function tryUnlock(box: HTMLElement) {
     const id = box.dataset.lockId ?? "";
     const input = box.querySelector<HTMLInputElement>(".lock-input");
@@ -736,25 +1146,22 @@ const defaultRendered =
     }
   }
 
-  // 事件委托：克隆进详情区的 lock-box 也能触发解锁；Enter/空格提交
-  document.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement | null;
-    const btn = target?.closest?.(".lock-btn");
-    if (btn) {
-      e.preventDefault();
-      const box = btn.closest<HTMLElement>(".lock-box");
-      if (box) tryUnlock(box);
-    }
-  });
-  document.addEventListener("keydown", (e) => {
+  // 事件委托：克隆进详情区的 lock-box 也能触发解锁；Enter 提交
+  function tlLockClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(".lock-btn");
+    if (!btn) return;
+    e.preventDefault();
+    const box = btn.closest<HTMLElement>(".lock-box");
+    if (box) void tryUnlock(box);
+  }
+  function tlLockKeydown(e: KeyboardEvent) {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLElement | null;
-    if (target?.classList?.contains("lock-input")) {
-      e.preventDefault();
-      const box = target.closest<HTMLElement>(".lock-box");
-      if (box) tryUnlock(box);
-    }
-  });
+    if (!target?.classList?.contains("lock-input")) return;
+    e.preventDefault();
+    const box = target.closest<HTMLElement>(".lock-box");
+    if (box) void tryUnlock(box);
+  }
 
   // 初始加载：把已记忆的加密条目直接呈现（若页面含其 lock-box）
   document.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
@@ -762,4 +1169,22 @@ const defaultRendered =
     const locks = loadLocks();
     if (id && locks[id]) fillLocked(box, locks[id]);
   });
+
+  // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
+  if (!TL.bound) {
+    TL.bound = true;
+    document.addEventListener("click", tlClick);
+    document.addEventListener("keydown", tlKeydown);
+    document.addEventListener("click", tlLockClick);
+    document.addEventListener("keydown", tlLockKeydown);
+    document.addEventListener("mousemove", tlDockMove, { passive: true });
+    document.addEventListener("mouseout", tlDockOut, { passive: true });
+    window.addEventListener("popstate", tlHistory);
+    window.addEventListener("hashchange", tlHistory);
+    document.addEventListener("astro:page-load", tlInit);
+    document.addEventListener("astro:before-swap", () => {
+      TL.active = null;
+    });
+  }
+  tlInit();
 </script>
