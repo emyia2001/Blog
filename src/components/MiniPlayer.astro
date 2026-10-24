@@ -74,28 +74,7 @@ const { src, title } = Astro.props;
 <script>
   const FADE_INTERVAL = 50; // ms
   const FADE_STEP = 0.04; // volume per tick (~0.8s full fade)
-  const FADE_STEP_FAST = 0.1; // volume per tick (~0.5s fade, for navigation/hide)
-
-  // 独立的淡入淡出：作用于任意 audio 对象，不依赖元素存活。
-  // 用于元素被移除（导航切换）后仍需完成收尾淡出的场景。
-  function fadeAudio(
-    audio: HTMLAudioElement | null,
-    target: number,
-    step: number,
-    onDone?: () => void
-  ): void {
-    if (!audio) return;
-    const dir = target > audio.volume ? 1 : -1;
-    const timer = window.setInterval(() => {
-      let v = audio.volume + step * dir;
-      if ((dir > 0 && v >= target) || (dir < 0 && v <= target)) {
-        v = target;
-        window.clearInterval(timer);
-        if (onDone) onDone();
-      }
-      audio.volume = Math.max(0, Math.min(1, v));
-    }, FADE_INTERVAL);
-  }
+  const FADE_STEP_FAST = 0.1; // volume per tick (~0.5s fade, for blur)
 
   class MiniPlayer extends HTMLElement {
     audio: HTMLAudioElement | null = null;
@@ -165,13 +144,37 @@ const { src, title } = Astro.props;
       }
     };
 
+    // 整页卸载/进 bfcache：只暂停，保留 audio 以便返回时还能恢复；
+    // 真正销毁交给 before-swap / disconnectedCallback。
     _onPageHide = () => {
       if (this.fadeTimer) {
         window.clearInterval(this.fadeTimer);
         this.fadeTimer = null;
       }
-      if (this.audio) this.audio.pause();
+      this.playing = false;
+      this.audio?.pause();
     };
+
+    // ViewTransitions 换页前就立即停：不等 disconnectedCallback，
+    // 避免移动端在转场/切后台时把淡出定时器挂起，音乐一直响。
+    _onBeforeSwap = () => {
+      this.hardStop();
+    };
+
+    hardStop(): void {
+      if (this.fadeTimer) {
+        window.clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+      }
+      this.playing = false;
+      this.unlocked = true;
+      const audio = this.audio;
+      if (!audio) return;
+      this.audio = null;
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
 
     connectedCallback() {
       this.btn = this.querySelector<HTMLElement>("#mp-btn");
@@ -248,32 +251,21 @@ const { src, title } = Astro.props;
       window.addEventListener("blur", this._onBlur);
       window.addEventListener("focus", this._onFocus);
       window.addEventListener("pagehide", this._onPageHide);
+      document.addEventListener("astro:before-swap", this._onBeforeSwap);
     }
 
     // ViewTransitions 客户端导航不触发 pagehide，旧元素被移除时
-    // 必须手动淡出并销毁 audio，否则音乐会继续播放（与下一页重复）。
-    // 用 fadeAudio 快速淡出而不是硬切，配合新页面的淡入形成交叉淡化。
+    // 必须立即销毁 audio，否则音乐会继续播放（与下一页重复）。
+    // 这里不再做淡出：移动端转场时定时器可能被挂起，淡出会留下
+    // 一个永远 pause 不掉的 audio（线上反馈的「退出后还在响」）。
     disconnectedCallback() {
-      if (this.fadeTimer) {
-        window.clearInterval(this.fadeTimer);
-        this.fadeTimer = null;
-      }
-      this.playing = false;
-      this.unlocked = true;
       this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
       document.removeEventListener("visibilitychange", this._onVisibility);
+      document.removeEventListener("astro:before-swap", this._onBeforeSwap);
       window.removeEventListener("blur", this._onBlur);
       window.removeEventListener("focus", this._onFocus);
       window.removeEventListener("pagehide", this._onPageHide);
-      if (this.audio) {
-        const audio = this.audio;
-        this.audio = null;
-        fadeAudio(audio, 0, FADE_STEP_FAST, () => {
-          audio.pause();
-          audio.src = "";
-          audio.load();
-        });
-      }
+      this.hardStop();
     }
 
     setIcons(isPlaying: boolean): void {
