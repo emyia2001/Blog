@@ -1,8 +1,6 @@
 ---
-import { SITE_NAME, SITE_SOCIAL } from "../consts";
+import { SITE_NAME } from "../consts";
 const year = new Date().getFullYear();
-// 与首页「关于」卡同源，避免两处各写一份
-const socialLinks = SITE_SOCIAL.filter((s) => s.icon === "mdi:github");
 // 博客联盟 / 友链接力链接：以后加入新联盟，在此追加一项即可。
 // 注：开往因规则要求"打开网站即可见"，另在 Nav.astro 顶栏保留入口（桌面+移动抽屉）。
 const allianceLinks = [
@@ -22,23 +20,6 @@ const allianceLinks = [
       </span>
       <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
       <a href="/rss.xml" class="hover-underline no-underline hit-24">RSS</a>
-      <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
-      <a href="/timeline/" class="hover-underline no-underline hit-24">纪事</a>
-      <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
-      <a href="/friends/" class="hover-underline no-underline hit-24">友链</a>
-      {socialLinks.map((link) => (
-        <>
-          <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
-          <a
-            href={link.href}
-            class="hover-underline no-underline hit-24"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {link.label}
-          </a>
-        </>
-      ))}
     </div>
 
     {allianceLinks.length > 0 && (
