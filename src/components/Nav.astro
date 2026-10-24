@@ -18,15 +18,24 @@ const travellingsAttrs = {
   title: "开往 · 友链接力",
 };
 
-const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+// 去尾斜杠后比较：ROUTES 里的路径带尾斜杠，而 Astro.url.pathname 依产物形态而定，
+// 原来直接 === 比较导致「当前页」永远匹配不上（导航从不显示选中态）。
+const normalize = (p: string) => p.replace(/\/$/, "") || "/";
+const currentPath = normalize(Astro.url.pathname);
+const isActivePath = (href: string) => {
+  const target = normalize(href);
+  return currentPath === target ||
+    (target !== "/" && currentPath.startsWith(`${target}/`));
+};
 ---
 
 <nav
   class="sticky top-0 z-40 border-b border-[var(--color-ed-rule)]"
   style="background: var(--color-ed-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"
+  aria-label="站点导航"
 >
   <div class="h-0.5 w-full bg-[var(--color-ed-accent)] opacity-70" aria-hidden="true"></div>
-  <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+  <div class="mx-auto flex max-w-[1380px] items-center justify-between px-6 py-4 md:px-8">
     <a
       href="/"
       class="flex items-baseline gap-3 font-serif text-lg tracking-[0.08em] text-[var(--color-ed-fg)] no-underline"
@@ -37,16 +46,13 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     <!-- Desktop nav -->
     <ul class="hidden md:flex items-center gap-8">
       {navLinks.map((link) => {
-        const isActive = currentPath === link.href || (link.href !== "/" && currentPath.startsWith(link.href));
+        const isActive = isActivePath(link.href);
         return (
           <li>
             <a
               href={link.href}
-              class={`text-xs tracking-[0.05em] no-underline transition-colors duration-200 ${
-                isActive
-                  ? "text-[var(--color-ed-accent)]"
-                  : "text-[var(--color-ed-muted)] hover-underline"
-              }`}
+              class={`nav-link ${isActive ? "is-active" : ""}`}
+              aria-current={isActive ? "page" : undefined}
             >
               {link.label}
             </a>
@@ -54,19 +60,10 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
         );
       })}
       <li>
-        <a
-          {...travellingsAttrs}
-          class="text-xs tracking-[0.05em] no-underline text-[var(--color-ed-muted)] hover-underline"
-        >
-          开往
-        </a>
+        <a {...travellingsAttrs} class="nav-link">开往</a>
       </li>
       <li>
-        <button
-          type="button"
-          data-open-search
-          class="hover-underline text-xs tracking-[0.05em] text-[var(--color-ed-muted)]"
-        >
+        <button type="button" data-open-search class="nav-link nav-link--button">
           搜索
         </button>
       </li>
@@ -75,7 +72,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
     <!-- Mobile hamburger -->
     <button
       id="nav-toggle"
-      class="md:hidden flex flex-col gap-1.5 p-2"
+      class="md:hidden flex h-11 w-11 flex-col items-center justify-center gap-1.5"
       aria-label="切换菜单"
       aria-expanded="false"
       aria-controls="nav-drawer"
@@ -92,7 +89,7 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
   <div class="fixed inset-0 z-50 overflow-hidden pointer-events-none md:hidden">
     <div
       id="nav-backdrop"
-      class="absolute inset-0 z-40 hidden bg-black/20 pointer-events-auto"
+      class="absolute inset-0 z-40 hidden bg-black/25 pointer-events-auto"
       aria-hidden="true"
     ></div>
 
@@ -103,42 +100,113 @@ const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
       aria-hidden="true"
       inert
     >
-      <div class="flex justify-end mb-12">
-        <button id="nav-close" class="p-2" aria-label="关闭菜单">
+      <div class="flex justify-end mb-10">
+        <button
+          id="nav-close"
+          class="-mr-2 flex h-11 w-11 items-center justify-center"
+          aria-label="关闭菜单"
+        >
           <span class="block font-serif text-2xl leading-none">&times;</span>
         </button>
       </div>
-      <ul class="flex flex-col gap-6">
-        {navLinks.map((link) => (
-          <li>
-            <a
-              href={link.href}
-              class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
-            >
-              {link.label}
-            </a>
-          </li>
-        ))}
+      <ul class="flex flex-col gap-1">
+        {navLinks.map((link) => {
+          const isActive = isActivePath(link.href);
+          return (
+            <li>
+              <a
+                href={link.href}
+                class={`nav-drawer-link ${isActive ? "is-active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {link.label}
+              </a>
+            </li>
+          );
+        })}
         <li>
-          <a
-            {...travellingsAttrs}
-            class="font-serif text-xl text-[var(--color-ed-fg)] no-underline"
-          >
-            开往
-          </a>
+          <a {...travellingsAttrs} class="nav-drawer-link">开往</a>
         </li>
         <li>
-          <button
-            type="button"
-            data-open-search
-            class="font-serif text-xl text-[var(--color-ed-fg)]"
-          >
+          <button type="button" data-open-search class="nav-drawer-link">
             搜索
           </button>
         </li>
       </ul>
     </div>
   </div>
+
+<style>
+  /* 桌面导航：下划线随 hover/当前页展开，当前页用砖红点出 */
+  .nav-link {
+    position: relative;
+    display: inline-block;
+    padding-block: 0.4rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 180ms ease;
+  }
+  .nav-link::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.1rem;
+    height: 1px;
+    background: var(--color-ed-accent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 220ms var(--ease-ed);
+  }
+  .nav-link:hover {
+    color: var(--color-ed-fg);
+  }
+  .nav-link:hover::after,
+  .nav-link.is-active::after {
+    transform: scaleX(1);
+  }
+  .nav-link.is-active {
+    color: var(--color-ed-accent);
+  }
+  .nav-link--button {
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* 移动抽屉：左侧细线标出当前页，整行 44px 命中 */
+  .nav-drawer-link {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.35rem 0 0.35rem 0.85rem;
+    border: 0;
+    border-left: 2px solid transparent;
+    background: none;
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    line-height: 1.4;
+    color: var(--color-ed-fg);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 180ms ease,
+      border-color 180ms ease;
+  }
+  .nav-drawer-link:hover {
+    color: var(--color-ed-accent);
+  }
+  .nav-drawer-link.is-active {
+    color: var(--color-ed-accent);
+    border-left-color: var(--color-ed-accent);
+  }
+</style>
 
 <script>
   // 注:本站启用了 Astro View Transitions,站内跳转会 SPA 式替换 <body> 内 DOM,

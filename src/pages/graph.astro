@@ -16,29 +16,26 @@ const contentNodes = graphNodes.filter((n) => n.kind !== "self");
 ---
 
 <BaseLayout title="图谱">
-  <div class="mx-auto max-w-[1380px] px-6 md:px-8">
-    <section class="pt-10 md:pt-16 pb-24">
-      <div class="home-sec-head mb-10 mask-reveal">
-        <h1 class="home-sec-title">
-          关系图谱
-          <small>Connections</small>
-        </h1>
-        <a href="/timeline/" class="home-sec-more">纪事时间线 →</a>
-      </div>
+  <div class="page-shell">
+    <section class="pb-24">
+      <header class="page-head">
+        <div class="page-head__row">
+          <h1 class="page-head__title">关系图谱 <small>Connections</small></h1>
+          <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
+        </div>
+        <p class="page-head__dek">
+          每个节点是一篇文章或一条人物 / 事件纪事。连线来自正文里的引用，
+          以及内容与作者之间的归属关系；点节点即可查看出处。
+        </p>
+        <p class="page-head__meta">
+          共 {graphNodes.length} 个节点 · {graphLinks.length} 条关联
+        </p>
+      </header>
 
       {graphNodes.length > 1 ? (
-        <>
-          <div class="graph-tall">
-            <GraphView nodes={graphNodes} links={graphLinks} />
-          </div>
-          <div class="graph-meta">
-            <p>
-              共 <strong>{graphNodes.length}</strong> 个节点 ·
-              <strong>{graphLinks.length}</strong> 条关联
-            </p>
-            <p>连线来自正文引用，或内容与作者、人物之间的归属关系。</p>
-          </div>
-        </>
+        <div class="graph-tall">
+          <GraphView nodes={graphNodes} links={graphLinks} />
+        </div>
       ) : (
         <p class="py-20 text-center text-[var(--color-ed-muted)]">
           暂无内容。
@@ -71,24 +68,6 @@ const contentNodes = graphNodes.filter((n) => n.kind !== "self");
     .graph-tall {
       --graph-h: 27rem;
     }
-  }
-
-  .graph-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.5rem;
-    margin-top: 0.9rem;
-    color: var(--color-ed-subtle);
-    font-size: 0.75rem;
-    letter-spacing: 0.04em;
-    line-height: 1.6;
-  }
-  .graph-meta p {
-    margin: 0;
-  }
-  .graph-meta strong {
-    color: var(--color-ed-fg);
-    font-weight: 600;
   }
 
   /* JS 关闭时的降级：把节点列成清单，至少还能点进文章 */

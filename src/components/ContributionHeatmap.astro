@@ -8,7 +8,8 @@ interface Props {
 
 const { grid, total } = Astro.props;
 
-const CAL_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+// 取自站内纸 / 墨 / 砖红三色，由浅到深（原来用 GitHub 的绿色，放在纸色卡片上很跳）
+const CAL_COLORS = ["#ecebe6", "#d8d0c7", "#bda79a", "#94685a", "#a63a2b"];
 ---
 
 {
@@ -18,7 +19,7 @@ const CAL_COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
         GitHub 贡献
         {total !== null && (
           <span class="normal-case tracking-normal text-[var(--color-ed-muted)]">
-            {total}
+            {total} 次
           </span>
         )}
       </p>
