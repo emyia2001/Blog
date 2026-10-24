@@ -240,7 +240,7 @@ a.page-head__aside:hover {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--color-ed-rule);
+  background: var(--color-ed-hairline);
 }
 
 /* 年份分节（归档页）：衬线斜体数字 + 条目数 */
@@ -269,15 +269,13 @@ a.page-head__aside:hover {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--color-ed-rule);
 }
 .entry-row {
   display: grid;
   grid-template-columns: 3.25rem minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: 0.35rem 1.25rem;
-  padding: 1rem 0.5rem;
-  border-bottom: 1px solid var(--color-ed-rule);
+  padding: 1.05rem 0.5rem;
   color: var(--color-ed-fg);
   text-decoration: none;
   transition: background-color 180ms ease;
