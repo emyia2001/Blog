@@ -1,32 +1,55 @@
 <!-- Search modal: opens via `open-search` CustomEvent, or Cmd/Ctrl+K -->
 <div
   id="search-modal"
-  class="fixed inset-0 z-[60] hidden items-start justify-center bg-black/20 px-4 pt-[12vh]"
+  class="search-modal fixed inset-0 z-[60] hidden items-start justify-center"
   role="dialog"
   aria-modal="true"
   aria-labelledby="search-title"
 >
-  <div class="w-full max-w-xl border border-[var(--color-ed-rule)]"
-    style="background: var(--color-ed-bg);"
-  >
+  <div class="search-panel">
     <h2 id="search-title" class="sr-only">站内搜索</h2>
-    <label for="search-input" class="sr-only">搜索文章关键词</label>
-    <input
-      type="search"
-      id="search-input"
-      placeholder="搜索文章…"
-      autocomplete="off"
-      class="w-full border-b border-[var(--color-ed-rule)] bg-transparent px-5 py-4 text-sm text-[var(--color-ed-fg)] placeholder:text-[var(--color-ed-subtle)] focus:outline-none"
-    />
-    <div
-      id="search-results"
-      class="max-h-[50vh] overflow-y-auto px-5 py-2"
-      role="status"
-      aria-live="polite"
-    >
-      <p class="py-3 text-sm text-[var(--color-ed-muted)]">
-        输入关键词开始搜索。
-      </p>
+
+    <div class="search-field">
+      <svg
+        class="search-icon"
+        viewBox="0 0 24 24"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="M20 20l-3.6-3.6"></path>
+      </svg>
+      <label for="search-input" class="sr-only">搜索文章与纪事</label>
+      <input
+        type="search"
+        id="search-input"
+        placeholder="搜索文章与纪事…"
+        autocomplete="off"
+        class="search-input"
+      />
+      <kbd class="search-kbd" aria-hidden="true">Esc</kbd>
+    </div>
+
+    <p id="search-status" class="sr-only" role="status" aria-live="polite"></p>
+
+    <div id="search-results" class="search-results">
+      <p class="search-empty">输入关键词开始搜索文章与纪事。</p>
+    </div>
+
+    <div class="search-footer">
+      <span id="search-count" class="search-count">文章 · 纪事</span>
+      <span class="search-shortcuts" aria-hidden="true">
+        <kbd class="search-kbd">↑</kbd>
+        <kbd class="search-kbd">↓</kbd>
+        <span>选择</span>
+        <kbd class="search-kbd">Esc</kbd>
+        <span>关闭</span>
+      </span>
     </div>
   </div>
 </div>
@@ -45,6 +68,9 @@
 
   const FOCUSABLE =
     'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  const PROMPT = "输入关键词开始搜索文章与纪事。";
+  const LOADING = "正在载入搜索索引…";
 
   function trapFocus(e: KeyboardEvent) {
     const { modal } = getRefs();
@@ -70,20 +96,59 @@
       modal: document.getElementById("search-modal"),
       input: document.getElementById("search-input") as HTMLInputElement | null,
       results: document.getElementById("search-results"),
+      status: document.getElementById("search-status"),
+      count: document.getElementById("search-count"),
     };
   }
 
-  function setMessage(message: string) {
-    const results = getRefs().results;
+  function announce(message: string) {
+    const { status } = getRefs();
+    if (status) status.textContent = message;
+  }
+
+  function setCount(text: string) {
+    const { count } = getRefs();
+    if (count) count.textContent = text;
+  }
+
+  // Pagefind 的 excerpt 是带 <mark> 的 HTML：只保留文本与 mark，其余标签一律丢掉
+  // （原来用 textContent 会把 "<mark>" 原样显示出来）
+  function excerptFragment(html: string): DocumentFragment {
+    const frag = document.createDocumentFragment();
+    if (!html) return frag;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const walk = (node: Node) => {
+      node.childNodes.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          frag.appendChild(document.createTextNode(child.textContent ?? ""));
+        } else if (child.nodeName === "MARK") {
+          const mark = document.createElement("mark");
+          mark.className = "search-mark";
+          mark.textContent = child.textContent ?? "";
+          frag.appendChild(mark);
+        } else {
+          walk(child);
+        }
+      });
+    };
+    walk(doc.body);
+    return frag;
+  }
+
+  function setMessage(message: string, countText?: string) {
+    const { results } = getRefs();
     if (!results) return;
     const p = document.createElement("p");
-    p.className = "py-3 text-sm text-[var(--color-ed-muted)]";
+    p.className = "search-empty";
     p.textContent = message;
     results.replaceChildren(p);
+    setCount(countText ?? "文章 · 纪事");
+    announce(message);
   }
 
   async function loadSearch() {
     if (loadPromise) return loadPromise;
+    setMessage(LOADING, "载入中…");
     loadPromise = (async () => {
       try {
         // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
@@ -94,10 +159,13 @@
         pf = await import(/* @vite-ignore */ pagefindUrl);
         await pf.init();
         loaded = true;
+        // 载入期间用户可能已经输入：只在输入框仍为空时恢复提示文案
+        if (!getRefs().input?.value.trim()) setMessage(PROMPT);
       } catch {
         // Pagefind 未构建（dev 模式）
         loaded = false;
         loadPromise = null;
+        setMessage("搜索索引尚未生成，请先构建站点。", "不可用");
       }
     })();
     return loadPromise;
@@ -121,7 +189,8 @@
     modal.classList.remove("flex");
     document.body.style.overflow = "";
     input.value = "";
-    setMessage("输入关键词开始搜索。");
+    clearTimeout(debounce);
+    setMessage(PROMPT);
     lastFocused?.focus?.();
     lastFocused = null;
   }
@@ -131,18 +200,42 @@
     return modal ? !modal.classList.contains("hidden") : false;
   }
 
+  // 上下键在结果之间移动焦点（结果本身就是链接，回车即可打开）
+  function moveResultFocus(dir: 1 | -1) {
+    const nodes = Array.from(
+      document.querySelectorAll<HTMLElement>("#search-results .search-result")
+    );
+    if (!nodes.length) return false;
+    const idx = nodes.indexOf(document.activeElement as HTMLElement);
+    const next =
+      idx === -1
+        ? dir > 0
+          ? 0
+          : nodes.length - 1
+        : (idx + dir + nodes.length) % nodes.length;
+    nodes[next].focus();
+    return true;
+  }
+
   // 一次性 document 级监听(委托,跨 VT 存活)
   document.addEventListener("open-search", open);
 
-  // Esc closes, Cmd/Ctrl+K opens
+  // Esc closes, Cmd/Ctrl+K opens, ↑/↓ moves through results
   document.addEventListener("keydown", (e) => {
     trapFocus(e);
     if (e.key === "Escape" && isOpen()) {
       close();
-    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
       if (isOpen()) close();
       else open();
+      return;
+    }
+    if (!isOpen()) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (moveResultFocus(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
     }
   });
 
@@ -153,15 +246,11 @@
     const { modal } = getRefs();
     if (!modal || modal.classList.contains("hidden")) return;
     if (target === modal) {
-      // 点击 backdrop(modal 自身)关闭
       close();
       return;
     }
     const resultLink = target.closest("[data-search-result]");
-    if (resultLink) {
-      // 点击搜索结果:允许跳转并关闭弹层
-      close();
-    }
+    if (resultLink) close();
   });
 
   // Debounced search:input 事件委托到 document(输入框节点会随 VT 更换)
@@ -175,19 +264,22 @@
     debounce = setTimeout(async () => {
       const query = input.value.trim();
       if (!query) {
-        setMessage("输入关键词开始搜索。");
+        setMessage(PROMPT);
         return;
       }
 
       if (!loaded) await loadSearch();
       if (!loaded || !pf) {
-        setMessage("搜索索引尚未生成，请先构建站点。");
+        setMessage("搜索索引尚未生成，请先构建站点。", "不可用");
         return;
       }
 
       const search = await pf.search(query);
       if (!search.results.length) {
-        setMessage("未找到结果。");
+        setMessage(
+          `没有找到「${query}」。试试更短的关键词，或用文章标题里的词。`,
+          "0 条结果"
+        );
         return;
       }
 
@@ -197,24 +289,25 @@
         const link = document.createElement("a");
         link.href = data.url;
         link.dataset.searchResult = "";
-        link.className =
-          "block border-b border-[var(--color-ed-hairline)] py-4 no-underline group";
+        link.className = "search-result";
 
-        const title = document.createElement("h3");
-        title.className =
-          "font-serif text-base text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors";
+        const title = document.createElement("span");
+        title.className = "search-result__title";
         title.textContent = data.meta?.title || "无标题";
 
-        const excerpt = document.createElement("p");
-        excerpt.className =
-          "mt-1 text-xs text-[var(--color-ed-subtle)] line-clamp-2";
-        excerpt.textContent = data.excerpt || "";
+        const excerpt = document.createElement("span");
+        excerpt.className = "search-result__excerpt";
+        excerpt.appendChild(excerptFragment(data.excerpt || ""));
 
         link.append(title, excerpt);
         fragment.appendChild(link);
       }
       const results = getRefs().results;
       if (results) results.replaceChildren(fragment);
+
+      const count = search.results.length;
+      setCount(`${count} 条结果`);
+      announce(`找到 ${count} 条结果，按上下方向键选择`);
     }, 300);
   });
 </script>

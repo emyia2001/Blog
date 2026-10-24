@@ -34,46 +34,38 @@ const posts = allPosts
   title={`#${tag}`}
   description={`标签「${tag}」下的全部文章（${posts.length} 篇）。`}
 >
-  <section class="py-24 md:py-32 px-6">
-    <div class="mx-auto max-w-3xl">
-      <h1 class="font-serif text-3xl tracking-tighter text-[var(--color-ed-fg)] mb-2">
-        #{tag}
-      </h1>
-      <p class="text-xs text-[var(--color-ed-subtle)] mb-12">
-        {posts.length} 篇
-      </p>
+  <div class="page-shell page-shell--medium">
+    <header class="page-head">
+      <div class="page-head__row">
+        <h1 class="page-head__title">#{tag} <small>Tag</small></h1>
+        <a href="/tags/" class="page-head__aside">全部标签 →</a>
+      </div>
+      <p class="page-head__meta">{posts.length} 篇文章 · 按发布时间倒序</p>
+    </header>
 
-      {posts.length > 0 ? (
-        <ol>
-          {posts.map((post, i) => (
-            <li
-              class="border-b border-[var(--color-ed-rule)] py-6 first:border-t reveal"
-              style={`--reveal-delay: ${Math.min(i, 5) * 50}ms`}
-            >
-              <a
-                href={postPath(post)}
-                class="group flex items-baseline gap-6 no-underline"
-              >
-                <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
-                  NO.{String(i + 1).padStart(2, "0")}
-                </span>
-                <span class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-                  {post.data.title}
-                </span>
-                <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                  {post.data.date.toLocaleDateString("zh-CN", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p class="text-[var(--color-ed-muted)]">该标签下暂无文章。</p>
-      )}
-    </div>
-  </section>
+    {posts.length > 0 ? (
+      <ol class="entry-list">
+        {posts.map((post, i) => (
+          <li class="reveal" style={`--reveal-delay: ${Math.min(i, 5) * 50}ms`}>
+            <a href={postPath(post)} class="entry-row">
+              <span class="entry-row__no">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span class="entry-row__title">{post.data.title}</span>
+              <span class="kind-chip entry-row__kind">文章</span>
+              <time class="entry-row__date" datetime={post.data.date.toISOString()}>
+                {post.data.date.toLocaleDateString("zh-CN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
+            </a>
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p class="empty-note">该标签下暂无文章。</p>
+    )}
+  </div>
 </BaseLayout>

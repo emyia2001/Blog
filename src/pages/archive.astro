@@ -37,6 +37,11 @@ const entries: Entry[] = [
   })),
 ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
+// 全局序号：跨年份连续，避免每年都从 01 重新开始（读者会以为是同一篇）
+const entryNo = new Map<Entry, string>(
+  entries.map((e, i) => [e, String(i + 1).padStart(2, "0")])
+);
+
 // Group by year, sorted newest first
 const byYear = new Map<number, Entry[]>();
 for (const e of entries) {
@@ -54,56 +59,59 @@ const kindLabel = (k: Entry["kind"]) =>
   k === "post" ? "文章" : k === "person" ? "人物" : "事件";
 ---
 
-<BaseLayout title="归档" description="按时间倒序浏览全部文章与纪事：长文、人物、事件与日记。">
-  <section class="py-24 md:py-32 px-6">
-    <div class="mx-auto max-w-2xl">
-      <h1
-        class="font-serif text-3xl md:text-4xl tracking-tighter text-[var(--color-ed-fg)] mb-16"
-      >
-        归档
-      </h1>
-
-      <div class="mb-20 reveal">
-        <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-6">
-          标签
-        </h2>
-        <TagCloud />
+<BaseLayout title="归档" description="按时间倒序浏览全部文章、人物与事件。">
+  <div class="page-shell page-shell--medium">
+    <header class="page-head">
+      <div class="page-head__row">
+        <h1 class="page-head__title">归档 <small>Archive</small></h1>
+        <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
       </div>
+      <p class="page-head__dek">
+        按时间倒序排在一条轴上：长文、人物与事件共用同一套编号，
+        年份只作分组，不打断阅读顺序。
+      </p>
+      <p class="page-head__meta">
+        {publishedPosts.length} 篇文章 · {publishedMoments.length} 条人物 / 事件
+      </p>
+    </header>
 
-      <h2 class="font-serif text-sm tracking-[0.2em] uppercase text-[var(--color-ed-subtle)] mb-10">
-        全部内容
-      </h2>
+    <section class="mb-14 reveal" aria-labelledby="tag-cloud-label">
+      <h2 class="section-label" id="tag-cloud-label">标签</h2>
+      <TagCloud />
+    </section>
+
+    <section aria-labelledby="all-content-label">
+      <h2 class="section-label" id="all-content-label">全部内容</h2>
 
       {years.length === 0 ? (
-        <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
+        <p class="empty-note">暂无内容。</p>
       ) : (
         years.map((year) => (
-          <div class="mb-14 reveal">
-            <div class="font-mono text-xs text-[var(--color-ed-subtle)] mb-6 tabular-nums">
-              {year}
-            </div>
-            <ol>
-              {byYear.get(year)!.map((e, i) => (
-                <li class="border-b border-[var(--color-ed-rule)] py-6 first:border-t">
-                  <a
-                    href={e.url}
-                    class="group flex items-baseline gap-6 no-underline"
-                  >
-                    <span class="font-mono text-xs text-[var(--color-ed-subtle)] tabular-nums shrink-0">
-                      NO.{String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span class="font-serif text-lg text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
-                      {e.title}
-                    </span>
-                    <span class="shrink-0 text-[11px] tracking-[0.05em] text-[var(--color-ed-subtle)]">
+          <div class="mb-12 reveal">
+            <h3 class="year-label">
+              <span class="year-label__num">{year}</span>
+              <span class="year-label__count">
+                {byYear.get(year)!.length} 条
+              </span>
+            </h3>
+            <ol class="entry-list">
+              {byYear.get(year)!.map((e) => (
+                <li>
+                  <a href={e.url} class="entry-row">
+                    <span class="entry-row__no">{entryNo.get(e)}</span>
+                    <span class="entry-row__title">{e.title}</span>
+                    <span class="kind-chip entry-row__kind">
                       {kindLabel(e.kind)}
                     </span>
-                    <span class="ml-auto shrink-0 text-xs text-[var(--color-ed-subtle)] tabular-nums">
+                    <time
+                      class="entry-row__date"
+                      datetime={e.date.toISOString()}
+                    >
                       {e.date.toLocaleDateString("zh-CN", {
                         month: "short",
                         day: "numeric",
                       })}
-                    </span>
+                    </time>
                   </a>
                 </li>
               ))}
@@ -111,6 +119,6 @@ const kindLabel = (k: Entry["kind"]) =>
           </div>
         ))
       )}
-    </div>
-  </section>
+    </section>
+  </div>
 </BaseLayout>

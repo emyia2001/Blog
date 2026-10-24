@@ -235,10 +235,11 @@ const daysStr = String(daysNum).padStart(2, "0");
               {sortedTags.map(([tag, count]) => (
                 <a
                   href={tagPath(tag)}
-                  class="home-tag"
+                  class="tag-chip"
                 >
                   {tag}
-                  <b>{count}</b>
+                  <b aria-hidden="true">{count}</b>
+                  <span class="sr-only">{count} 篇</span>
                 </a>
               ))}
             </div>

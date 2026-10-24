@@ -70,7 +70,7 @@ const related = published
   image={heroImage}
   article={{ publishedTime: date, tags }}
 >
-  <div class="mx-auto max-w-7xl px-6 py-24 md:py-32">
+  <div class="mx-auto max-w-[1380px] px-6 py-16 md:px-8 md:py-24">
     <!-- 两栏铺满容器宽度：目录作为右侧边栏贴齐内容右边界（与导航右端对齐），
          正文在剩余左区内居中（1fr 列 + mx-auto），不再整块居中。
          正文 752px ≈ 44 字/行（17px 字号），仍在中文舒适区（30~45 字）内。 -->
@@ -121,7 +121,7 @@ const related = published
               {tags.map((tag) => (
                 <a
                   href={tagPath(tag)}
-                  class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline hit-24"
+                  class="tag-chip"
                 >
                   #{tag}
                 </a>
@@ -144,7 +144,7 @@ const related = published
                 {tags.map((tag) => (
                   <a
                     href={tagPath(tag)}
-                    class="text-xs uppercase tracking-[0.15em] text-[var(--color-ed-muted)] hover-underline hit-24"
+                    class="tag-chip"
                   >
                     #{tag}
                   </a>
@@ -185,7 +185,7 @@ const related = published
                       href={postPath(p)}
                       class="block group"
                     >
-                      <span class="font-serif text-sm text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-muted)] transition-colors">
+                      <span class="font-serif text-sm text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-accent)] transition-colors">
                         {p.data.title}
                       </span>
                       <span class="block text-xs text-[var(--color-ed-subtle)] mt-0.5">
