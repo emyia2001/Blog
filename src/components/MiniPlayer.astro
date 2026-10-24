@@ -2,12 +2,21 @@
 interface Props {
   src: string;
   title?: string;
+  /**
+   * 锁定内容（纪事的 lock）：先隐藏且不播放，
+   * 等页面在解锁成功后调用 element.unlockPlay() 才显示并开始播放。
+   */
+  gated?: boolean;
 }
 
-const { src, title } = Astro.props;
+const { src, title, gated = false } = Astro.props;
 ---
 
-<mini-player data-src={src} data-title={title}>
+<mini-player
+  data-src={src}
+  data-title={title}
+  data-gated={gated ? "true" : undefined}
+  hidden={gated}>
   <button
     id="mp-btn"
     class="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center font-serif text-sm border"
@@ -176,6 +185,21 @@ const { src, title } = Astro.props;
       audio.load();
     }
 
+    // 锁定内容解锁成功后调用：显示播放器并开始播放。
+    // 解锁通常来自一次真实点击（用户手势），浏览器允许带声音播放；
+    // 若是会话记忆自动恢复（无手势）被拦截，则保留可见的播放条，等用户自己点。
+    unlockPlay(): void {
+      if (!this.audio) return;
+      delete this.dataset.gated;
+      this.hidden = false;
+      if (this.btn) this.btn.style.display = "none";
+      if (this.bar) this.bar.style.display = "flex";
+      this.unlocked = true;
+      this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
+      this.setIcons(false);
+      this.play(); // 渐入，避免解锁瞬间突然大声
+    }
+
     connectedCallback() {
       this.btn = this.querySelector<HTMLElement>("#mp-btn");
       this.bar = this.querySelector<HTMLElement>("#mp-bar");
@@ -233,18 +257,29 @@ const { src, title } = Astro.props;
         this.bar.style.transition = "none";
       }
 
-      // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮
-      if (this.bar) this.bar.style.display = "flex";
-      if (this.btn) this.btn.style.display = "none";
-      this.setIcons(false);
-      this.play();
+      // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮。
+      // 锁定内容（data-gated）例外：既不显示也不播放，也不注册"首次交互即解锁播放"，
+      // 否则用户随便滚动一下就把加密文章的 BGM 放出来了。
+      if (this.dataset.gated !== "true") {
+        if (this.bar) this.bar.style.display = "flex";
+        if (this.btn) this.btn.style.display = "none";
+        this.setIcons(false);
+        this.play();
 
-      // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
-      // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
-      // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
-      this.unlockEvents.forEach((evt) =>
-        window.addEventListener(evt, this._onUnlock, { passive: true })
-      );
+        // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
+        // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
+        // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
+        this.unlockEvents.forEach((evt) =>
+          window.addEventListener(evt, this._onUnlock, { passive: true })
+        );
+      } else {
+        // 兜底：若克隆/升级时同一条目已在本会话解锁（正文已展开），直接进入播放态，
+        // 不依赖脚本执行顺序（fillLocked 与自定义元素升级谁先到都能工作）。
+        const article = this.closest("article");
+        if (article?.querySelector(".lock-content:not([hidden])")) {
+          this.unlockPlay();
+        }
+      }
 
       // 离开页面（切后台/切标签页/窗口失焦/导航走）时停止音乐
       document.addEventListener("visibilitychange", this._onVisibility);

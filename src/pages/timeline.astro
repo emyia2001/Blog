@@ -223,6 +223,7 @@ const defaultRendered =
                     <MiniPlayer
                       src={defaultRendered.entry.data.bgm.src}
                       title={defaultRendered.entry.data.bgm.title}
+                      gated={Boolean(defaultRendered.lock)}
                     />
                   </div>
                 )}
@@ -323,6 +324,7 @@ const defaultRendered =
                   <MiniPlayer
                     src={c.entry.data.bgm.src}
                     title={c.entry.data.bgm.title}
+                    gated={Boolean(c.lock)}
                   />
                 </div>
               )}
@@ -1113,6 +1115,14 @@ const defaultRendered =
     box.querySelector(".lock-question")?.remove();
     const err = box.querySelector<HTMLElement>(".lock-error");
     if (err) err.hidden = true;
+
+    // 解锁成功后才放出本条纪事的 BGM：MiniPlayer 带 gated 标记时先隐藏、不自动播放，
+    // 由这里显式启动（会话记忆恢复也走同一条路径）。
+    const holder = box.closest("article") ?? box.parentElement;
+    const player = holder?.querySelector("mini-player") as
+      | (HTMLElement & { unlockPlay?: () => void })
+      | null;
+    player?.unlockPlay?.();
   }
 
   // 克隆详情后用会话记忆恢复已解锁条目
