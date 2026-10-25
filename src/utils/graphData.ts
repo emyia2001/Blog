@@ -111,18 +111,41 @@ export function buildGraphData(
 
   const nodes: GraphNode[] = [selfNode, ...timeNodes, ...contentNodes];
 
-  // 标题 → 节点（graph.name 优先，title 回退，保留旧链接可匹配）
+  // 反查索引：slug / 标题 / id（去扩展名）都能定位到节点。
+  // slug 是权威（URL 即它，稳定）；标题给旧 [[锚点]] 兜底；id 兜底文件名引用。
+  // Astro 5：frontmatter slug 被提升为条目级 entry.slug，data.slug 恒为 undefined
+  const slugOf = (e: AnyEntry): string | undefined =>
+    e.collection === "posts"
+      ? ((e as PostEntry).slug ?? (e.data as PostEntry["data"]).slug)
+      : undefined;
+
+  const bySlug = new Map<string, GraphNode>();
   const titleToNode = new Map<string, GraphNode>();
-  for (const n of nodes) titleToNode.set(n.title, n);
+  const byId = new Map<string, GraphNode>();
+  for (const n of nodes) {
+    byId.set(n.id, n);
+    titleToNode.set(n.title, n);
+  }
   for (const c of graphContent) {
+    const slug = slugOf(c.entry);
+    if (slug && !bySlug.has(slug)) {
+      const node = nodes.find((n) => n.id === c.id);
+      if (node) bySlug.set(slug, node);
+    }
     const t = c.entry.data.title;
     // diary 等无 title 的内容不参与「按名匹配」，否则会把 undefined 塞进 Map
-    if (!t) continue;
-    if (!titleToNode.has(t)) {
+    if (t && !titleToNode.has(t)) {
       const node = nodes.find((n) => n.id === c.id);
       if (node) titleToNode.set(t, node);
     }
   }
+
+  /** 站内 md 链接（/blog/<slug>/ 形式）反查：路径尾段即 slug */
+  const MD_LINK_RE = /\]\((\/blog\/[^)#?]+)\/?(?:#[^)]*)?(?:\?[^)]*)?\)/g;
+  const slugFromPath = (path: string): string | undefined => {
+    const m = path.match(/^\/blog\/([^/]+)\/?$/);
+    return m ? m[1] : undefined;
+  };
 
   const links: GraphLink[] = [];
   const seenLinks = new Set<string>();
@@ -141,20 +164,41 @@ export function buildGraphData(
     if (yearId) addLink(yearId, c.id);
   }
 
+  // 关联边来源（按优先级）：
+  //   A. frontmatter graph.links —— slug 列表，权威来源；解析不到的 slug 构建期警告
+  //   C. 正文里的站内 md 链接（/blog/<slug>/）—— 隐式补充
+  //   旧 [[锚点]]（按标题匹配）—— 向后兼容保留，新内容不要再写
   for (const c of graphContent) {
-    // 代码块与行内代码里的 [[...]] 不是关联声明，先剥离再匹配
+    // A：frontmatter 显式声明
+    for (const slug of c.entry.data.graph?.links ?? []) {
+      const target = bySlug.get(slug) ?? byId.get(slug);
+      if (!target) {
+        console.warn(`[graph] graph.links 指向不存在的 slug：「${slug}」（来自 ${c.id}）`);
+        continue;
+      }
+      addLink(c.id, target.id);
+    }
+
+    // 代码块与行内代码里的链接不是关联声明，先剥离再匹配
     const body = String(c.entry.body ?? "")
       .replace(/```[\s\S]*?```/g, " ")
       .replace(/`[^`\n]*`/g, " ");
+
+    // C：站内 md 链接
+    for (const m of body.matchAll(MD_LINK_RE)) {
+      const slug = slugFromPath(m[1]);
+      if (!slug) continue;
+      const target = bySlug.get(slug);
+      if (!target || target.id === c.id) continue;
+      addLink(c.id, target.id);
+    }
+
+    // 旧语法兜底：[[标题]]
     const refs = Array.from(body.matchAll(WIKI_LINK_RE), (m) => m[1]);
     for (const refTitle of refs) {
       const target = titleToNode.get(refTitle);
-      if (!target) continue;
-      if (target.id === c.id) continue;
-      const key = [c.id, target.id].sort().join("|");
-      if (seenLinks.has(key)) continue;
-      seenLinks.add(key);
-      links.push({ source: c.id, target: target.id });
+      if (!target || target.id === c.id) continue;
+      addLink(c.id, target.id);
     }
   }
 

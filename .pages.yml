@@ -83,6 +83,13 @@ content:
             type: string
           - name: enabled
             type: boolean
+          - name: links
+            label: 关联文章 slug 列表
+            type: list
+            fields:
+              - name: slug
+                label: 目标文章 slug
+                type: string
       - name: body
         label: 正文
         type: rich-text
@@ -162,6 +169,13 @@ content:
             type: string
           - name: enabled
             type: boolean
+          - name: links
+            label: 关联文章 slug 列表
+            type: list
+            fields:
+              - name: slug
+                label: 目标文章 slug
+                type: string
       - name: body
         label: 正文
         type: rich-text

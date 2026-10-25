@@ -5,6 +5,8 @@ const graphConfig = z
     name: z.string().optional(),
     avatar: z.string().optional(),
     enabled: z.boolean().optional().default(true),
+    /** 显式关联：目标文章的 slug 列表（权威来源，正文 [[锚点]] 的替代方案） */
+    links: z.array(z.string()).optional(),
   })
   .optional();
 
