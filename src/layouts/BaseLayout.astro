@@ -150,6 +150,8 @@ if (article) {
     <ClientRouter />
   </head>
   <body data-pagefind-ignore class="flex min-h-screen flex-col">
+    <!-- 阅读进度条：砖红细线，页面里有 .ed-progress 容器时显示 -->
+    <span class="ed-progress" aria-hidden="true"></span>
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--color-ed-fg)] focus:text-[var(--color-ed-bg)] focus:text-sm">
       跳至主内容
     </a>
@@ -243,6 +245,39 @@ if (article) {
 
       document.addEventListener("astro:page-load", initReveal);
       initReveal();
+
+      // ---- 全站共享动效：大标题逐字擦除 + 滚动进度条 ----
+      // 标题元素带 data-char-wipe 即生效（首页报头、文章页报头）。
+      function splitTitleChars() {
+        const el = document.querySelector<HTMLElement>("[data-char-wipe]");
+        if (!el || el.dataset.done) return;
+        el.dataset.done = "1";
+        const text = el.textContent ?? "";
+        el.textContent = "";
+        let i = 0;
+        for (const ch of text) {
+          const span = document.createElement("span");
+          span.className = "char-reveal";
+          span.style.setProperty("--char-i", String(i++));
+          span.textContent = ch;
+          el.appendChild(span);
+        }
+      }
+
+      function updateProgress() {
+        const bar = document.querySelector<HTMLElement>(".ed-progress");
+        if (!bar) return;
+        const max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+      }
+
+      document.addEventListener("astro:page-load", () => {
+        splitTitleChars();
+        updateProgress();
+      });
+      addEventListener("scroll", updateProgress, { passive: true });
+      splitTitleChars();
+      updateProgress();
     </script>
   </body>
 </html>

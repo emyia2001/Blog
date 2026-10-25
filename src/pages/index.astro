@@ -77,18 +77,18 @@ const daysStr = String(daysNum).padStart(2, "0");
             </span>
             <div class="home-masthead__body">
               <div class="home-masthead__topline" aria-hidden="true"></div>
-              <div class="home-kicker">
+              <div class="home-kicker ed-in" style="--d: 120ms">
                 <span class="home-kicker__label">最新文章</span>
                 <span class="home-kicker__no">No.01</span>
                 <span class="home-kicker__vol">Vol. {vol} · 创站第 {daysStr} 天</span>
               </div>
               <a href={postPath(heroPost)} class="no-underline">
-                <h1 class="home-masthead__title">{heroPost.data.title}</h1>
+                <h1 class="home-masthead__title" data-char-wipe>{heroPost.data.title}</h1>
               </a>
               {heroPost.data.excerpt && (
-                <p class="home-masthead__dek">{heroPost.data.excerpt}</p>
+                <p class="home-masthead__dek ed-in" style="--d: 640ms">{heroPost.data.excerpt}</p>
               )}
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)]">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)] ed-in" style="--d: 760ms">
                 <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
                 {heroPost.data.tags?.length > 0 && (
                   <>
@@ -97,7 +97,7 @@ const daysStr = String(daysNum).padStart(2, "0");
                   </>
                 )}
               </div>
-              <a href={postPath(heroPost)} class="home-masthead__cta">
+              <a href={postPath(heroPost)} class="home-masthead__cta ed-in" style="--d: 880ms">
                 阅读全文 →
               </a>
             </div>
@@ -249,5 +249,6 @@ const daysStr = String(daysNum).padStart(2, "0");
 
   <!-- 首次访问（每会话一次）在左下角提示一次本站响应延迟 -->
   <LatencyNote />
+  <!-- 逐字擦除与进度条脚本已上移至 BaseLayout（全站共享） -->
 </BaseLayout>
 

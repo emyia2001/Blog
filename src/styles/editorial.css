@@ -391,6 +391,16 @@ a.page-head__aside:hover {
   animation: page-in 340ms var(--ease-ed) both;
 }
 
+/* 导航栏在换页时保持静止（不参与 root 的上浮过渡），只有下方内容过渡。
+   同名元素会做快照交叉淡化：选中态下划线的位置变化也借此平滑切换。 */
+::view-transition-group(site-nav),
+::view-transition-image-pair(site-nav),
+::view-transition-old(site-nav),
+::view-transition-new(site-nav) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
 @keyframes page-out {
   from {
     opacity: 1;
@@ -658,9 +668,35 @@ a.page-head__aside:hover {
   margin-bottom: 0.5em;
 }
 
-/* Drop cap */
-.drop-cap::first-letter {
-  float: left;
+/* --- 首页报头进场编排：标题逐字擦除见 .char-reveal，其余元素 .ed-in 交错上浮 --- */
+.ed-in {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: ed-rise 620ms var(--ease-ed) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes ed-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 滚动进度条：砖红细线，随整页滚动伸缩 */
+.ed-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 90;
+  background: var(--color-ed-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+/* --- Drop cap --- */
+.drop-cap::first-letter {  float: left;
   font-family: var(--font-serif);
   font-size: 3.4em;
   line-height: 0.85;
@@ -746,6 +782,13 @@ a.page-head__aside:hover {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  /* reduced-motion 下进度条保持，进场动画直接显示 */
+  .ed-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   .js .char-reveal {
