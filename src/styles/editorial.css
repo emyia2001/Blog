@@ -683,7 +683,8 @@ a.page-head__aside:hover {
   }
 }
 
-/* 滚动进度条：砖红细线，随整页滚动伸缩 */
+/* 阅读进度条：砖红细线，仅在文章阅读时（页面含 .prose）显示，
+   进度按正文位置计算（JS 控制 scaleX），停在导航栏下沿之下 */
 .ed-progress {
   position: fixed;
   inset: 0 0 auto 0;
@@ -692,7 +693,12 @@ a.page-head__aside:hover {
   background: var(--color-ed-accent);
   transform-origin: 0 50%;
   transform: scaleX(0);
+  visibility: hidden;
   will-change: transform;
+}
+/* 有正文（文章页）时显示；由 JS 在首帧计算后可见 */
+body:has(.prose) .ed-progress {
+  visibility: visible;
 }
 
 /* --- Drop cap --- */

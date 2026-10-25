@@ -267,8 +267,17 @@ if (article) {
       function updateProgress() {
         const bar = document.querySelector<HTMLElement>(".ed-progress");
         if (!bar) return;
-        const max = document.documentElement.scrollHeight - innerHeight;
-        bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+        // 只在文章阅读页显示：以正文容器（.prose）为测量范围，
+        // 评论、上下篇导航不计入进度。无正文的页面整条隐藏。
+        const prose = document.querySelector<HTMLElement>(".prose");
+        if (!prose) {
+          bar.style.transform = "scaleX(0)";
+          return;
+        }
+        const rect = prose.getBoundingClientRect();
+        const total = rect.height - innerHeight;
+        const read = Math.min(Math.max(-rect.top, 0), Math.max(total, 0));
+        bar.style.transform = `scaleX(${total > 0 ? read / total : 1})`;
       }
 
       document.addEventListener("astro:page-load", () => {
