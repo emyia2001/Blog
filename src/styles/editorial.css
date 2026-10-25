@@ -71,9 +71,9 @@ body {
     z-index: 31;
     transform: translateY(-50%);
     writing-mode: vertical-rl;
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     letter-spacing: 0.28em;
-    color: rgba(166, 58, 43, 0.52);
+    color: rgba(166, 58, 43, 0.92);
     pointer-events: none;
   }
 }
@@ -365,7 +365,7 @@ a.page-head__aside:hover {
   background: rgba(166, 58, 43, 0.1);
 }
 .tag-chip b {
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 400;
   color: var(--color-ed-muted);
   font-variant-numeric: tabular-nums;
@@ -814,10 +814,10 @@ a.page-head__aside:hover {
 /* 竖排刊名装饰（rail） */
 .home-masthead__rail {
   writing-mode: vertical-rl;
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.42em;
   text-transform: uppercase;
-  color: rgba(166, 58, 43, 0.5);
+  color: rgba(166, 58, 43, 0.92);
   padding-top: 0.25rem;
   flex-shrink: 0;
   user-select: none;
