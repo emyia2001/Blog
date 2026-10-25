@@ -7,6 +7,7 @@ import MiniPlayer from "../components/MiniPlayer.astro";
 import Giscus from "../components/Giscus.astro";
 import Toc from "../components/Toc.astro";
 import ImageLightbox from "../components/ImageLightbox.astro";
+import MiniGraph from "../components/MiniGraph.astro";
 import { readingTime } from "../utils/readingTime";
 import { postPath, tagPath } from "../utils/urls";
 
@@ -181,27 +182,7 @@ const related = published
               <h3 class="text-xs tracking-[0.05em] text-[var(--color-ed-subtle)] mb-4">
                 相关文章
               </h3>
-              <ul class="space-y-3">
-                {related.map((p) => (
-                  <li>
-                    <a
-                      href={postPath(p)}
-                      class="block group"
-                    >
-                      <span class="font-serif text-sm text-[var(--color-ed-fg)] group-hover:text-[var(--color-ed-accent)] transition-colors">
-                        {p.data.title}
-                      </span>
-                      <span class="block text-xs text-[var(--color-ed-subtle)] mt-0.5">
-                        {p.data.date.toLocaleDateString("zh-CN", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+              <MiniGraph current={post} related={related} />
             </div>
           )}
         </div>
