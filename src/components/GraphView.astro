@@ -173,7 +173,15 @@ const linkCount = links.length;
     margin: 0;
   }
 
-  /* 极简模式：只留节点与连线（相关文章迷你图谱用） */
+  /* 极简模式：只留节点与连线（相关文章迷你图谱用）；标签平时隐藏，悬停/选中才出现 */
+  .graph-view[data-bare="1"] :global(.graph-label) {
+    opacity: 0;
+  }
+  .graph-view[data-bare="1"] :global(.graph-node.is-hover .graph-label),
+  .graph-view[data-bare="1"] :global(.graph-node.is-active .graph-label) {
+    opacity: 1;
+  }
+  .graph-view[data-bare="1"] .graph-legend,
   .graph-view[data-bare="1"] .graph-legend,
   .graph-view[data-bare="1"] .graph-controls,
   .graph-view[data-bare="1"] .graph-hint,
@@ -728,7 +736,7 @@ const linkCount = links.length;
   );
   // 半径（事件的菱形按 L1 半径计）
   const R = {
-    self: 6 * nodeScale, // 与文章点同量级（相关文章图谱里中心与环绕等大）
+    self: 4 * nodeScale, // 与文章点等大（相关文章图谱里中心与环绕一致）
     avatarSelf: 8 * nodeScale,
     avatar: 6.5 * nodeScale,
     year: 6.5 * nodeScale, // 年
