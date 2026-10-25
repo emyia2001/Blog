@@ -152,6 +152,15 @@ if (article) {
     </noscript>
 
     <ClientRouter />
+
+    <!-- Cloudflare Web Analytics：无 cookie、约 1KB；ViewTransitions 换页时
+         beacon 自己监听 navigation，无需额外上报代码 -->
+    <script
+      is:inline
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "43e972ec99d54865b965f853f5b65f42"}'
+    ></script>
   </head>
   <body data-pagefind-ignore class="flex min-h-screen flex-col">
     <!-- 阅读进度条：砖红细线，页面里有 .ed-progress 容器时显示 -->
