@@ -4,7 +4,7 @@ import { postPath } from "./urls";
 
 export interface GraphNode {
   id: string;
-  kind: "post" | "person" | "event" | "self";
+  kind: "post" | "person" | "event" | "year" | "self";
   title: string;
   url: string;
   contentIndex: number;
@@ -32,7 +32,8 @@ type MomentEntry = CollectionEntry<"moments">;
 /**
  * 由 posts + moments 聚合关系图谱数据（节点 + 连线）。
  * - 非 draft 且 graph.enabled !== false 的内容各成一个节点 + 固定的「我」self 节点
- * - 所有内容节点都连向 self；正文 [[锚点]] 额外产生节点间连线（跳过自连/重复）
+ * - 层级连线：self → 年 → 内容节点；没有内容的年份不生成节点
+ * - 正文 [[锚点]] 额外产生内容节点间连线（跳过自连与重复）
  * - 节点显示名 = graph.name ?? title
  */
 export function buildGraphData(
@@ -69,24 +70,46 @@ export function buildGraphData(
   const urlOf = (_id: string, e: AnyEntry): string =>
     e.collection === "posts" ? postPath(e as PostEntry) : "";
 
-  const nodes: GraphNode[] = [
-    selfNode,
-    ...graphContent.map(({ id, entry }) => ({
-      id,
-      kind: kindOf(entry),
-      title:
-        entry.data.graph?.name ??
-        entry.data.title ??
-        (entry.collection === "posts"
-          ? entry.data.title
-          : String(entry.data.date ?? "")), // person/event 无标题时用日期兜底（极少见）
-      url: urlOf(id, entry),
-      contentIndex: -1,
-      avatar: entry.data.graph?.avatar,
-      excerpt: entry.data.excerpt,
-      heroImage: entry.data.heroImage,
-    })),
-  ];
+  const contentNodes: GraphNode[] = graphContent.map(({ id, entry }) => ({
+    id,
+    kind: kindOf(entry),
+    title:
+      entry.data.graph?.name ??
+      entry.data.title ??
+      (entry.collection === "posts"
+        ? entry.data.title
+        : String(entry.data.date ?? "")), // person/event 无标题时用日期兜底（极少见）
+    url: urlOf(id, entry),
+    contentIndex: -1,
+    avatar: entry.data.graph?.avatar,
+    excerpt: entry.data.excerpt,
+    heroImage: entry.data.heroImage,
+  }));
+
+  // 年 / 月节点：只给真实有内容的月份建节点（时间层级 self → 年 → 月 → 内容）
+  const dateOf = (c: { entry: AnyEntry }): Date =>
+    c.entry.collection === "posts"
+      ? (c.entry as PostEntry).data.date
+      : (c.entry as MomentEntry).data.date;
+
+  const yearIds = new Set<string>();
+  const yearOfContent = new Map<string, string>(); // contentId -> yearId
+  for (const c of graphContent) {
+    const d = dateOf(c);
+    const yearId = `year-${d.getFullYear()}`;
+    yearIds.add(yearId);
+    yearOfContent.set(c.id, yearId);
+  }
+
+  const timeNodes: GraphNode[] = [...yearIds].sort().map((yearId) => ({
+    id: yearId,
+    kind: "year" as const,
+    title: yearId.replace("year-", ""),
+    url: "",
+    contentIndex: -1,
+  }));
+
+  const nodes: GraphNode[] = [selfNode, ...timeNodes, ...contentNodes];
 
   // 标题 → 节点（graph.name 优先，title 回退，保留旧链接可匹配）
   const titleToNode = new Map<string, GraphNode>();
@@ -104,11 +127,18 @@ export function buildGraphData(
   const links: GraphLink[] = [];
   const seenLinks = new Set<string>();
 
-  for (const n of nodes) {
-    if (n.id === "self") continue;
-    const key = ["self", n.id].sort().join("|");
+  const addLink = (source: string, target: string) => {
+    const key = [source, target].sort().join("|");
+    if (seenLinks.has(key)) return;
     seenLinks.add(key);
-    links.push({ source: "self", target: n.id });
+    links.push({ source, target });
+  };
+
+  // 层级连线：self → 年 → 内容
+  for (const yearId of yearIds) addLink("self", yearId);
+  for (const c of graphContent) {
+    const yearId = yearOfContent.get(c.id);
+    if (yearId) addLink(yearId, c.id);
   }
 
   for (const c of graphContent) {
