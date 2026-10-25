@@ -7,15 +7,17 @@ interface Props {
   /** 懒初始化：脚本推迟到浏览器空闲再跑（d3-force chunk 也不占首屏）。
    *  侧栏迷你图谱等非关键场景用；独立大图谱建议保持立即初始化。 */
   lazy?: boolean;
+  /** 极简模式：只保留节点与连线，去掉图例/控制按钮/提示/详情面板/纸底网格。 */
+  bare?: boolean;
 }
 
-const { nodes, links, lazy = false } = Astro.props;
+const { nodes, links, lazy = false, bare = false } = Astro.props;
 const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 const nodeCount = nodes.length;
 const linkCount = links.length;
 ---
 
-<figure id="graph-view" class="graph-view" data-lazy={lazy ? "1" : undefined}>
+<figure id="graph-view" class="graph-view" data-lazy={lazy ? "1" : undefined} data-bare={bare ? "1" : undefined}>
   <div class="graph-layout" id="graph-layout">
     <div class="graph-canvas">
       <svg
@@ -169,6 +171,20 @@ const linkCount = links.length;
 <style>
   .graph-view {
     margin: 0;
+  }
+
+  /* 极简模式：只留节点与连线（相关文章迷你图谱用） */
+  .graph-view[data-bare="1"] .graph-legend,
+  .graph-view[data-bare="1"] .graph-controls,
+  .graph-view[data-bare="1"] .graph-hint,
+  .graph-view[data-bare="1"] .graph-detail,
+  .graph-view[data-bare="1"] .graph-paper {
+    display: none;
+  }
+  .graph-view[data-bare="1"] .graph-canvas {
+    border: 0;
+    box-shadow: none;
+    background: transparent;
   }
 
   .graph-layout {
