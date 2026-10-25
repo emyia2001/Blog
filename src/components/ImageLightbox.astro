@@ -1,0 +1,155 @@
+/**
+ * 文章图片点击放大（lightbox）。
+ * - 作用于 .prose 内的图片；点击在原图位置原地放大到视口内最大可显示尺寸
+ * - 再点任意处 / Esc 关闭；滚轮与拖拽平移查看细节
+ * - 纯展示层增强：无 JS 或图片加载失败时点击无副作用，不影响原排版
+ */
+<script>
+  type State = { overlay: HTMLElement; img: HTMLImageElement; tx: number; ty: number; scale: number };
+
+  let state: State | null = null;
+
+  function clampPan(s: State) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // 放大后图片在视口内的可平移范围：图小于视口的轴不许平移
+    const iw = s.img.naturalWidth * s.scale;
+    const ih = s.img.naturalHeight * s.scale;
+    const mx = Math.max(0, (iw - vw) / 2);
+    const my = Math.max(0, (ih - vh) / 2);
+    s.tx = Math.min(mx, Math.max(-mx, s.tx));
+    s.ty = Math.min(my, Math.max(-my, s.ty));
+  }
+
+  function applyTransform(s: State) {
+    clampPan(s);
+    s.img.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
+  }
+
+  function close() {
+    if (!state) return;
+    state.overlay.remove();
+    document.body.style.overflow = "";
+    state = null;
+  }
+
+  function open(src: string, alt: string) {
+    if (state) close();
+    const overlay = document.createElement("div");
+    overlay.className = "lightbox-overlay";
+
+    const img = new Image();
+    img.src = src;
+    img.alt = alt;
+    img.decoding = "async";
+    img.className = "lightbox-img";
+
+    const s: State = { overlay, img, tx: 0, ty: 0, scale: 1 };
+    state = s;
+
+    overlay.addEventListener("click", (e: Event) => {
+      // 点图片本身 = 切换 1x / 2x；点空白处 = 关闭
+      if (e.target === img) {
+        s.scale = s.scale === 1 ? 2 : 1;
+        s.tx = 0;
+        s.ty = 0;
+        applyTransform(s);
+      } else {
+        close();
+      }
+    });
+    overlay.addEventListener("wheel", (e: WheelEvent) => {
+      e.preventDefault();
+      const prev = s.scale;
+      s.scale = Math.min(6, Math.max(0.5, s.scale * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));
+      // 以指针为锚缩放：把图心向指针方向补偿
+      const rect = overlay.getBoundingClientRect();
+      const px = e.clientX - rect.left - rect.width / 2 - s.tx;
+      const py = e.clientY - rect.top - rect.height / 2 - s.ty;
+      s.tx -= px * (s.scale / prev - 1);
+      s.ty -= py * (s.scale / prev - 1);
+      applyTransform(s);
+    }, { passive: false });
+
+    // 拖拽平移（已放大时才有意义，小图拖拽会被 clamp 归零）
+    let dragging = false;
+    let lx = 0;
+    let ly = 0;
+    overlay.addEventListener("pointerdown", (e: PointerEvent) => {
+      if (e.target !== img) return;
+      dragging = true;
+      lx = e.clientX;
+      ly = e.clientY;
+      overlay.setPointerCapture(e.pointerId);
+    });
+    overlay.addEventListener("pointermove", (e: PointerEvent) => {
+      if (!dragging) return;
+      s.tx += e.clientX - lx;
+      s.ty += e.clientY - ly;
+      lx = e.clientX;
+      ly = e.clientY;
+      applyTransform(s);
+    });
+    overlay.addEventListener("pointerup", () => (dragging = false));
+
+    document.body.style.overflow = "hidden";
+    overlay.appendChild(img);
+    document.documentElement.appendChild(overlay);
+  }
+
+  function initLightbox() {
+    // 事件挂在 document 上：ViewTransitions 换页后无需重建
+    document.addEventListener("click", (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (!(target instanceof HTMLImageElement)) return;
+      const prose = target.closest(".prose");
+      if (!prose) return;
+      const src = target.currentSrc || target.src;
+      if (!src) return;
+      e.preventDefault();
+      open(src, target.alt);
+    });
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    if (state) close();
+  });
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Escape") close();
+  });
+  initLightbox();
+</script>
+
+<style is:global>
+  .lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 20, 0.92);
+    cursor: zoom-out;
+    animation: lightbox-fade 0.18s ease-out;
+  }
+
+  .lightbox-img {
+    max-width: min(96vw, 1600px);
+    max-height: 96vh;
+    transform-origin: center center;
+    cursor: zoom-in;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    user-select: none;
+    -webkit-user-drag: none;
+    touch-action: none;
+  }
+
+  @keyframes lightbox-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+</style>

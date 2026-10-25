@@ -668,6 +668,7 @@ const linkCount = links.length;
     forceManyBody,
     forceCenter,
     forceCollide,
+    forceRadial,
     forceX,
     forceY,
   } = await import("d3-force");
@@ -710,6 +711,7 @@ const linkCount = links.length;
     self: 20 * nodeScale,
     avatarSelf: 18 * nodeScale,
     avatar: 13.5 * nodeScale,
+    year: 14 * nodeScale, // 年
     node: 9 * nodeScale, // 文章
     person: 10 * nodeScale,
     event: 11.5 * nodeScale,
@@ -721,19 +723,78 @@ const linkCount = links.length;
     if (n.avatar) return n.kind === "self" ? R.avatarSelf : R.avatar;
     if (n.kind === "self") return R.self;
     if (n.kind === "event") return R.event;
+    if (n.kind === "year") return R.year;
     if (n.kind === "person") return R.person;
     return R.node;
   };
 
-  nodes.forEach((n, i) => {
-    const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
-    const cw = svg.clientWidth || W;
-    const ch = svg.clientHeight || H;
-    const rx = Math.max(30, cw * 0.36);
-    const ry = Math.max(30, ch * 0.36);
-    n.x = cw / 2 + Math.cos(angle) * rx;
-    n.y = ch / 2 + Math.sin(angle) * ry;
-  });
+  // 极坐标分层布局（确定性，不靠力导收敛出形态）：
+  // self 居中；年份在半径 R1 的内环按角度均分；同年内容在 R2 外环、
+  // 均匀铺在以年份角度为中心的扇区内。跨年锚点关联边因此基本不穿插。
+  function layoutRadial(w: number, h: number) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const short = Math.min(w, h);
+    // 年份贴中心的内环带，内容在外环带；带内位置由力导自由排布
+    const R1 = Math.max(70, Math.min(short * 0.18, w * 0.15));
+    const R2 = Math.max(150, Math.min(short * 0.44, w * 0.4));
+
+    const parentOf = new Map<string, string>();
+    for (const l of links) {
+      const dst = String(l.target);
+      if (dst !== "self") parentOf.set(dst, String(l.source));
+    }
+
+    const yearNodes = nodes.filter((n) => n.kind === "year");
+    const yearAngle = new Map<string, number>();
+    yearNodes.forEach((n, i) => {
+      const a =
+        (i / Math.max(yearNodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      yearAngle.set(n.id, a);
+      n.x = cx + Math.cos(a) * R1;
+      n.y = cy + Math.sin(a) * R1;
+    });
+
+    const selfN = nodes.find((n) => n.kind === "self");
+    if (selfN) {
+      selfN.x = cx;
+      selfN.y = cy;
+    }
+
+    // 内容按年份分组，同组在年份角度 ±0.5rad 的扇区内均分
+    const groups = new Map<string, typeof nodes>();
+    nodes
+      .filter((n) => n.kind !== "self" && n.kind !== "year")
+      .forEach((n) => {
+        const yid = parentOf.get(n.id) ?? "";
+        if (!groups.has(yid)) groups.set(yid, []);
+        groups.get(yid)!.push(n);
+      });
+    for (const [yid, group] of groups) {
+      const base = yearAngle.get(yid);
+      const span = Math.min(0.9, 0.28 + group.length * 0.12);
+      group.forEach((n, i) => {
+        const a =
+          group.length === 1
+            ? (base ?? 0)
+            : (base ?? 0) - span / 2 + (i / (group.length - 1)) * span;
+        n.x = cx + Math.cos(a) * R2;
+        n.y = cy + Math.sin(a) * R2;
+      });
+    }
+  }
+
+  layoutRadial(svg.clientWidth || W, svg.clientHeight || H);
+  // 环带半径跟随画布（fitViewBox 里 resize 时更新）
+  let bandR = { inner: 70, outer: 150 };
+  const syncBands = (w: number, h: number) => {
+    const short = Math.min(w, h);
+    bandR = {
+      inner: Math.max(70, Math.min(short * 0.18, w * 0.15)),
+      outer: Math.max(150, Math.min(short * 0.44, w * 0.4)),
+    };
+  };
+  syncBands(svg.clientWidth || W, svg.clientHeight || H);
 
   const NS = "http://www.w3.org/2000/svg";
 
@@ -847,6 +908,15 @@ const linkCount = links.length;
       shape.setAttribute("stroke", "var(--color-ed-bg)");
       shape.setAttribute("stroke-width", "3");
       g.appendChild(shape);
+    } else if (n.kind === "year") {
+      // 年：砖红空心圆，视觉权重要明显高于内容节点
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.year));
+      shape.setAttribute("fill", "var(--color-ed-bg)");
+      shape.setAttribute("stroke", "var(--color-ed-accent)");
+      shape.setAttribute("stroke-width", "2.2");
+      g.appendChild(shape);
     } else if (n.kind === "post") {
       const shape = document.createElementNS(NS, "circle");
       shape.setAttribute("class", "graph-node-shape");
@@ -873,7 +943,7 @@ const linkCount = links.length;
     label.setAttribute("text-anchor", "middle");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("y", String(sign * (r + 13)));
-    if (isSelf) label.style.fontWeight = "600";
+    if (isSelf || n.kind === "year") label.style.fontWeight = "600";
     label.textContent =
       n.title.length > maxLabelChars
         ? `${n.title.slice(0, maxLabelChars - 1)}…`
@@ -888,18 +958,52 @@ const linkCount = links.length;
 
   function kindLabel(kind: GraphNode["kind"]): string {
     return (
-      { post: "文章", person: "人物", event: "事件", self: "我" }[kind] ?? "节点"
+      { post: "文章", person: "人物", event: "事件", year: "年份", self: "我" }[kind] ?? "节点"
     );
   }
+
+  // 提前声明：ticked() 在 simulation.stop() 后立即调用，晚声明会踩 TDZ
+  let viewW = 0;
+  let viewH = 0;
+  // 标签宽度缓存：换字体 / 断点改变字号后重测一次，避免每帧读布局
+  let labelWidths: number[] = [];
+  function measureLabels() {
+    labelWidths = labelEls.map((l) => {
+      try {
+        return l.getComputedTextLength();
+      } catch {
+        return 0;
+      }
+    });
+  }
+  measureLabels();
 
   const simulation = forceSimulation(nodes as never)
     .force(
       "link",
       forceLink(links as never)
         .id((d: GraphNode) => d.id)
-        .distance(110)
+        // 分层边长：我—年 短、年—内容 长，层级自然内聚不穿插
+        .distance((l: { source: unknown; target: unknown }) => {
+          const sid = String((l.source as GraphNode)?.id ?? l.source);
+          const tid = String((l.target as GraphNode)?.id ?? l.target);
+          if (sid === "self" || tid === "self") return 70;
+          if (sid.startsWith("year-") || tid.startsWith("year-")) return 90;
+          return 60; // 内容之间的锚点关联边：短，表达「强关联」
+        })
     )
-    .force("charge", forceManyBody().strength(-300))
+    .force("charge", forceManyBody().strength(-160))
+    // 径向环带约束：self 固定圆心；年份被拉到内环带；内容拉到外环带。
+    // 力导在带内自由排布，形态自然但层级分明（对比静态定格的僵硬感）
+    .force(
+      "radial",
+      forceRadial(
+        (d: GraphNode) =>
+          d.kind === "self" ? 0 : d.kind === "year" ? bandR.inner : bandR.outer,
+        W / 2,
+        H / 2
+      ).strength(0.55)
+    )
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
     // "self" is pinned to the center
@@ -912,6 +1016,7 @@ const linkCount = links.length;
       forceY(H / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
     )
     .on("tick", ticked);
+  // 力导自动开跑：layoutRadial 提供的初始位置 + radial 环带约束收敛
 
   let resizeObserver: ResizeObserver | null = null;
 
@@ -979,21 +1084,6 @@ const linkCount = links.length;
     ];
   }
 
-  // 标签宽度缓存：换字体 / 断点改变字号后重测一次，避免每帧读布局
-  let labelWidths: number[] = [];
-  let viewW = 0;
-  let viewH = 0;
-  function measureLabels() {
-    labelWidths = labelEls.map((l) => {
-      try {
-        return l.getComputedTextLength();
-      } catch {
-        return 0;
-      }
-    });
-  }
-  measureLabels();
-
   function ticked() {
     linkEls.forEach((line, i) => {
       const l = links[i];
@@ -1060,38 +1150,32 @@ const linkCount = links.length;
         "y",
         forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
       );
-    // 画布尺寸变化时：边距/斥力按画布短边自适应，并把卫星节点重新散布到
-    // 以 self 为中心的环上（布局自然收敛，非 transform 跳变）
-    const short = Math.min(w, h);
+    // 画布尺寸变化时：用同一套极坐标分层布局重摆（比例随画布缩放），
+    // 力导只负责微调重叠，不再决定整体形态
+    layoutRadial(w, h);
     const linkForce = simulation.force("link") as {
       distance: (v: number) => unknown;
     } | null;
-    // 半径同时受短边和宽度约束：窄屏不至于把节点顶到画布边缘
-    linkForce?.distance(Math.max(90, Math.min(short * 0.4, w * 0.33)));
-    const others = nodes.filter((n) => n.kind !== "self");
-    const ringR = Math.max(40, Math.min(short * 0.3, w * 0.24));
-    const cx = w / 2;
-    const cy = h / 2;
-    const selfNode = nodes.find((n) => n.kind === "self");
-    if (selfNode) {
-      selfNode.x = cx;
-      selfNode.y = cy;
-      selfNode.fx = cx;
-      selfNode.fy = cy;
-    }
-    others.forEach((n, i) => {
-      const a = (i / Math.max(others.length, 1)) * Math.PI * 2;
-      n.x = cx + Math.cos(a) * ringR;
-      n.y = cy + Math.sin(a) * ringR;
+    const short = Math.min(w, h);
+    const scale = Math.max(90, Math.min(short * 0.4, w * 0.33)) / 110;
+    linkForce?.distance((l: { source: unknown; target: unknown }) => {
+      const sid = String((l.source as GraphNode)?.id ?? l.source);
+      const tid = String((l.target as GraphNode)?.id ?? l.target);
+      if (sid === "self" || tid === "self") return 70 * scale;
+      if (sid.startsWith("year-") || tid.startsWith("year-")) return 90 * scale;
+      return 60 * scale;
     });
-    if (prefersReducedMotion) {
-      // 不允许动效时直接把布局算完再画，不做可见的抖动动画
-      simulation.stop();
-      for (let i = 0; i < 280; i++) simulation.tick();
-      ticked();
-    } else {
-      simulation.alpha(0.6).restart();
-    }
+    // 画布变化：更新环带半径并让力导在新画布上重新收敛
+    syncBands(w, h);
+    layoutRadial(w, h);
+    simulation.force("center", forceCenter(w / 2, h / 2));
+    const radialForce = simulation.force("radial") as unknown as {
+      x: (v: number) => unknown;
+      y: (v: number) => unknown;
+    } | null;
+    radialForce?.x(w / 2);
+    radialForce?.y(h / 2);
+    simulation.alpha(0.5).restart();
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);
@@ -1405,7 +1489,7 @@ const linkCount = links.length;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         fitViewBox();
-        simulation.alpha(0.6).restart();
+        simulation.alpha(0.5).restart();
       })
     );
   }

@@ -6,6 +6,7 @@ import PrevNext from "../components/PrevNext.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 import Giscus from "../components/Giscus.astro";
 import Toc from "../components/Toc.astro";
+import ImageLightbox from "../components/ImageLightbox.astro";
 import { readingTime } from "../utils/readingTime";
 import { postPath, tagPath } from "../utils/urls";
 
@@ -228,6 +229,7 @@ const related = published
     class="hidden max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:bg-black/20"
     aria-hidden="true"
   ></div>
+  <ImageLightbox />
 </BaseLayout>
 
 <script>

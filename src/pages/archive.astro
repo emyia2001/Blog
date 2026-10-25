@@ -2,6 +2,8 @@
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import TagCloud from "../components/TagCloud.astro";
+import GraphView from "../components/GraphView.astro";
+import { buildGraphData } from "../utils/graphData";
 import { postPath } from "../utils/urls";
 
 const allPosts = await getCollection("posts");
@@ -55,25 +57,43 @@ for (const year of years) {
   byYear.get(year)!.sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
+// 关系图谱（原独立 /graph 页并入此处）。
+// 注意：self 节点必须保留——所有连线都以它为 source，forceLink 按 id 找不到会直接抛错
+const graphData = buildGraphData(allPosts, allMoments);
+const graphNodes = graphData.nodes;
+const graphLinks = graphData.links;
+
 const kindLabel = (k: Entry["kind"]) =>
   k === "post" ? "文章" : k === "person" ? "人物" : "事件";
 ---
 
 <BaseLayout title="归档" description="按时间倒序浏览全部文章、人物与事件。">
-  <div class="page-shell page-shell--medium">
+  <div class="page-shell">
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">归档 <small>Archive</small></h1>
         <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
       </div>
       <p class="page-head__meta">
-        {publishedPosts.length} 篇文章 · {publishedMoments.length} 条人物 / 事件
+        {publishedPosts.length} 篇文章 · {publishedMoments.length} 条人物 / 事件 ·
+        图谱 {graphNodes.length - 1} 节点 / {graphLinks.length} 连线
       </p>
     </header>
 
     <section class="mb-14 reveal" aria-labelledby="tag-cloud-label">
       <h2 class="section-label" id="tag-cloud-label">标签</h2>
       <TagCloud />
+    </section>
+
+    <section class="mb-14 reveal" aria-labelledby="graph-label">
+      <h2 class="section-label" id="graph-label">关系图谱</h2>
+      {graphNodes.length > 1 ? (
+        <div class="graph-tall">
+          <GraphView nodes={graphNodes} links={graphLinks} />
+        </div>
+      ) : (
+        <p class="empty-note">暂无内容。</p>
+      )}
     </section>
 
     <section aria-labelledby="all-content-label">
@@ -118,3 +138,16 @@ const kindLabel = (k: Entry["kind"]) =>
     </section>
   </div>
 </BaseLayout>
+
+<style>
+  /* 归档页整页宽度渲染图谱（原 /graph 页画布高度规则搬过来） */
+  .graph-tall {
+    --graph-h: clamp(24rem, 56vh, 38rem);
+  }
+
+  @media (max-width: 640px) {
+    .graph-tall {
+      --graph-h: 26rem;
+    }
+  }
+</style>
