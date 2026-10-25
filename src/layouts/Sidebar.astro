@@ -81,13 +81,13 @@ const related = published
            横屏把正文拉成 55+ 字/行的长条。 -->
       <article class="min-w-0 order-2 mx-auto w-full max-w-[47rem] lg:order-1" data-pagefind-body>
         <header class="mb-10">
-          <p class="page-kicker mb-4">
+          <p class="page-kicker mb-4 ed-in" style="--d: 100ms">
             ARTICLE · {tags[0] || "随笔"}
           </p>
-          <h1 id="article-top" class="font-serif text-3xl md:text-5xl leading-tight text-[var(--color-ed-fg)]">
+          <h1 id="article-top" class="font-serif text-3xl md:text-5xl leading-tight text-[var(--color-ed-fg)]" data-char-wipe>
             {title}
           </h1>
-          <div class="mt-4 flex items-center gap-3 text-xs text-[var(--color-ed-subtle)]">
+          <div class="mt-4 flex items-center gap-3 text-xs text-[var(--color-ed-subtle)] ed-in" style="--d: 700ms">
             <time datetime={date.toISOString()}>
               {date.toLocaleDateString("zh-CN", {
                 year: "numeric",
