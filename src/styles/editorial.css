@@ -419,13 +419,13 @@ a.page-head__aside:hover {
   font-size: 1.0625rem;
 }
 
-/* 标题层级：与正文明确区分——更大字号、700 字重、间距与分隔线 */
+/* 标题层级：期刊风——大标题居中衬线、上下留白 + 底部短线，正文标题保留左对齐竖线 */
 .prose h1 {
   scroll-margin-top: 5rem;
   font-size: 2.4rem;
   line-height: 1.25;
   font-weight: 700;
-  margin: 3em 0 1em;
+  margin: 2.6em 0 1em;
   padding-left: 0.8rem;
   border-left: 3px solid rgba(166, 58, 43, 0.85);
   border-bottom: 1px solid var(--color-ed-rule-strong);
@@ -450,6 +450,14 @@ a.page-head__aside:hover {
   font-weight: 700;
   margin: 1.9em 0 0.65em;
   color: var(--color-ed-fg);
+}
+
+/* h3 前的段落号花饰：呼应「本期第 N 节」的期刊感，弱化不抢戏 */
+.prose h3::before {
+  content: '§ ';
+  color: var(--color-ed-accent);
+  font-weight: 400;
+  opacity: 0.85;
 }
 
 .prose h4 {
@@ -477,9 +485,15 @@ a.page-head__aside:hover {
 .prose a {
   color: var(--color-ed-fg);
   text-decoration: underline;
-  text-decoration-color: var(--color-ed-subtle);
+  text-decoration-color: rgba(166, 58, 43, 0.5);
+  text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
-  transition: text-decoration-color 200ms ease;
+  transition: text-decoration-color 200ms ease, color 200ms ease;
+}
+
+.prose a:hover {
+  color: var(--color-ed-accent);
+  text-decoration-color: var(--color-ed-accent);
 }
 
 .prose a:hover {
@@ -488,11 +502,27 @@ a.page-head__aside:hover {
 
 .prose blockquote {
   border-left: 3px solid rgba(166, 58, 43, 0.55);
-  padding-left: 1.5em;
+  padding: 0.35em 0 0.35em 1.5em;
   margin: 2em 0;
   font-family: var(--font-serif);
+  font-style: italic;
   color: var(--color-ed-fg);
   font-size: 1.08em;
+}
+
+/* 期刊风正文分隔：三个菱形花饰，替代默认的孤线 */
+.prose hr {
+  border: none;
+  margin: 2.8em auto;
+  text-align: center;
+}
+
+.prose hr::before {
+  content: '❦';
+  display: block;
+  color: var(--color-ed-accent);
+  font-size: 1.2rem;
+  opacity: 0.8;
 }
 
 /* --- Code blocks: sit on warm paper, with a header bar + copy button --- */
@@ -590,7 +620,7 @@ a.page-head__aside:hover {
   padding: 0.12em 0.4em;
   border-radius: 0.3rem;
   background: rgba(28, 28, 28, 0.06);
-  color: var(--color-ed-fg);
+  color: var(--color-ed-accent);
 }
 
 .prose img {
@@ -603,8 +633,21 @@ a.page-head__aside:hover {
   color: var(--color-ed-subtle);
   text-align: center;
   margin-top: 0.5em;
+  letter-spacing: 0.04em;
 }
 
+/* 图注前缀花饰：印刷图版编号感（Fig. / 图） */
+.prose figcaption::before {
+  content: '◈ ';
+  color: var(--color-ed-accent);
+  opacity: 0.7;
+}
+
+.prose li::marker {
+  color: var(--color-ed-accent);
+}
+
+/* 中文书刊排印：标点悬挂微调，列表项标点靠砖红统一视觉锚 */
 .prose ul,
 .prose ol {
   padding-left: 1.5em;
@@ -619,11 +662,11 @@ a.page-head__aside:hover {
 .drop-cap::first-letter {
   float: left;
   font-family: var(--font-serif);
-  font-size: 3em;
-  line-height: 0.9;
-  padding-right: 0.12em;
-  padding-top: 0.02em;
-  color: var(--color-ed-fg);
+  font-size: 3.4em;
+  line-height: 0.85;
+  padding-right: 0.14em;
+  padding-top: 0.05em;
+  color: var(--color-ed-accent);
 }
 
 .drop-cap p:first-of-type {
