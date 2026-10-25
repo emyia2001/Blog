@@ -1,10 +1,13 @@
 ---
 /**
- * 相关文章迷你图谱：当前文章居中，相关文章环绕成环。
- * - 纯静态 SVG（无 d3 / 无交互脚本）：节点不带常驻文字，悬停显示名称
- * - 点击节点跳转对应文章；当前文章节点不可点
+ * 相关文章迷你图谱：复用 GraphView（懒初始化）。
+ * - 服务端只输出 SVG 骨架与数据 JSON，不抢首屏；
+ * - 浏览器空闲时 GraphView 脚本才拉 d3-force chunk 并渲染力导；
+ * - 节点悬停/点开显示名称，中心是当前文章，环绕的是相关文章。
  */
 import type { CollectionEntry } from "astro:content";
+import type { GraphLink, GraphNode } from "../utils/graphData";
+import GraphView from "./GraphView.astro";
 import { postPath } from "../utils/urls";
 
 interface Props {
@@ -14,96 +17,40 @@ interface Props {
 
 const { current, related } = Astro.props;
 
-// 画布与几何：相关文章不超过 3 篇（Sidebar 截取），环半径按数量微调
-const W = 260;
-const H = 170;
-const cx = W / 2;
-const cy = H / 2 + 6;
-const ring = 58;
-
-const satellites = related.map((p, i) => {
-  // 从正上方开始均分圆周
-  const a = (i / Math.max(related.length, 1)) * Math.PI * 2 - Math.PI / 2;
-  return {
+// 中心 = 当前文章（借用 self 形态：实心大点），环绕 = 相关文章（post 形态）
+const nodes: GraphNode[] = [
+  {
+    id: "self",
+    kind: "self",
+    title: current.data.title,
+    url: "",
+    contentIndex: -1,
+  },
+  ...related.map((p) => ({
+    id: p.id,
+    kind: "post" as const,
     title: p.data.title,
     url: postPath(p),
-    x: cx + Math.cos(a) * ring,
-    y: cy + Math.sin(a) * ring * 0.78, // 略压扁成椭圆，适配窄卡片
-  };
-});
+    contentIndex: -1,
+  })),
+];
+const links: GraphLink[] = related.map((p) => ({
+  source: "self",
+  target: p.id,
+}));
 ---
 
-<div class="mini-graph" role="group" aria-label="相关文章图谱">
-  <svg viewBox={`0 0 ${W} ${H}`} class="mini-graph__svg">
-    {satellites.map((s) => (
-      <line
-        x1={cx}
-        y1={cy}
-        x2={s.x}
-        y2={s.y}
-        class="mini-graph__link"
-        aria-hidden="true"
-      />
-    ))}
-    {satellites.map((s) => (
-      <a href={s.url} class="mini-graph__node">
-        <title>{s.title}</title>
-        <circle cx={s.x} cy={s.y} r="10" class="mini-graph__hit" />
-        <circle cx={s.x} cy={s.y} r="5.5" class="mini-graph__dot" />
-      </a>
-    ))}
-    <!-- 当前文章：中心实心点 -->
-    <g class="mini-graph__self">
-      <title>{current.data.title}</title>
-      <circle cx={cx} cy={cy} r="12" class="mini-graph__hit" />
-      <circle cx={cx} cy={cy} r="8" class="mini-graph__dot--self" />
-    </g>
-  </svg>
+<div class="minigraph">
+  <GraphView nodes={nodes} links={links} lazy />
 </div>
 
 <style>
-  .mini-graph__svg {
-    display: block;
-    width: 100%;
-    height: auto;
+  /* 侧栏卡片里的紧凑画幅；GraphView 高度走 --graph-h 变量 */
+  .minigraph {
+    --graph-h: 13rem;
   }
 
-  .mini-graph__link {
-    stroke: var(--color-ed-subtle);
-    stroke-width: 1;
-    stroke-dasharray: 3 3;
-    opacity: 0.7;
-  }
-
-  .mini-graph__dot {
-    fill: var(--color-ed-bg);
-    stroke: var(--color-ed-fg);
-    stroke-width: 1.5;
-    transition: fill 0.15s ease, stroke 0.15s ease;
-  }
-
-  .mini-graph__node {
-    cursor: pointer;
-    outline: none;
-  }
-
-  /* 命中区透明放大，悬停/聚焦不必精确瞄准小圆点 */
-  .mini-graph__hit {
-    fill: transparent;
-  }
-
-  .mini-graph__node:hover .mini-graph__dot,
-  .mini-graph__node:focus-visible .mini-graph__dot {
-    fill: var(--color-ed-accent);
-    stroke: var(--color-ed-accent);
-  }
-
-  .mini-graph__node:hover ~ .mini-graph__self .mini-graph__dot--self,
-  .mini-graph__dot--self {
-    fill: var(--color-ed-fg);
-  }
-
-  .mini-graph__self .mini-graph__hit {
-    fill: transparent;
+  .minigraph :global(.graph-hint) {
+    display: none; /* 卡片太小，提示语省略 */
   }
 </style>

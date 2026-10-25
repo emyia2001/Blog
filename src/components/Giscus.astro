@@ -74,6 +74,41 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
       { rootMargin: "400px 0px" }
     );
     io.observe(container);
+
+    // 折中预载：不占首屏带宽，但读者快看完了就提前把评论区拉起来，
+    // 滚到底时大概率已就绪。两个条件先到先触发，且只触发一次。
+    const article = document.querySelector(".prose");
+    let preloaded = false;
+    const preload = () => {
+      if (preloaded || container.dataset.loaded === "1") return;
+      preloaded = true;
+      io.disconnect();
+      loadGiscus();
+    };
+    if (article) {
+      // 条件 1：阅读进度超过 80%
+      const onScroll = () => {
+        const start = article.offsetTop;
+        const total = article.offsetHeight - window.innerHeight * 0.6;
+        if (total > 0 && window.scrollY - start > total * 0.8) {
+          window.removeEventListener("scroll", onScroll);
+          preload();
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      // 条件 2：停留满 15s（短文读者滚不到底，也给预载机会）
+      const timer = window.setTimeout(preload, 15000);
+      // 换页清理：旧页的滚动监听与定时器不再触发
+      document.addEventListener(
+        "astro:before-swap",
+        () => {
+          window.removeEventListener("scroll", onScroll);
+          window.clearTimeout(timer);
+          preloaded = true;
+        },
+        { once: true }
+      );
+    }
   }
 
   document.addEventListener("astro:page-load", setupLazyLoad);

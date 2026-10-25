@@ -4,15 +4,18 @@ import type { GraphLink, GraphNode } from "../utils/graphData";
 interface Props {
   nodes: GraphNode[];
   links: GraphLink[];
+  /** 懒初始化：脚本推迟到浏览器空闲再跑（d3-force chunk 也不占首屏）。
+   *  侧栏迷你图谱等非关键场景用；独立大图谱建议保持立即初始化。 */
+  lazy?: boolean;
 }
 
-const { nodes, links } = Astro.props;
+const { nodes, links, lazy = false } = Astro.props;
 const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 const nodeCount = nodes.length;
 const linkCount = links.length;
 ---
 
-<figure id="graph-view" class="graph-view">
+<figure id="graph-view" class="graph-view" data-lazy={lazy ? "1" : undefined}>
   <div class="graph-layout" id="graph-layout">
     <div class="graph-canvas">
       <svg
@@ -652,6 +655,7 @@ const linkCount = links.length;
 <script>
   import type { GraphLink, GraphNode } from "../utils/graphData";
 
+  async function initGraph() {
   const svg = document.querySelector<SVGSVGElement>("#graph-svg")!;
   const zoomG = document.querySelector<SVGGElement>("#graph-zoom")!;
   const linksG = document.querySelector<SVGGElement>("#graph-links")!;
@@ -1154,7 +1158,7 @@ const linkCount = links.length;
     // 力导只负责微调重叠，不再决定整体形态
     layoutRadial(w, h);
     const linkForce = simulation.force("link") as {
-      distance: (v: number) => unknown;
+      distance: (v: unknown) => unknown;
     } | null;
     const short = Math.min(w, h);
     const scale = Math.max(90, Math.min(short * 0.4, w * 0.33)) / 110;
@@ -1741,4 +1745,23 @@ const linkCount = links.length;
   window.addEventListener("timeline:select", clearActive, {
     signal: cleanupController.signal,
   });
+  }
+
+  // lazy 模式：等首屏空闲（或最长 2s 兜底）再初始化，d3-force 的动态
+  // import 也随之推迟；非 lazy 保持原来的立即执行。
+  const LAZY_INIT =
+    document.getElementById("graph-view")?.dataset.lazy === "1";
+  if (LAZY_INIT) {
+    const mount = document.getElementById("graph-view");
+    if (mount && mount.dataset.inited !== "1") {
+      mount.dataset.inited = "1";
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(() => void initGraph(), { timeout: 2000 });
+      } else {
+        window.setTimeout(() => void initGraph(), 1200);
+      }
+    }
+  } else {
+    void initGraph();
+  }
 </script>
