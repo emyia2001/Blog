@@ -712,7 +712,7 @@ const linkCount = links.length;
   );
   // 半径（事件的菱形按 L1 半径计）
   const R = {
-    self: 9 * nodeScale,
+    self: 6 * nodeScale, // 与文章点同量级（相关文章图谱里中心与环绕等大）
     avatarSelf: 8 * nodeScale,
     avatar: 6.5 * nodeScale,
     year: 6.5 * nodeScale, // 年
@@ -910,7 +910,7 @@ const linkCount = links.length;
       shape.setAttribute("r", String(R.self));
       shape.setAttribute("fill", "var(--color-ed-fg)");
       shape.setAttribute("stroke", "var(--color-ed-bg)");
-      shape.setAttribute("stroke-width", "3");
+      shape.setAttribute("stroke-width", "2");
       g.appendChild(shape);
     } else if (n.kind === "year") {
       // 年：砖红空心圆，视觉权重要明显高于内容节点
