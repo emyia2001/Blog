@@ -687,7 +687,9 @@ a.page-head__aside:hover {
    进度按正文位置计算（JS 控制 scaleX），停在导航栏下沿之下 */
 .ed-progress {
   position: fixed;
-  inset: 0 0 auto 0;
+  left: 0;
+  right: 0;
+  top: var(--nav-h, 66px); /* JS 会按实际导航高度更新 --nav-h */
   height: 2px;
   z-index: 90;
   background: var(--color-ed-accent);
