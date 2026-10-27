@@ -61,7 +61,7 @@ src/
 │   ├── ContributionHeatmap.astro GitHub 贡献热力图渲染
 │   ├── MiniPlayer.astro    背景音乐播放器（Web Component）
 │   ├── SearchModal.astro   搜索弹窗（Pagefind，Cmd/Ctrl+K）
-│   ├── Giscus.astro        评论区（主题 CSS 同源输出，滚到附近才加载）
+│   ├── Giscus.astro        评论区（主题 CSS 同源输出，点击「加载评论」才请求）
 │   ├── TagCloud.astro      标签云（可复用，按计数排序）
 │   ├── PrevNext.astro      文章上下篇导航
 │   ├── BackToTop.astro     回到顶部
