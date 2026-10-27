@@ -12,7 +12,7 @@
 ```
 
 - 前端在 `src/layouts/Sidebar.astro`(搜 `VIEW_API`),Worker 不可达时静默隐藏该展示位。
-- 来源白名单只放行 `blog.snark.casa` 与本地 dev;slug 只接受 `[a-z0-9-]+`。
+- 来源白名单只放行 `snarkm.com` 与本地 dev;slug 只接受 `[a-z0-9-]+`。
 - KV 最终一致,并发写入偶尔少计一两次,对阅读量无伤大雅。
 
 ## 部署(一次性,约 5 分钟)
@@ -25,7 +25,7 @@ npx wrangler kv namespace create VIEW_KV     # 输出的 id 填进 wrangler.json
 npx wrangler deploy
 ```
 
-若想绑定自定义域名(如 `views.blog.snark.casa`),在 Cloudflare Dashboard 给这个
+若想绑定自定义域名(如 `views.snarkm.com`),在 Cloudflare Dashboard 给这个
 Worker 加 Custom Domain,然后同步改 `Sidebar.astro` 里的 `VIEW_API`。
 
 ## 数据查看

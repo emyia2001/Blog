@@ -6,7 +6,7 @@
 ## 1. 项目速览
 
 - **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），纯静态站点，部署于 Cloudflare Pages（`git push` 自动构建）。
-- **线上地址**：`https://blog.snark.casa`（`astro.config.mjs` 的 `site` 从 `src/consts.ts` 的 `SITE_URL` 导入，唯一真源；不要再硬编码域名）。
+- **线上地址**：`https://snarkm.com`（`astro.config.mjs` 的 `site` 从 `src/consts.ts` 的 `SITE_URL` 导入，唯一真源；不要再硬编码域名）。
 - **技术栈**：Astro 5（`output: static`）+ MDX + Tailwind CSS v4（`@tailwindcss/vite`）+ Pagefind（全文搜索，构建后生成索引）+ astro-icon + d3-force（关系图谱）+ Giscus（评论）。
 - **Git 远程仓库**：`emyia2001/Blog`（GitHub）。**GitHub Actions 每日定时触发 Cloudflare 重建**，用于刷新构建期数据（如提交数）。
 

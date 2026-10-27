@@ -18,7 +18,7 @@ const ROOM_NAME = "global";
 export interface Env {
   ONLINE_COUNTER: DurableObjectNamespace;
   /**
-   * 逗号分隔的允许来源，如 "https://blog.snark.casa,http://localhost:4321"。
+   * 逗号分隔的允许来源，如 "https://snarkm.com,http://localhost:4321"。
    * 留空 = 不校验来源（仅建议本地调试时这样用）。
    */
   ALLOWED_ORIGINS?: string;

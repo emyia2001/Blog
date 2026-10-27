@@ -13,7 +13,7 @@ export interface Env {
 }
 
 const ALLOWED_ORIGINS = new Set([
-  "https://blog.snark.casa",
+  "https://snarkm.com",
   "http://localhost:4321",
 ]);
 
