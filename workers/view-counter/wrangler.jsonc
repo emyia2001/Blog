@@ -4,5 +4,8 @@
   "compatibility_date": "2026-01-01",
   // KV 命名空间需要先在 Dashboard（或 wrangler kv namespace create）建好，
   // 把下面 id 换成实际的 namespace id。
-  "kv_namespaces": [{ "binding": "VIEW_KV", "id": "bbb52f34df744511b752b794ef002a3f" }]
+  "kv_namespaces": [{ "binding": "VIEW_KV", "id": "bbb52f34df744511b752b794ef002a3f" }],
+
+  // 同域自定义域名：避免走 *.workers.dev（国内基本不可达，会让文章页挂一个超时请求）。
+  "routes": [{ "pattern": "views.snarkm.com", "custom_domain": true }]
 }

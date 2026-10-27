@@ -25,8 +25,9 @@ npx wrangler kv namespace create VIEW_KV     # 输出的 id 填进 wrangler.json
 npx wrangler deploy
 ```
 
-若想绑定自定义域名(如 `views.snarkm.com`),在 Cloudflare Dashboard 给这个
-Worker 加 Custom Domain,然后同步改 `Sidebar.astro` 里的 `VIEW_API`。
+自定义域名 `views.snarkm.com` 已写进 `wrangler.jsonc` 的 `routes`(`custom_domain: true`),
+`npx wrangler deploy` 时会一并绑定,不需要再去 Dashboard 手动加。前端在
+`Sidebar.astro` 里用的就是这个同域地址——不要改回 `*.workers.dev`,国内基本不可达。
 
 ## 数据查看
 
