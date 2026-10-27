@@ -101,15 +101,19 @@ export interface ContributionResult {
 }
 
 // 模块级缓存：dev 下首页每次请求都会重新渲染，没有缓存就等于每次都打 GitHub。
-// 失败结果也会被缓存（返回空网格），避免一次故障引发连续重试。
+// 只缓存成功结果：构建期只调用一次无所谓，但 dev 会常驻进程——一次网络抖动若被缓存，
+// 热力图会在整个会话里一直缺席（历史上就是这样丢了 2 天）。
 let cached: Promise<ContributionResult> | null = null;
 
 /**
  * 拉取最近约 26 周（半年）贡献网格。返回空数组表示获取失败（调用方留空即可）。
- * 同一构建进程内只请求一次。
+ * 成功结果在同一构建进程内只请求一次；失败不缓存，下一次请求会重试。
  */
 export function fetchContributions(): Promise<ContributionResult> {
-  cached ??= fetchContributionsUncached();
+  cached ??= fetchContributionsUncached().then((result) => {
+    if (!result.grid.length) cached = null;
+    return result;
+  });
   return cached;
 }
 
