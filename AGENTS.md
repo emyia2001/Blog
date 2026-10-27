@@ -39,10 +39,9 @@ src/
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
 ├── components/            Nav / Footer / GraphView / ContributionHeatmap /
 │                          MiniPlayer / SearchModal / Giscus /
-│                          TagCloud / Toc / PrevNext / BackToTop /
-│                          LatencyNote（首页首次访问延迟浮条）
+│                          TagCloud / Toc / PrevNext / BackToTop / MiniGraph
 ├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
-│                          left 近期笔墨 / right 关于·纪事·标签卡）/
+│                          left 近期笔墨 / right 关于·纪事卡）/
 │                          timeline.astro（纪事：person/event/diary 三类混排时间线）/
 │                          graph.astro（关系图谱独立页，只收 person/event）/ archive /
 │                          friends.astro（友链，数据在 src/data/friends.ts）/ tags/[tag].astro /

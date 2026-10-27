@@ -9,7 +9,7 @@ import Toc from "../components/Toc.astro";
 import ImageLightbox from "../components/ImageLightbox.astro";
 import MiniGraph from "../components/MiniGraph.astro";
 import { readingTime } from "../utils/readingTime";
-import { postPath, tagPath } from "../utils/urls";
+import { tagPath } from "../utils/urls";
 
 interface Props {
   post: CollectionEntry<"posts">;
@@ -83,9 +83,6 @@ const related = published
            横屏把正文拉成 55+ 字/行的长条。 -->
       <article class="min-w-0 order-2 mx-auto w-full max-w-[47rem] lg:order-1" data-pagefind-body>
         <header class="mb-10">
-          <p class="page-kicker mb-4 ed-in" style="--d: 100ms">
-            ARTICLE · {tags[0] || "随笔"}
-          </p>
           <h1 id="article-top" class="font-serif text-3xl md:text-5xl leading-tight text-[var(--color-ed-fg)]" data-char-wipe>
             {title}
           </h1>

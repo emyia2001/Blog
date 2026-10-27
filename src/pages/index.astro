@@ -4,9 +4,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
-import LatencyNote from "../components/LatencyNote.astro";
 import { fetchContributions } from "../utils/contributions";
-import { postPath, tagPath } from "../utils/urls";
+import { postPath } from "../utils/urls";
 import {
   SITE_NAME,
   SITE_AVATAR,
@@ -48,20 +47,6 @@ const fmtMonthDay = (d: Date) =>
 const fmtYearMonth = (d: Date) =>
   d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit" });
 
-// Issue numbering: 最新一篇 = 本期（第 N 期）
-const vol = String(Math.max(published.length, 1)).padStart(2, "0");
-// 每篇文章的固定刊号（倒序：最新 01）
-const issueOf = (id: string) =>
-  String(published.findIndex((p) => p.id === id) + 1).padStart(2, "0");
-
-// 标签计数
-const tagCounts = new Map<string, number>();
-for (const p of published) for (const t of p.data.tags) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
-const sortedTags = [...tagCounts.entries()].sort(
-  (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
-);
-
-const daysStr = String(daysNum).padStart(2, "0");
 ---
 
 <BaseLayout title="首页">
@@ -79,8 +64,6 @@ const daysStr = String(daysNum).padStart(2, "0");
               <div class="home-masthead__topline" aria-hidden="true"></div>
               <div class="home-kicker ed-in" style="--d: 120ms">
                 <span class="home-kicker__label">最新文章</span>
-                <span class="home-kicker__no">No.01</span>
-                <span class="home-kicker__vol">Vol. {vol} · 创站第 {daysStr} 天</span>
               </div>
               <a href={postPath(heroPost)} class="no-underline">
                 <h1 class="home-masthead__title" data-char-wipe>{heroPost.data.title}</h1>
@@ -97,9 +80,6 @@ const daysStr = String(daysNum).padStart(2, "0");
                   </>
                 )}
               </div>
-              <a href={postPath(heroPost)} class="home-masthead__cta ed-in" style="--d: 880ms">
-                阅读全文 →
-              </a>
             </div>
           </header>
         )}
@@ -123,18 +103,10 @@ const daysStr = String(daysNum).padStart(2, "0");
               class="home-post-row reveal"
               style={`--reveal-delay: ${i * 60}ms`}
             >
-              <span class="home-post-no">{issueOf(post.id)}</span>
               <span class="home-post-body">
                 <span class="home-post-title">{post.data.title}</span>
                 {post.data.excerpt && (
                   <span class="home-post-excerpt">{post.data.excerpt}</span>
-                )}
-                {post.data.tags?.length > 0 && (
-                  <span class="home-post-tags">
-                    {post.data.tags.slice(0, 3).map((tag) => (
-                      <span class="chip-inline">{tag}</span>
-                    ))}
-                  </span>
                 )}
               </span>
               <span class="home-post-meta">
@@ -162,15 +134,8 @@ const daysStr = String(daysNum).padStart(2, "0");
             />
             <div class="min-w-0">
               <span class="home-about-name">{SITE_NAME}</span>
-              <span class="home-about-tag">在数字缝隙里写字</span>
             </div>
           </div>
-          <p class="home-about-bio">
-            这里是 <strong class="font-semibold text-[var(--color-ed-fg)]">{SITE_NAME}</strong>
-            ——主要记录一些随笔、反思和笔记的个人空间。创建这个博客，是因为随着年龄增长，
-            曾经的兴趣爱好和生活方式都发生了变化，记忆已不足以完整记下发生过的事与走散的朋友，
-            所以想有一个地方来记录这些变化。
-          </p>
           <div class="home-about-stats">
             <div class="home-stat">
               <span class="home-stat__num">{published.length}</span>
@@ -224,31 +189,10 @@ const daysStr = String(daysNum).padStart(2, "0");
             ))}
           </div>
         )}
-
-        <!-- 标签 -->
-        {sortedTags.length > 0 && (
-          <div class="home-side-card reveal" style="--reveal-delay: 160ms">
-            <div class="home-side-label">标签 · Tags</div>
-            <div class="flex flex-wrap gap-2">
-              {sortedTags.map(([tag, count]) => (
-                <a
-                  href={tagPath(tag)}
-                  class="tag-chip"
-                >
-                  {tag}
-                  <b aria-hidden="true">{count}</b>
-                  <span class="sr-only">{count} 篇</span>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
       </aside>
     </div>
   </div>
 
-  <!-- 首次访问（每会话一次）在左下角提示一次本站响应延迟 -->
-  <LatencyNote />
   <!-- 逐字擦除与进度条脚本已上移至 BaseLayout（全站共享） -->
 </BaseLayout>
 

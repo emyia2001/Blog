@@ -28,10 +28,10 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
       </div>
     </header>
 
-    <section class="mb-14" aria-labelledby="friends-label">
-      <h2 class="section-label section-label--plain" id="friends-label">友链</h2>
+    {FRIENDS.length > 0 && (
+      <section class="mb-14" aria-labelledby="friends-label">
+        <h2 class="sr-only" id="friends-label">友链</h2>
 
-      {FRIENDS.length > 0 ? (
         <ul class="friend-grid">
           {FRIENDS.map((friend) => (
             <li>
@@ -64,10 +64,8 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
             </li>
           ))}
         </ul>
-      ) : (
-        <p class="friend-empty">友链位开放中，欢迎交换。</p>
-      )}
-    </section>
+      </section>
+    )}
 
     <section aria-labelledby="site-info-label">
       <h2 class="section-label section-label--plain" id="site-info-label">本站信息</h2>
@@ -103,14 +101,6 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 </BaseLayout>
 
 <style>
-  /* 这一页只用页头一条结构线，区块标题不再画延伸线 */
-  .section-label.section-label--plain::after {
-    display: none;
-  }
-  .section-label.section-label--plain {
-    margin-bottom: 0.9rem;
-  }
-
   .friend-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -184,13 +174,6 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
     overflow-wrap: anywhere;
     font-size: 0.6875rem;
     color: var(--color-ed-subtle);
-  }
-
-  .friend-empty {
-    margin: 0;
-    padding: 1.25rem 0;
-    font-size: 0.875rem;
-    color: var(--color-ed-muted);
   }
 
   .friend-info {

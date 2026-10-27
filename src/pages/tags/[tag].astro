@@ -52,7 +52,6 @@ const posts = allPosts
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span class="entry-row__title">{post.data.title}</span>
-              <span class="kind-chip entry-row__kind">文章</span>
               <time class="entry-row__date" datetime={post.data.date.toISOString()}>
                 {post.data.date.toLocaleDateString("zh-CN", {
                   year: "numeric",
