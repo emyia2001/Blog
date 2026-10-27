@@ -1,0 +1,42 @@
+name: Deploy worker
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 每天 UTC 21:30（北京时间约 05:30）；非整点避开 Actions 调度拥堵。
+    # 定时重建用于刷新构建期数据（GitHub 贡献热力图）。
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          GITHUB_CONTRIB_TOKEN: ${{ secrets.GITHUB_CONTRIB_TOKEN }}
+        run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
