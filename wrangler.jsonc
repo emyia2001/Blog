@@ -1,0 +1,17 @@
+{
+  // 站点以 Workers 静态资源方式部署（不是 Pages）：
+  // `npm run build` 产物 dist/ 整体上传，运行时由 env.ASSETS 直接服务。
+  "name": "blog",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  },
+
+  // 主域直接给博客。旧域名 snark.casa 已弃用（2026-10-30 到期，不再续费）；
+  // 若还想让旧域名多撑几天，临时加回一条：
+  // { "pattern": "blog.snark.casa", "custom_domain": true }
+  "routes": [{ "pattern": "snarkm.com", "custom_domain": true }]
+}
