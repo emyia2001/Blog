@@ -36,12 +36,10 @@
 
     <p id="search-status" class="sr-only" role="status" aria-live="polite"></p>
 
-    <div id="search-results" class="search-results">
-      <p class="search-empty">输入关键词开始搜索文章与纪事。</p>
-    </div>
+    <div id="search-results" class="search-results"></div>
 
-    <div class="search-footer">
-      <span id="search-count" class="search-count">文章 · 纪事</span>
+    <div class="search-footer" hidden>
+      <span id="search-count" class="search-count"></span>
     </div>
   </div>
 </div>
@@ -61,7 +59,8 @@
   const FOCUSABLE =
     'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-  const PROMPT = "输入关键词开始搜索文章与纪事。";
+  // 空闲态不写提示语：输入框 placeholder 已经说明能搜什么，再加一句是重复
+  const PROMPT = "";
   const LOADING = "正在载入搜索索引…";
 
   function trapFocus(e: KeyboardEvent) {
@@ -90,6 +89,7 @@
       results: document.getElementById("search-results"),
       status: document.getElementById("search-status"),
       count: document.getElementById("search-count"),
+      footer: document.querySelector<HTMLElement>(".search-footer"),
     };
   }
 
@@ -99,8 +99,10 @@
   }
 
   function setCount(text: string) {
-    const { count } = getRefs();
+    const { count, footer } = getRefs();
     if (count) count.textContent = text;
+    // 没有可说的计数就不留一条空横杠
+    if (footer) footer.hidden = !text;
   }
 
   // Pagefind 的 excerpt 是带 <mark> 的 HTML：只保留文本与 mark，其余标签一律丢掉
@@ -130,12 +132,15 @@
   function setMessage(message: string, countText?: string) {
     const { results } = getRefs();
     if (!results) return;
-    const p = document.createElement("p");
-    p.className = "search-empty";
-    p.textContent = message;
-    results.replaceChildren(p);
-    setCount(countText ?? "文章 · 纪事");
-    announce(message);
+    results.replaceChildren();
+    if (message) {
+      const p = document.createElement("p");
+      p.className = "search-empty";
+      p.textContent = message;
+      results.appendChild(p);
+      announce(message);
+    }
+    setCount(countText ?? "");
   }
 
   async function loadSearch() {

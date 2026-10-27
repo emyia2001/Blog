@@ -65,9 +65,9 @@ src/
 │   ├── TagCloud.astro      标签云（可复用，按计数排序）
 │   ├── PrevNext.astro      文章上下篇导航
 │   ├── BackToTop.astro     回到顶部
-│   └── LatencyNote.astro   首次访问延迟浮条（每会话一次，左下角）
+│   └── MiniGraph.astro     文章页相关文章迷你图谱
 ├── pages/
-│   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事/标签卡）
+│   ├── index.astro         首页：报头头条 + 双栏（近期笔墨 | 关于/纪事卡）
 │   ├── timeline.astro      纪事：单条时间线（person/event/diary 混排，
 │   │                        点轴点展开正文，右侧固定时间轴）
 │   ├── graph.astro         关系图谱（独立页，整页宽）

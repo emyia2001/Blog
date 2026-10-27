@@ -1,7 +1,6 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import TagCloud from "../components/TagCloud.astro";
 import GraphView from "../components/GraphView.astro";
 import { buildGraphData } from "../utils/graphData";
 import { postPath } from "../utils/urls";
@@ -65,6 +64,10 @@ const graphLinks = graphData.links;
 
 const kindLabel = (k: Entry["kind"]) =>
   k === "post" ? "文章" : k === "person" ? "人物" : "事件";
+
+// 只有混合类型时标签才有信息量：全是文章时每行都标「文章」等于没标
+const momentsCount = publishedMoments.length;
+const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
 ---
 
 <BaseLayout title="归档" description="按时间倒序浏览全部文章、人物与事件。">
@@ -72,18 +75,15 @@ const kindLabel = (k: Entry["kind"]) =>
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">归档 <small>Archive</small></h1>
-        <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
+        <div class="flex items-baseline gap-5">
+          <a href="/tags/" class="page-head__aside">全部标签 →</a>
+          <a href="/timeline/" class="page-head__aside">纪事时间线 →</a>
+        </div>
       </div>
       <p class="page-head__meta">
-        {publishedPosts.length} 篇文章 · {publishedMoments.length} 条人物 / 事件 ·
-        图谱 {graphNodes.length - 1} 节点 / {graphLinks.length} 连线
+        {publishedPosts.length} 篇文章{momentsCount > 0 && <> · {momentsCount} 条人物 / 事件</>}
       </p>
     </header>
-
-    <section class="mb-14 reveal" aria-labelledby="tag-cloud-label">
-      <h2 class="section-label" id="tag-cloud-label">标签</h2>
-      <TagCloud />
-    </section>
 
     <section class="mb-14 reveal" aria-labelledby="graph-label">
       <h2 class="section-label" id="graph-label">关系图谱</h2>
@@ -97,7 +97,7 @@ const kindLabel = (k: Entry["kind"]) =>
     </section>
 
     <section aria-labelledby="all-content-label">
-      <h2 class="section-label" id="all-content-label">全部内容</h2>
+      <h2 class="sr-only" id="all-content-label">全部内容</h2>
 
       {years.length === 0 ? (
         <p class="empty-note">暂无内容。</p>
@@ -116,9 +116,11 @@ const kindLabel = (k: Entry["kind"]) =>
                   <a href={e.url} class="entry-row">
                     <span class="entry-row__no">{entryNo.get(e)}</span>
                     <span class="entry-row__title">{e.title}</span>
-                    <span class="kind-chip entry-row__kind">
-                      {kindLabel(e.kind)}
-                    </span>
+                    {mixedKinds && (
+                      <span class="kind-chip entry-row__kind">
+                        {kindLabel(e.kind)}
+                      </span>
+                    )}
                     <time
                       class="entry-row__date"
                       datetime={e.date.toISOString()}
