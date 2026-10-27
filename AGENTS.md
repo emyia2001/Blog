@@ -96,6 +96,14 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 ## 6. 设计与样式约定
 
+### 6.1 文案减法原则（默认删，不默认加）
+
+- **默认删多余的标语、说明文字和次要标签**：新增或修改界面时，先假设这些字都是不必要的——重复页头/导航已有信息的副标题、解释「这是什么」的旁白小字、装饰性 kicker/eyebrow、双语重复标签、读者不看的辅助元信息（时间戳外的统计、免责/占位文案等）。能删就删，不要「留着更保险」。
+- **判定标准是删完能不能看懂**，不是「有没有说明」：删掉后用户仍一眼看懂「这是什么、能做什么、下一步点哪里」，即为正确。
+- **如果删完看不懂，说明设计本身有问题，应当重新设计**（改信息层级、布局、命名、视觉分组），**而不是把这句说明再加回来**。补说明文字只能掩盖结构缺陷，是本仓库明确的返工信号——不要用文案给设计打补丁。
+- 不在删除范围内的：品牌与身份（刊名、站名、页脚署名）、功能必需（导航、按钮、表单标签、空状态/错误提示），以及无障碍文本（`aria-label`、`alt`、`title`）——这些删了才是缺陷。
+- 落地检查见 §7.2「改布局/组件/交互」中的减法自查项。
+
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
 - 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档/友链，无「关于」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；**CORS 头必须由 `public/_headers` 的 `/giscus-theme.css` 规则提供**（`output: static` 会丢掉 endpoint 的 Response 头，缺 ACAO 时 giscus 回退默认 light 主题、评论区整块发白）；评论区还做了「滚到附近才加载」。
@@ -120,6 +128,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - [ ] 改文章日期/新增文章后：首页列表、`/archive`、`/tags`、侧边相关文章顺序符合预期
 
 **改布局/组件/交互（Nav、Sidebar、搜索、图谱、移动端、ViewTransitions、MiniPlayer）**
+- [ ] 文案减法（§6.1）：本页新加和既有的标语/说明小字/次要标签是否都试删过；删后仍一眼看懂才算过。若靠说明文字才看懂，别补文案，回去改信息层级
 - [ ] **桌面 + 移动端**都过一遍：菜单抽屉 / 目录 / 搜索弹窗在**站内跳转后**仍可点开（历史回归点）
 - [ ] 搜索：`npm run build` 后（Pagefind 索引存在）在 `/` 上搜到新增内容；**纪事（person/event）正文也要能搜到**（索引来自 `/timeline` 里的隐藏 `data-pagefind-body` 区块，日记按约定不入索引）；dev 下提示「索引尚未生成」属正常
 - [ ] 图谱（/graph）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放/放大全屏正常；改过 `graph.enabled/name` 的条目已复查
