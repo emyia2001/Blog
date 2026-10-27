@@ -57,15 +57,25 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
     container.dataset.loaded = "1";
   }
 
-  // 事件委托：View Transitions 换页后 #giscus 是新的节点，监听器挂在 document 上才不会丢。
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const trigger = target.closest("[data-giscus-load]");
-    if (!trigger) return;
-    trigger.remove();
-    loadGiscus();
-  });
+  // 事件委托：监听器挂在 document 上，View Transitions 换页后 #giscus 是新的节点也不会失联。
+  // 用 window 上的标记去重——脚本在站内跳转后可能被再次执行，重复绑定会积累监听器。
+  const BOUND_FLAG = "__giscusClickBound";
+  function bindTrigger() {
+    const w = window as unknown as Record<string, boolean>;
+    if (w[BOUND_FLAG]) return;
+    w[BOUND_FLAG] = true;
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const trigger = target.closest("[data-giscus-load]");
+      if (!trigger) return;
+      trigger.remove();
+      loadGiscus();
+    });
+  }
+
+  bindTrigger();
+  document.addEventListener("astro:page-load", bindTrigger);
 </script>
 
 <style>
