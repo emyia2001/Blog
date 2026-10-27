@@ -52,11 +52,11 @@ npx wrangler login          # 浏览器授权；CI 环境改用 CLOUDFLARE_API_T
 ### 2. 确认白名单
 
 打开 `wrangler.jsonc` 的 `vars.ALLOWED_ORIGINS`，确认包含博客正式域名（默认已含
-`https://blog.snark.casa`）：
+`https://snarkm.com`）：
 
 ```jsonc
 "vars": {
-  "ALLOWED_ORIGINS": "https://blog.snark.casa,http://localhost:4321"
+  "ALLOWED_ORIGINS": "https://snarkm.com,http://localhost:4321"
 }
 ```
 
@@ -68,18 +68,18 @@ npx wrangler login          # 浏览器授权；CI 环境改用 CLOUDFLARE_API_T
 npx wrangler deploy
 # 输出里会给出 https://online-counter.<你的子域>.workers.dev
 
-curl -H "Origin: https://blog.snark.casa" https://online-counter.<你的子域>.workers.dev/count
+curl -H "Origin: https://snarkm.com" https://online-counter.<你的子域>.workers.dev/count
 # → {"online":0}
 ```
 
 ### 4. 绑一个自定义域名（推荐）
 
-`*.workers.dev` 在国内经常被墙，而 `blog.snark.casa` 本身就过 Cloudflare，走同 zone 的自定义域名最稳。
+`*.workers.dev` 在国内经常被墙，而 `snarkm.com` 本身就过 Cloudflare，走同 zone 的自定义域名最稳。
 
 Dashboard → **Workers & Pages → online-counter → Settings → Domains & Routes → Add → Custom domain**
-→ 填 `online.snark.casa`（会自动建对应 DNS 记录）。
+→ 填 `online.snarkm.com`（会自动建对应 DNS 记录）。
 
-完成后 `https://online.snark.casa/count` 应返回 `{"online":0}`。
+完成后 `https://online.snarkm.com/count` 应返回 `{"online":0}`。
 
 ### 5. 接到博客上
 
@@ -125,7 +125,7 @@ Workers 免费版含 Durable Objects（SQLite 后端）与 WebSocket；本方案
 # 1. 部署 Worker（首次要 wrangler login）
 cd workers/online-counter && npm install && npx wrangler login && npx wrangler deploy
 
-# 2. 绑自定义域名（Dashboard 操作，可选但推荐）：online.snark.casa
+# 2. 绑自定义域名（Dashboard 操作，可选但推荐）：online.snarkm.com
 
 # 3. 组件放回 src/
 cp workers/online-counter/frontend/OnlineNow.astro /root/blog/src/components/
@@ -135,7 +135,7 @@ cp workers/online-counter/frontend/OnlineNow.astro /root/blog/src/components/
 
    ```ts
    // 页脚实时在线人数：地址留空 = 不显示；Worker 连不上时该行保持隐藏
-   export const ONLINE_COUNTER_WS = "wss://online.snark.casa/ws";
+   export const ONLINE_COUNTER_WS = "wss://online.snarkm.com/ws";
    ```
 
 5. `src/components/Footer.astro` 挂载：

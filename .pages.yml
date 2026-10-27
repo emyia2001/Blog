@@ -39,7 +39,7 @@ content:
       - name: heroImage
         label: 封面图 URL
         type: string
-        help: "可填 img.snark.casa 外链；留空则无封面"
+        help: "可填 img.snarkm.com 外链；留空则无封面"
       - name: articleLayout
         label: 布局
         type: select
@@ -132,7 +132,7 @@ content:
         label: 封面图 URL
         type: string
         required: false
-        help: "可填 img.snark.casa 外链；留空则无封面"
+        help: "可填 img.snarkm.com 外链；留空则无封面"
       - name: draft
         label: 草稿
         type: boolean
