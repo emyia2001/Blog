@@ -30,7 +30,7 @@ const isActivePath = (href: string) => {
 ---
 
 <nav
-  class="sticky top-0 z-40 border-b border-[var(--color-ed-rule)]"
+  class="site-nav sticky top-0 z-40 border-b border-[var(--color-ed-rule)]"
   style="background: var(--color-ed-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); view-transition-name: site-nav;"
   aria-label="站点导航"
 >
@@ -137,24 +137,40 @@ const isActivePath = (href: string) => {
   </div>
 
 <style>
+  /* 向下滚动收起、向上滚动露出（由脚本切换 .is-hidden） */
+  .site-nav {
+    transition: transform 320ms var(--ease-ed);
+  }
+  .site-nav.is-hidden {
+    transform: translateY(-100%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .site-nav {
+      transition: none;
+    }
+  }
+
   /* 桌面导航：下划线随 hover/当前页展开，当前页用砖红点出 */
   .nav-link {
     position: relative;
     display: inline-block;
-    padding-block: 0.4rem;
+    padding: 0.4rem 0.7rem;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
     color: var(--color-ed-muted);
     text-decoration: none;
     white-space: nowrap;
-    transition: color 180ms ease;
+    border-radius: 6px;
+    transition:
+      color 180ms ease,
+      background-color 220ms ease;
   }
   .nav-link::after {
     content: '';
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0.1rem;
+    left: 0.7rem;
+    right: 0.7rem;
+    bottom: 0.35rem;
     height: 1px;
     background: var(--color-ed-accent);
     transform: scaleX(0);
@@ -163,6 +179,7 @@ const isActivePath = (href: string) => {
   }
   .nav-link:hover {
     color: var(--color-ed-fg);
+    background: rgba(28, 28, 28, 0.04);
   }
   .nav-link:hover::after,
   .nav-link.is-active::after {
@@ -170,6 +187,7 @@ const isActivePath = (href: string) => {
   }
   .nav-link.is-active {
     color: var(--color-ed-accent);
+    background: rgba(166, 58, 43, 0.06);
   }
   .nav-link--button {
     border: 0;
@@ -197,10 +215,14 @@ const isActivePath = (href: string) => {
     cursor: pointer;
     transition:
       color 180ms ease,
-      border-color 180ms ease;
+      border-color 180ms ease,
+      background-color 220ms ease,
+      transform 200ms var(--ease-ed);
   }
   .nav-drawer-link:hover {
     color: var(--color-ed-accent);
+    background: rgba(166, 58, 43, 0.06);
+    transform: translateX(3px);
   }
   .nav-drawer-link.is-active {
     color: var(--color-ed-accent);
@@ -278,6 +300,41 @@ const isActivePath = (href: string) => {
       closeDrawer();
       document.dispatchEvent(new CustomEvent("open-search"));
     }
+  });
+
+  // 向下滚动时收起导航、向上滚动时露出：按累计滚动量判断，慢速滚动也能触发
+  let lastScrollY = window.scrollY;
+  let scrollAcc = 0;
+  function setNavHidden(hidden: boolean) {
+    document.querySelector(".site-nav")?.classList.toggle("is-hidden", hidden);
+    document.documentElement.classList.toggle("nav-hidden", hidden);
+  }
+  window.addEventListener(
+    "scroll",
+    () => {
+      const y = window.scrollY;
+      const dy = y - lastScrollY;
+      lastScrollY = y;
+      if (y < 80) {
+        scrollAcc = 0;
+        setNavHidden(false);
+        return;
+      }
+      if (dy * scrollAcc < 0) scrollAcc = 0;
+      scrollAcc += dy;
+      if (scrollAcc > 24 && document.body.style.overflow !== "hidden") setNavHidden(true);
+      else if (scrollAcc < -12) setNavHidden(false);
+    },
+    { passive: true }
+  );
+  // 键盘聚焦进导航时必须露出；换页后状态重置
+  document.addEventListener("focusin", (e) => {
+    if ((e.target as HTMLElement | null)?.closest?.(".site-nav")) setNavHidden(false);
+  });
+  document.addEventListener("astro:page-load", () => {
+    lastScrollY = window.scrollY;
+    scrollAcc = 0;
+    setNavHidden(false);
   });
 
   // Escape 关闭(委托到 document,天然跨 VT 存活)

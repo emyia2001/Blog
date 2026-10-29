@@ -420,17 +420,27 @@ const linkCount = links.length;
     border-radius: 4px;
   }
   :global(.graph-node) {
-    transition: opacity 0.25s ease;
+    transition:
+      opacity 0.25s ease,
+      transform 0.28s var(--ease-ed);
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+  :global(.graph-node.is-hover) {
+    transform: scale(1.15);
   }
   :global(.graph-node-halo) {
     fill: none;
     stroke: rgba(166, 58, 43, 0);
     stroke-width: 1.2;
-    transition: stroke 0.2s ease;
+    transition:
+      stroke 0.2s ease,
+      stroke-width 0.28s var(--ease-ed);
   }
   :global(.graph-node.is-hover .graph-node-halo),
   :global(.graph-node.is-active .graph-node-halo) {
     stroke: rgba(166, 58, 43, 0.55);
+    stroke-width: 2;
   }
   :global(.graph-node.is-active .graph-node-halo) {
     stroke: var(--color-ed-accent);
@@ -472,7 +482,8 @@ const linkCount = links.length;
   :global(.graph-link) {
     transition:
       opacity 0.25s ease,
-      stroke 0.25s ease;
+      stroke 0.25s ease,
+      stroke-width 0.28s var(--ease-ed);
   }
   :global(.graph-link--self) {
     stroke: rgba(28, 28, 28, 0.24);
@@ -484,6 +495,7 @@ const linkCount = links.length;
   }
   :global(.graph-link.is-hot) {
     stroke: var(--color-ed-accent);
+    stroke-width: 2.2;
   }
 
   @keyframes graph-in {
