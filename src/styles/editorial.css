@@ -261,10 +261,38 @@ a.page-head__aside:hover {
   padding: 1.05rem 0.5rem;
   color: var(--color-ed-fg);
   text-decoration: none;
-  transition: background-color 180ms ease;
+  transition:
+    background-color 180ms ease,
+    transform 280ms var(--ease-ed),
+    box-shadow 280ms var(--ease-ed);
 }
-.entry-row:hover {
-  background: rgba(28, 28, 28, 0.03);
+.entry-row {
+  position: relative;
+}
+.entry-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-ed-accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 480ms var(--ease-ed);
+}
+.entry-row:hover,
+.entry-row:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+}
+.entry-row:hover::after,
+.entry-row:focus-visible::after {
+  transform: scaleX(1);
+}
+.entry-row:focus-visible .entry-row__title,
+.entry-row:focus-visible .entry-row__no {
+  color: var(--color-ed-accent);
 }
 .entry-row__no {
   font-family: var(--font-serif);
@@ -291,6 +319,10 @@ a.page-head__aside:hover {
   color: var(--color-ed-subtle);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: color 280ms ease;
+}
+.entry-row:hover .entry-row__date {
+  color: var(--color-ed-accent);
 }
 @media (max-width: 640px) {
   .entry-row {
@@ -335,23 +367,32 @@ a.page-head__aside:hover {
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   background: rgba(28, 28, 28, 0.07);
+  border: 1px solid transparent;
   color: var(--color-ed-muted);
   font-size: 0.6875rem;
   letter-spacing: 0.04em;
   text-decoration: none;
   transition:
-    color 180ms ease,
-    background-color 180ms ease;
+    color 240ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease,
+    transform 320ms var(--ease-ed);
 }
 .tag-chip:hover {
   color: var(--color-ed-accent);
   background: rgba(166, 58, 43, 0.1);
+  border-color: rgba(166, 58, 43, 0.25);
+  transform: translateY(-1px) rotate(-1deg);
 }
 .tag-chip b {
   font-size: 0.6875rem;
   font-weight: 400;
   color: var(--color-ed-muted);
   font-variant-numeric: tabular-nums;
+  transition: transform 240ms var(--ease-ed);
+}
+.tag-chip:hover b {
+  transform: scale(1.08);
 }
 
 /* 空状态：列表页/搜索共用的「没内容」排版 */
@@ -367,11 +408,11 @@ a.page-head__aside:hover {
    new page rises in from below while the old one fades out upward.
    Same expo-out easing as the rest of the site. */
 ::view-transition-old(root) {
-  animation: page-out 240ms ease-out both;
+  animation: page-out 140ms ease-out both;
 }
 
 ::view-transition-new(root) {
-  animation: page-in 340ms var(--ease-ed) both;
+  animation: page-in 420ms var(--ease-ed) both;
 }
 
 /* 导航栏在换页时保持静止（不参与 root 的上浮过渡），只有下方内容过渡。
@@ -391,7 +432,7 @@ a.page-head__aside:hover {
   }
   to {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(0);
   }
 }
 
@@ -427,14 +468,12 @@ a.page-head__aside:hover {
 
 .prose h2 {
   scroll-margin-top: 5rem;
-  font-size: 1.9rem;
+  font-size: 1.75rem;
   line-height: 1.3;
   font-weight: 700;
-  margin: 2.8em 0 1em;
-  padding-left: 0.8rem;
-  border-left: 3px solid rgba(166, 58, 43, 0.7);
-  border-bottom: 1px solid var(--color-ed-rule-strong);
-  padding-bottom: 0.45em;
+  margin: 3em 0 1em;
+  padding-top: 0.9em;
+  border-top: 1px solid var(--color-ed-rule-strong);
 }
 
 .prose h3 {
@@ -443,14 +482,6 @@ a.page-head__aside:hover {
   font-weight: 700;
   margin: 1.9em 0 0.65em;
   color: var(--color-ed-fg);
-}
-
-/* h3 前的段落号花饰：呼应「本期第 N 节」的期刊感，弱化不抢戏 */
-.prose h3::before {
-  content: '§ ';
-  color: var(--color-ed-accent);
-  font-weight: 400;
-  opacity: 0.85;
 }
 
 .prose h4 {
@@ -511,11 +542,12 @@ a.page-head__aside:hover {
 }
 
 .prose hr::before {
-  content: '❦';
+  content: '';
   display: block;
-  color: var(--color-ed-accent);
-  font-size: 1.2rem;
-  opacity: 0.8;
+  width: 3rem;
+  height: 1px;
+  margin-inline: auto;
+  background: var(--color-ed-rule-strong);
 }
 
 /* --- Code blocks: sit on warm paper, with a header bar + copy button --- */
@@ -581,22 +613,34 @@ a.page-head__aside:hover {
   transition:
     color 200ms ease,
     border-color 200ms ease,
-    background-color 200ms ease;
+    background-color 200ms ease,
+    transform 200ms var(--ease-ed);
 }
 
 .code-block__copy:hover {
   color: var(--color-ed-fg);
   border-color: var(--color-ed-fg);
+  transform: translateY(-1px);
 }
 
 .code-block__copy:active {
-  transform: translateY(1px);
+  transform: translateY(0) scale(0.97);
 }
 
 .code-block__copy.is-copied {
   color: var(--color-ed-bg);
   background: var(--color-ed-accent);
   border-color: var(--color-ed-accent);
+  animation: copy-success 420ms var(--ease-ed);
+}
+
+@keyframes copy-success {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
 }
 
 /* When wrapped, the pre loses its own outer margin/radius (bar owns the top) */
@@ -627,13 +671,6 @@ a.page-head__aside:hover {
   text-align: center;
   margin-top: 0.5em;
   letter-spacing: 0.04em;
-}
-
-/* 图注前缀花饰：印刷图版编号感（Fig. / 图） */
-.prose figcaption::before {
-  content: '◈ ';
-  color: var(--color-ed-accent);
-  opacity: 0.7;
 }
 
 .prose li::marker {
@@ -685,6 +722,13 @@ a.page-head__aside:hover {
 body:has(.prose) .ed-progress {
   visibility: visible;
 }
+/* 导航收起后进度条贴到视口顶部 */
+.ed-progress {
+  transition: top 320ms var(--ease-ed);
+}
+html.nav-hidden .ed-progress {
+  top: 0;
+}
 
 /* --- Drop cap --- */
 .drop-cap::first-letter {  float: left;
@@ -704,7 +748,7 @@ body:has(.prose) .ed-progress {
    IntersectionObserver (in page scripts) adds .is-visible. --- */
 .js .reveal {
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(10px);
   transition:
     opacity var(--dur-enter) var(--ease-ed),
     transform var(--dur-enter) var(--ease-ed);
@@ -719,52 +763,69 @@ body:has(.prose) .ed-progress {
   transition-delay: 0ms;
 }
 
-.mask-reveal :is(h1, h2, .home-sec-title)::before {
-  content: '';
-  display: inline-block;
-  width: 0.55rem;
-  height: 0.55rem;
-  margin-right: 0.8rem;
-  border: 1px solid rgba(166, 58, 43, 0.68);
-  background: rgba(166, 58, 43, 0.12);
-  vertical-align: -0.03em;
+/* --- 大标题：整行从遮罩下沿升起（杂志式揭示） --- */
+@keyframes title-rise {
+  from { transform: translateY(105%); }
+  to { transform: none; }
 }
 
-/* --- Hero title: per-character wipe reveal --- */
-@keyframes char-wipe {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
+@keyframes line-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.js [data-char-wipe] {
+  overflow: hidden;
+  /* 上下各留一点，避免字形上伸/下伸部分被遮罩裁掉 */
+  padding-block: 0.06em 0.14em;
 }
 
 .js .char-reveal {
-  display: inline-block;
-  clip-path: inset(0 100% 0 0);
-  animation: char-wipe 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: calc(200ms + var(--char-i, 0) * 70ms);
+  display: block;
+  transform: translateY(105%);
+  animation: title-rise 900ms var(--ease-ed) 160ms forwards;
 }
 
-/* --- Section headers: 从左往右的擦除揭示 ---
-   用「纸色遮板向右收起」而不是给元素本身 clip-path：元素一旦被裁到 0 宽，
-   Chrome 的 IntersectionObserver 会判定它不在视口内，回调永不触发，
-   元素就永久卡在隐藏态（实测 intersectionRatio = 0）。 */
+/* --- 区块题：结构线自左向右生长，文字随后淡入 ---
+   不对元素本身做 clip-path：被裁到 0 宽时 IntersectionObserver 会判定它不在视口内，
+   回调永不触发，元素就永久卡在隐藏态。这里只动伪元素和子元素。 */
 .js .mask-reveal {
   position: relative;
+}
+
+.js .mask-reveal.home-sec-head {
+  border-bottom-color: transparent;
 }
 
 .js .mask-reveal::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: var(--color-ed-bg);
-  transform-origin: right center;
-  transform: scaleX(1);
-  transition: transform 620ms var(--ease-ed);
-  transition-delay: var(--reveal-delay, 0ms);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-ed-rule-strong);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 900ms var(--ease-ed);
   pointer-events: none;
 }
 
 .js .mask-reveal.is-visible::after {
-  transform: scaleX(0);
+  transform: scaleX(1);
+}
+
+.js .mask-reveal > * {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 600ms var(--ease-ed) 200ms,
+    transform 600ms var(--ease-ed) 200ms;
+}
+
+.js .mask-reveal.is-visible > * {
+  opacity: 1;
+  transform: none;
 }
 
 /* --- Reduce motion --- */
@@ -784,11 +845,25 @@ body:has(.prose) .ed-progress {
 
   .js .char-reveal {
     animation: none;
-    clip-path: none;
+    transform: none;
+  }
+
+  .home-masthead__topline {
+    animation: none;
+  }
+
+  .js .mask-reveal.home-sec-head {
+    border-bottom-color: var(--color-ed-rule-strong);
   }
 
   .js .mask-reveal::after {
     display: none;
+  }
+
+  .js .mask-reveal > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 
   .hover-underline::after {
@@ -798,6 +873,29 @@ body:has(.prose) .ed-progress {
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
+  }
+
+  /* 微交互动效也要尊重 reduced-motion */
+  .home-post-row,
+  .entry-row,
+  .tag-chip,
+  .home-soc,
+  .home-about-avatar {
+    transition: color 100ms ease, background-color 100ms ease;
+  }
+  .home-post-row:hover,
+  .home-post-row:focus-visible,
+  .entry-row:hover,
+  .entry-row:focus-visible {
+    transform: none;
+    box-shadow: none;
+  }
+  .tag-chip:hover,
+  .home-soc:hover {
+    transform: none;
+  }
+  .home-about-avatar:hover {
+    transform: none;
   }
 }
 
@@ -912,6 +1010,8 @@ body:has(.prose) .ed-progress {
   height: 3px;
   background: var(--color-ed-accent);
   margin-bottom: 1.25rem;
+  transform-origin: left center;
+  animation: line-grow 800ms var(--ease-ed) 80ms both;
 }
 
 .home-kicker {
@@ -932,9 +1032,9 @@ body:has(.prose) .ed-progress {
   font-family: var(--font-serif);
   font-weight: 400;
   transition: color 180ms ease;
-  font-size: clamp(1.875rem, 3.8vw, 2.875rem);
-  line-height: 1.2;
-  letter-spacing: -0.012em;
+  font-size: clamp(2.25rem, 5.4vw, 4rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
   margin-bottom: 1rem;
 }
 
@@ -1010,18 +1110,38 @@ a:hover .home-masthead__title {
   padding: 1.4rem 0.25rem;
   text-decoration: none;
   color: var(--color-ed-fg);
-  transition: background 160ms ease;
+  transition:
+    background 160ms ease,
+    transform 280ms var(--ease-ed),
+    box-shadow 280ms var(--ease-ed);
 }
-.home-post-row:hover {
-  background: rgba(28, 28, 28, 0.03);
+.home-post-row {
+  position: relative;
 }
-/* hover 位移改用 transform（只合成、不重排）：原来动 padding-left 会让整列重排。
-   右侧 meta 紧贴容器右缘，一并位移会超出 hover 底色/页面边框，故排除 */
-.home-post-row > * {
-  transition: transform 260ms var(--ease-ed);
+/* 悬停/聚焦：底部一条砖红细线自左向右生长，不位移内容、不触发重排 */
+.home-post-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-ed-accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 480ms var(--ease-ed);
 }
-.home-post-row:hover > :not(.home-post-meta) {
-  transform: translateX(0.5rem);
+.home-post-row:hover,
+.home-post-row:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+}
+.home-post-row:hover::after,
+.home-post-row:focus-visible::after {
+  transform: scaleX(1);
+}
+.home-post-row:focus-visible .home-post-title {
+  color: var(--color-ed-accent);
 }
 .home-post-body {
   flex: 1;
@@ -1053,6 +1173,10 @@ a:hover .home-masthead__title {
   font-variant-numeric: tabular-nums;
   line-height: 1.9;
   flex-shrink: 0;
+  transition: color 280ms ease;
+}
+.home-post-row:hover .home-post-meta {
+  color: var(--color-ed-muted);
 }
 
 /* --- 右侧独立栏卡 --- */
@@ -1065,8 +1189,8 @@ a:hover .home-masthead__title {
 }
 /* 卡片只用浅底+留白分组，不再加外框和顶线 */
 .home-side-card {
-  background: rgba(28, 28, 28, 0.04);
-  padding: 1.375rem 1.25rem;
+  border-top: 2px solid var(--color-ed-fg);
+  padding: 0.9rem 0 0.25rem;
 }
 .home-side-label {
   display: flex;
@@ -1098,6 +1222,10 @@ a:hover .home-masthead__title {
   height: 3.625rem;
   border-radius: 50%;
   object-fit: cover;
+  transition: transform 300ms ease-in-out;
+}
+.home-about-avatar:hover {
+  transform: scale(1.05);
 }
 .home-about-name {
   font-family: var(--font-serif);
@@ -1145,7 +1273,7 @@ a:hover .home-masthead__title {
   transition:
     background-color 200ms ease,
     color 200ms ease,
-    transform 200ms var(--ease-ed);
+    transform 280ms var(--ease-ed);
 }
 /* 命中区补到 40px：视觉尺寸不变，手指更好点 */
 .home-soc::before {
@@ -1156,7 +1284,10 @@ a:hover .home-masthead__title {
 .home-soc:hover {
   background: rgba(28, 28, 28, 0.06);
   color: var(--color-ed-accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.08);
+}
+.home-soc:active {
+  transform: translateY(0) scale(1);
 }
 
 /* 纪事行 */
@@ -1303,7 +1434,9 @@ a:hover .home-masthead__title {
   border-bottom: 1px solid var(--color-ed-hairline);
   border-radius: 3px;
   text-decoration: none;
-  transition: background-color 150ms ease;
+  transition:
+    background-color 180ms ease,
+    transform 240ms var(--ease-ed);
 }
 .search-result:last-child {
   border-bottom: 0;
@@ -1311,6 +1444,7 @@ a:hover .home-masthead__title {
 .search-result:hover,
 .search-result:focus-visible {
   background: rgba(28, 28, 28, 0.04);
+  transform: translateX(3px);
 }
 .search-result__title {
   font-family: var(--font-serif);
