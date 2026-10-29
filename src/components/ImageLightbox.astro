@@ -1,9 +1,12 @@
+---
 /**
  * 文章图片点击放大（lightbox）。
  * - 作用于 .prose 内的图片；点击在原图位置原地放大到视口内最大可显示尺寸
  * - 再点任意处 / Esc 关闭；滚轮与拖拽平移查看细节
  * - 纯展示层增强：无 JS 或图片加载失败时点击无副作用，不影响原排版
  */
+---
+
 <script>
   type State = { overlay: HTMLElement; img: HTMLImageElement; tx: number; ty: number; scale: number };
 

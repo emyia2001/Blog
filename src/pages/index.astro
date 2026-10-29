@@ -69,9 +69,9 @@ const fmtYearMonth = (d: Date) =>
                 <h1 class="home-masthead__title" data-char-wipe>{heroPost.data.title}</h1>
               </a>
               {heroPost.data.excerpt && (
-                <p class="home-masthead__dek ed-in" style="--d: 640ms">{heroPost.data.excerpt}</p>
+                <p class="home-masthead__dek ed-in" style="--d: 420ms">{heroPost.data.excerpt}</p>
               )}
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)] ed-in" style="--d: 760ms">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-ed-subtle)] ed-in" style="--d: 520ms">
                 <span>{readingTime(String(heroPost.body || ""))} 分钟阅读</span>
                 {heroPost.data.tags?.length > 0 && (
                   <>

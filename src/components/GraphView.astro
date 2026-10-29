@@ -464,6 +464,8 @@ const linkCount = links.length;
     stroke-width: 3.5px;
     stroke-linejoin: round;
     pointer-events: none;
+    /* 标签不参与节点形状的缩放，保持稳定可读 */
+    transform: none !important;
     transition:
       fill 0.2s ease,
       opacity 0.2s ease;
