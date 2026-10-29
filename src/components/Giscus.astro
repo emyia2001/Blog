@@ -15,9 +15,7 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
 ---
 
 <div id="giscus" class={className} data-pagefind-ignore>
-  <!-- giscus 要拉 client.js + iframe + GitHub API，国内网络下常要 1~2s 才出内容。
-       改为点击后再加载：首屏不为评论区付出任何请求，想评论的人自己点。 -->
-  <button type="button" class="giscus-load" data-giscus-load>加载评论</button>
+  <!-- giscus 自动加载：页面加载后自动初始化评论区 -->
 </div>
 
 <script define:vars={{ themeUrl, repo: GISCUS_REPO }}>
@@ -42,7 +40,7 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
     const container = document.getElementById("giscus");
     if (!container || container.dataset.loaded === "1") return;
 
-    // 自定义主题：同源 /giscus-theme.css，见文件头注释。
+    // 自定义主题：同源 /giscus-theme.css
     const script = document.createElement("script");
     script.async = true;
     script.crossOrigin = GISCUS_CONFIG.crossorigin;
@@ -57,47 +55,7 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
     container.dataset.loaded = "1";
   }
 
-  // 事件委托：监听器挂在 document 上，View Transitions 换页后 #giscus 是新的节点也不会失联。
-  // 用 window 上的标记去重——脚本在站内跳转后可能被再次执行，重复绑定会积累监听器。
-  const BOUND_FLAG = "__giscusClickBound";
-  function bindTrigger() {
-    const w = window as unknown as Record<string, boolean>;
-    if (w[BOUND_FLAG]) return;
-    w[BOUND_FLAG] = true;
-    document.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const trigger = target.closest("[data-giscus-load]");
-      if (!trigger) return;
-      trigger.remove();
-      loadGiscus();
-    });
-  }
-
-  bindTrigger();
-  document.addEventListener("astro:page-load", bindTrigger);
+  // 页面加载后自动加载评论区
+  document.addEventListener("astro:page-load", loadGiscus);
+  loadGiscus();
 </script>
-
-<style>
-  #giscus :global(.giscus-load) {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.5rem;
-    padding: 0.55rem 1.35rem;
-    font-family: var(--font-sans);
-    font-size: 0.95rem;
-    letter-spacing: 0.02em;
-    color: var(--color-ed-fg);
-    background: transparent;
-    border: 1px solid var(--color-ed-rule);
-    cursor: pointer;
-    transition:
-      color 0.2s ease,
-      border-color 0.2s ease;
-  }
-
-  #giscus :global(.giscus-load:hover) {
-    color: var(--color-ed-accent);
-    border-color: var(--color-ed-accent);
-  }
-</style>

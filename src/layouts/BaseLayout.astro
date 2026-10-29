@@ -267,14 +267,11 @@ if (article) {
         el.dataset.done = "1";
         const text = el.textContent ?? "";
         el.textContent = "";
-        let i = 0;
-        for (const ch of text) {
-          const span = document.createElement("span");
-          span.className = "char-reveal";
-          span.style.setProperty("--char-i", String(i++));
-          span.textContent = ch;
-          el.appendChild(span);
-        }
+        // 整行包进一个块，由 CSS 从遮罩下沿升起；不再逐字拆分
+        const line = document.createElement("span");
+        line.className = "char-reveal";
+        line.textContent = text;
+        el.appendChild(line);
       }
 
       function updateProgress() {

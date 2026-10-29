@@ -409,7 +409,7 @@ const defaultRendered =
     /* 入场动画：整体淡入上移（delay 由 --tl-i 逐条错开） */
     opacity: 0;
     animation: tl-point-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: calc(0.25s + var(--tl-i, 0) * 0.09s);
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 12) * 0.04s);
   }
   @keyframes tl-point-in {
     from {
@@ -436,7 +436,7 @@ const defaultRendered =
     transform: scaleY(0);
     transform-origin: top;
     animation: tl-seg-grow 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: calc(0.25s + var(--tl-i, 0) * 0.09s);
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 12) * 0.04s);
   }
   @keyframes tl-seg-grow {
     from {
@@ -491,8 +491,9 @@ const defaultRendered =
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
   }
-  .timeline-point.is-dock-hot .tl-simple__body {
-    z-index: 3;
+  .timeline-point:hover .tl-simple__body,
+  .timeline-point.is-active .tl-simple__body {
+    transform: translateX(4px);
   }
   .tl-simple__date {
     display: block;
@@ -988,48 +989,6 @@ const defaultRendered =
     tlSelect(next, { push: false, scroll: false });
   }
 
-  // mac dock 鱼眼：只在桌面（≥1024）生效；DOM 现查以兼容换页
-  let tlDockRaf = 0;
-  function tlApplyDock(clientY: number | null, axis: HTMLElement | null) {
-    if (tlDockRaf) cancelAnimationFrame(tlDockRaf);
-    tlDockRaf = requestAnimationFrame(() => {
-      if (!axis) return;
-      axis.querySelectorAll<HTMLElement>(".timeline-point").forEach((item) => {
-        const body = item.querySelector<HTMLElement>(".tl-simple__body");
-        const rect = item.getBoundingClientRect();
-        if (clientY === null || !body) {
-          if (body) body.style.transform = "";
-          item.classList.remove("is-dock-hot");
-          return;
-        }
-        const dist = Math.abs(clientY - (rect.top + rect.height / 2));
-        let scale = 1;
-        if (dist < 120) {
-          scale = Math.min(1.45, 1 + 0.45 * Math.pow(1 - dist / 120, 1.6));
-          item.classList.toggle("is-dock-hot", scale > 1.18);
-        } else {
-          item.classList.remove("is-dock-hot");
-        }
-        body.style.transform = scale > 1.0001 ? `scale(${scale.toFixed(3)})` : "";
-      });
-    });
-  }
-  function tlDockMove(e: MouseEvent) {
-    if (TL_MOBILE.matches) return;
-    const axis = (e.target as Element | null)?.closest?.(".tl-simple") as
-      | HTMLElement
-      | null;
-    if (axis) tlApplyDock(e.clientY, axis);
-  }
-  function tlDockOut(e: MouseEvent) {
-    const axis = (e.target as Element | null)?.closest?.(".tl-simple") as
-      | HTMLElement
-      | null;
-    if (!axis) return;
-    const to = e.relatedTarget as Node | null;
-    if (!to || !axis.contains(to)) tlApplyDock(null, axis);
-  }
-
   // ===== 纪事内容解锁（AES-GCM，答案解密）=====
   // 构建期已把带 lock 的正文加密成密文（明文不进产物）；浏览器端用答案经
   // PBKDF2 派生密钥解密，成功后在当前会话记忆，无需重复输入。
@@ -1185,8 +1144,6 @@ const defaultRendered =
     document.addEventListener("keydown", tlKeydown);
     document.addEventListener("click", tlLockClick);
     document.addEventListener("keydown", tlLockKeydown);
-    document.addEventListener("mousemove", tlDockMove, { passive: true });
-    document.addEventListener("mouseout", tlDockOut, { passive: true });
     window.addEventListener("popstate", tlHistory);
     window.addEventListener("hashchange", tlHistory);
     document.addEventListener("astro:page-load", tlInit);

@@ -4,34 +4,85 @@ const label = "回到顶部";
 
 <button
   id="back-to-top"
-  class="fixed bottom-6 left-6 z-40 hidden h-11 w-11 items-center justify-center border font-serif text-lg leading-none"
-  style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule); border-radius: 50%;"
+  class="back-to-top"
   aria-label={label}
   title={label}
+  inert
 >
-  &uarr;
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M8 13V3M3.5 7.5 8 3l4.5 4.5"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
 </button>
 
 <script>
-  const btn = document.getElementById("back-to-top");
-  if (!btn) throw new Error("back-to-top element missing");
-
-  const SHOW_AFTER = window.innerHeight; // 滚动超过一屏后出现
-
-  function onScroll() {
-    const show = window.scrollY > SHOW_AFTER;
-    btn!.classList.toggle("hidden", !show);
-    btn!.classList.toggle("flex", show);
+  // 本站启用 View Transitions：换页会替换 <body>，直接绑在按钮上的监听器会随旧节点丢失。
+  // 因此点击走 document 委托，按钮引用在事件发生时现查。
+  function syncBackToTop() {
+    const btn = document.getElementById("back-to-top");
+    if (!btn) return;
+    const show = window.scrollY > window.innerHeight * 0.8; // 滚过大半屏后出现
+    btn.classList.toggle("is-shown", show);
+    if (show) btn.removeAttribute("inert");
+    else btn.setAttribute("inert", "");
   }
 
-  window.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
-
-  btn.addEventListener("click", () => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      window.scrollTo(0, 0);
-    } else {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+  window.addEventListener("scroll", syncBackToTop, { passive: true });
+  document.addEventListener("astro:page-load", syncBackToTop);
+  document.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement | null)?.closest?.("#back-to-top")) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   });
+  syncBackToTop();
 </script>
+
+<style>
+  .back-to-top {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid var(--color-ed-rule);
+    border-radius: 50%;
+    background: var(--color-ed-bg);
+    color: var(--color-ed-fg);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+      opacity 280ms var(--ease-ed),
+      transform 280ms var(--ease-ed),
+      color 180ms ease,
+      border-color 180ms ease;
+  }
+  .back-to-top.is-shown {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .back-to-top:hover {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+  }
+  .back-to-top svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .back-to-top {
+      transition: none;
+    }
+  }
+</style>
