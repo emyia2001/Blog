@@ -420,22 +420,25 @@ const linkCount = links.length;
     border-radius: 4px;
   }
   :global(.graph-node) {
+    transition: opacity 0.25s ease;
+  }
+  :global(.graph-node-shape),
+  :global(.graph-node-halo) {
     transition:
-      opacity 0.25s ease,
-      transform 0.28s var(--ease-ed);
+      transform 0.28s var(--ease-ed),
+      stroke 0.25s ease,
+      stroke-width 0.28s var(--ease-ed);
     transform-origin: center;
     transform-box: fill-box;
   }
-  :global(.graph-node.is-hover) {
-    transform: scale(1.15);
+  :global(.graph-node.is-hover .graph-node-shape),
+  :global(.graph-node.is-hover .graph-node-halo) {
+    transform: scale(1.12);
   }
   :global(.graph-node-halo) {
     fill: none;
     stroke: rgba(166, 58, 43, 0);
     stroke-width: 1.2;
-    transition:
-      stroke 0.2s ease,
-      stroke-width 0.28s var(--ease-ed);
   }
   :global(.graph-node.is-hover .graph-node-halo),
   :global(.graph-node.is-active .graph-node-halo) {
