@@ -1,0 +1,1032 @@
+---
+/**
+ * 项目票夹（ProjectWallet）
+ * 参考 darciw.me 的可翻转票据卡片设计，融入 Editorial 期刊风格
+ * - 票据风格卡片（Admit one、条形码、打孔线）
+ * - 3D 翻转动画（点击卡片正反切换）
+ * - 横向轮播（箭头 + 点导航）
+ * - 左右侧边面板（进度 + 技术栈 / 项目简讯）
+ */
+import { PROJECTS, STAGE_NAMES, type Project } from '../data/projects'
+import { Icon } from 'astro-icon/components'
+
+// 默认显示前 3 个项目
+const tickets = PROJECTS.slice(0, 3)
+const totalCount = tickets.length
+---
+
+<div class="project-wallet">
+  <!-- 顶部栏 -->
+  <div class="wallet-bar">
+    <span class="bar-left">
+      <span class="dot"></span>
+      ~/projects
+    </span>
+    <span class="bar-right">Project Wallet / {totalCount} tickets</span>
+  </div>
+
+  <!-- 主舞台区 -->
+  <div class="wallet-stage">
+    <!-- 左侧面板：阶段进度 + 技术栈 -->
+    <aside class="wallet-pane pane-left">
+      <div class="pane-header">
+        <div class="pane-key">Progress</div>
+        <h4>阶段进度</h4>
+      </div>
+      <div class="progress-steps">
+        {STAGE_NAMES.map((name, i) => {
+          const current = tickets[0]
+          const isDone = i < current.stage
+          const isNow = i === current.stage
+          return (
+            <div class:list={['progress-step', { done: isDone, now: isNow }]}>
+              <span class="step-marker"></span>
+              <span class="step-label">{name}</span>
+              <span class="step-status">{isDone ? '完成' : isNow ? '进行中' : '未开始'}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div class="stack-box">
+        <div class="pane-key">Stack</div>
+        <div class="stack-chips">
+          {tickets[0].stack.map(item => <span class="stack-chip">{item}</span>)}
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中间票夹容器（可翻转卡片） -->
+    <div class="ticket-container" data-index="0">
+      {tickets.map((ticket, idx) => (
+        <div
+          class="ticket-wrapper"
+          data-ticket-index={idx}
+          style={`display: ${idx === 0 ? 'block' : 'none'}`}
+        >
+          <!-- 伪 3D 叠影 -->
+          <div class="ticket-ghost ghost-1"></div>
+          <div class="ticket-ghost ghost-2"></div>
+
+          <!-- 实际卡片 -->
+          <div class="ticket-inner">
+            <!-- 正面 -->
+            <div class="ticket-face ticket-front">
+              <div class="ticket-band">
+                <span class="band-left">
+                  <Icon name="mdi:ticket-outline" class="band-icon" />
+                  Snark Post
+                </span>
+                <span class="band-right">PRJ / {ticket.no}</span>
+              </div>
+
+              <div class="ticket-sheet">
+                <div class="sheet-main">
+                  <span class="ghost-no">{ticket.no}</span>
+                  <div class="ticket-label">Name</div>
+                  <h3 class="ticket-name">{ticket.name}</h3>
+                  <p class="ticket-sub">{ticket.sub}</p>
+
+                  <div class="ticket-meta">
+                    <div class="meta-item">
+                      <div class="ticket-label">Date</div>
+                      <div class="meta-value">{ticket.date}</div>
+                    </div>
+                    <div class="meta-item">
+                      <div class="ticket-label">Stage</div>
+                      <div class="meta-value accent">{ticket.status}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 打孔线装饰 -->
+                <div class="ticket-perf"></div>
+
+                <!-- 票根（右侧条形码区） -->
+                <div class="ticket-stub">
+                  <div class="stub-code"></div>
+                  <span class="stub-vno">{ticket.no} / {String(totalCount).padStart(2, '0')}</span>
+                </div>
+              </div>
+
+              <div class="ticket-foot">
+                <span class="foot-flip">
+                  <Icon name="mdi:refresh" class="flip-icon" />
+                  点击翻面
+                </span>
+                <span>Admit one</span>
+              </div>
+            </div>
+
+            <!-- 背面 -->
+            <div class="ticket-face ticket-back">
+              <div class="ticket-band">
+                <span class="band-left">
+                  <Icon name="mdi:lightbulb-on-outline" class="band-icon" />
+                  Key Points
+                </span>
+                <span class="band-right">PRJ / {ticket.no}</span>
+              </div>
+
+              <div class="ticket-back-body">
+                <div class="ticket-label">核心要点</div>
+                <h4 class="back-name">{ticket.name}</h4>
+
+                <div class="points-list">
+                  {ticket.points.map((point, i) => (
+                    <div class="point-item">
+                      <span class="point-no">{String(i + 1).padStart(2, '0')}</span>
+                      <span class="point-text">{point}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div class="ticket-back-go">
+                <span class="back-flip">
+                  <Icon name="mdi:refresh" class="flip-icon" />
+                  点击返回
+                </span>
+                {ticket.link && (
+                  <a href={ticket.link} class="back-link" target="_blank" rel="noopener">
+                    进入项目
+                    <Icon name="mdi:arrow-right" class="link-arrow" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- 右侧面板：项目简讯 -->
+    <aside class="wallet-pane pane-right">
+      <div class="pane-header">
+        <div class="pane-key">Project brief</div>
+        <h4>项目简讯</h4>
+      </div>
+      <p class="brief-text">{tickets[0].brief}</p>
+
+      <div class="kv-list">
+        <div class="kv-row">
+          <span class="kv-key">Status</span>
+          <span class="kv-value accent">{tickets[0].status}</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Order</span>
+          <span class="kv-value">{tickets[0].no} / {String(totalCount).padStart(2, '0')}</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Updated</span>
+          <span class="kv-value">{tickets[0].date}</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Focus</span>
+          <span class="kv-value">{tickets[0].focus}</span>
+        </div>
+      </div>
+
+      {tickets[0].link && (
+        <a href={tickets[0].link} class="pane-link" target="_blank" rel="noopener">
+          查看项目详情
+          <Icon name="mdi:arrow-right" class="link-arrow" />
+        </a>
+      )}
+    </aside>
+  </div>
+
+  <!-- 底部导航 -->
+  <div class="wallet-nav">
+    <div class="nav-row">
+      <button class="nav-arrow nav-prev" aria-label="上一张">
+        <Icon name="mdi:chevron-left" />
+      </button>
+
+      <div class="nav-pills">
+        {tickets.map((_, idx) => (
+          <button
+            class="nav-pill"
+            aria-current={idx === 0 ? 'true' : 'false'}
+            data-index={idx}
+          >
+            {String(idx + 1).padStart(2, '0')}
+          </button>
+        ))}
+      </div>
+
+      <button class="nav-arrow nav-next" aria-label="下一张">
+        <Icon name="mdi:chevron-right" />
+      </button>
+    </div>
+
+    <p class="nav-caption">{tickets[0].brief}</p>
+    <span class="nav-count">{tickets[0].no} / {String(totalCount).padStart(2, '0')}</span>
+  </div>
+</div>
+
+<script>
+  // 项目票夹交互逻辑
+  function initProjectWallet() {
+    const container = document.querySelector('.ticket-container')
+    if (!container) return
+
+    let currentIndex = 0
+    const tickets = Array.from(container.querySelectorAll('.ticket-wrapper')) as HTMLElement[]
+    const totalCount = tickets.length
+
+    // 更新显示（切换票据）
+    function updateDisplay(newIndex: number) {
+      if (newIndex < 0 || newIndex >= totalCount) return
+
+      // 隐藏当前，显示新的
+      if (tickets[currentIndex]) tickets[currentIndex].style.display = 'none'
+      if (tickets[newIndex]) tickets[newIndex].style.display = 'block'
+
+      // 重置翻转状态
+      const inner = tickets[newIndex]?.querySelector('.ticket-inner')
+      inner?.classList.remove('flipped')
+
+      currentIndex = newIndex
+      if (container) container.setAttribute('data-index', String(newIndex))
+
+      // 更新导航点
+      document.querySelectorAll('.nav-pill').forEach((pill, i) => {
+        pill.setAttribute('aria-current', i === newIndex ? 'true' : 'false')
+      })
+
+      // 更新侧边面板数据
+      const currentTicket = tickets[newIndex]
+      if (!currentTicket) return
+
+      // 更新右侧简讯
+      const briefText = currentTicket.querySelector('.ticket-sub')?.textContent || ''
+      const paneRight = document.querySelector('.pane-right .brief-text')
+      if (paneRight) paneRight.textContent = briefText
+
+      // 更新底部说明
+      const navCaption = document.querySelector('.nav-caption')
+      if (navCaption) navCaption.textContent = briefText
+
+      const navCount = document.querySelector('.nav-count')
+      if (navCount) {
+        const no = String(newIndex + 1).padStart(2, '0')
+        navCount.textContent = `${no} / ${String(totalCount).padStart(2, '0')}`
+      }
+    }
+
+    // 翻转卡片
+    function flipCard(inner: Element) {
+      inner.classList.toggle('flipped')
+    }
+
+    // 事件委托：点击卡片翻面
+    container.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement
+      const inner = target.closest('.ticket-inner')
+      if (inner && !target.closest('.back-link')) {
+        flipCard(inner)
+      }
+    })
+
+    // 箭头导航
+    document.querySelector('.nav-prev')?.addEventListener('click', () => {
+      updateDisplay((currentIndex - 1 + totalCount) % totalCount)
+    })
+
+    document.querySelector('.nav-next')?.addEventListener('click', () => {
+      updateDisplay((currentIndex + 1) % totalCount)
+    })
+
+    // 点导航
+    document.querySelectorAll('.nav-pill').forEach((pill, idx) => {
+      pill.addEventListener('click', () => updateDisplay(idx))
+    })
+  }
+
+  // 初始化
+  initProjectWallet()
+
+  // ViewTransitions 兼容
+  document.addEventListener('astro:page-load', () => {
+    initProjectWallet()
+  })
+</script>
+
+<style>
+  /* 项目票夹容器 */
+  .project-wallet {
+    width: 100%;
+    margin: 2rem 0;
+  }
+
+  /* 顶部栏 */
+  .wallet-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--color-ed-subtle);
+    border-radius: 6px 6px 0 0;
+    font-size: 0.8125rem;
+    font-family: var(--font-mono, 'SF Mono', monospace);
+    color: var(--color-ed-muted);
+  }
+
+  .bar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .bar-left .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-ed-accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* 主舞台 */
+  .wallet-stage {
+    display: grid;
+    grid-template-columns: 200px 1fr 200px;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--color-ed-bg);
+    border: 1px solid var(--color-ed-faint);
+    border-top: none;
+    position: relative;
+  }
+
+  /* 侧边面板公共样式 */
+  .wallet-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .pane-header {
+    border-bottom: 1px solid var(--color-ed-faint);
+    padding-bottom: 0.75rem;
+  }
+
+  .pane-key {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .pane-header h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-ed-fg);
+    margin: 0;
+  }
+
+  /* 左侧：进度条 */
+  .progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .progress-step {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .step-marker {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-ed-muted);
+    border-radius: 50%;
+    background: transparent;
+    transition: all 0.3s var(--ease-ed);
+  }
+
+  .progress-step.done .step-marker {
+    background: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+  }
+
+  .progress-step.now .step-marker {
+    border-color: var(--color-ed-accent);
+    border-width: 3px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .step-label {
+    font-weight: 500;
+    color: var(--color-ed-fg);
+  }
+
+  .step-status {
+    font-size: 0.75rem;
+    color: var(--color-ed-muted);
+  }
+
+  .progress-step.done .step-status,
+  .progress-step.now .step-status {
+    color: var(--color-ed-accent);
+    font-weight: 500;
+  }
+
+  /* 技术栈 */
+  .stack-box {
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-ed-faint);
+  }
+
+  .stack-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .stack-chip {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    background: var(--color-ed-subtle);
+    border: 1px solid var(--color-ed-faint);
+    border-radius: 999px;
+    color: var(--color-ed-fg);
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .stack-chip:hover {
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.05);
+  }
+
+  /* 右侧：项目简讯 */
+  .brief-text {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
+  }
+
+  .kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 1rem;
+    background: var(--color-ed-subtle);
+    border-radius: 6px;
+  }
+
+  .kv-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+  }
+
+  .kv-key {
+    color: var(--color-ed-muted);
+    font-weight: 500;
+  }
+
+  .kv-value {
+    color: var(--color-ed-fg);
+    font-weight: 600;
+  }
+
+  .kv-value.accent {
+    color: var(--color-ed-accent);
+  }
+
+  .pane-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ed-accent);
+    text-decoration: none;
+    transition: gap 0.25s var(--ease-ed);
+  }
+
+  .pane-link:hover {
+    gap: 0.625rem;
+  }
+
+  .link-arrow {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  /* 票据容器（中间主体） */
+  .ticket-container {
+    position: relative;
+    width: 100%;
+    min-height: 420px;
+    perspective: 1200px;
+  }
+
+  .ticket-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 伪 3D 叠影 */
+  .ticket-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--color-ed-subtle);
+    border: 1px solid var(--color-ed-faint);
+    border-radius: 12px;
+    pointer-events: none;
+  }
+
+  .ticket-ghost.ghost-1 {
+    transform: translateY(4px) translateX(4px) scale(0.97);
+    opacity: 0.5;
+  }
+
+  .ticket-ghost.ghost-2 {
+    transform: translateY(8px) translateX(8px) scale(0.94);
+    opacity: 0.3;
+  }
+
+  /* 票据内核（可翻转） */
+  .ticket-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+
+  .ticket-inner.flipped {
+    transform: rotateY(180deg);
+  }
+
+  /* 票据正反面公共 */
+  .ticket-face {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    background: var(--color-ed-bg);
+    border: 2px solid var(--color-ed-fg);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ticket-back {
+    transform: rotateY(180deg);
+  }
+
+  /* 票据顶部横条 */
+  .ticket-band {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .band-left,
+  .band-right {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .band-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  /* 正面主体 */
+  .ticket-sheet {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr auto 80px;
+    gap: 1rem;
+    padding: 1.5rem;
+    position: relative;
+  }
+
+  .sheet-main {
+    position: relative;
+  }
+
+  .ghost-no {
+    position: absolute;
+    top: -0.5rem;
+    left: -0.5rem;
+    font-size: 5rem;
+    font-weight: 700;
+    color: var(--color-ed-faint);
+    opacity: 0.3;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .ticket-label {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-muted);
+    margin-bottom: 0.375rem;
+  }
+
+  .ticket-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: var(--font-serif);
+    color: var(--color-ed-fg);
+    margin: 0 0 0.75rem 0;
+  }
+
+  .ticket-sub {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
+    margin-bottom: 1.25rem;
+  }
+
+  .ticket-meta {
+    display: flex;
+    gap: 1.5rem;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .meta-value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-ed-fg);
+  }
+
+  .meta-value.accent {
+    color: var(--color-ed-accent);
+  }
+
+  /* 打孔线 */
+  .ticket-perf {
+    width: 1px;
+    background: repeating-linear-gradient(
+      to bottom,
+      var(--color-ed-faint) 0px,
+      var(--color-ed-faint) 6px,
+      transparent 6px,
+      transparent 12px
+    );
+  }
+
+  /* 票根（条形码区） */
+  .ticket-stub {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .stub-code {
+    width: 100%;
+    height: 120px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--color-ed-fg) 0px,
+      var(--color-ed-fg) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+    opacity: 0.15;
+  }
+
+  .stub-vno {
+    font-size: 0.75rem;
+    font-family: var(--font-mono, monospace);
+    color: var(--color-ed-muted);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+
+  /* 正面底部 */
+  .ticket-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px dashed var(--color-ed-faint);
+    font-size: 0.8125rem;
+    color: var(--color-ed-muted);
+  }
+
+  .foot-flip {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 500;
+    transition: color 0.25s var(--ease-ed);
+  }
+
+  .ticket-inner:hover .foot-flip {
+    color: var(--color-ed-accent);
+  }
+
+  .flip-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  /* 背面主体 */
+  .ticket-back-body {
+    flex: 1;
+    padding: 1.5rem;
+  }
+
+  .back-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: var(--font-serif);
+    color: var(--color-ed-fg);
+    margin: 0 0 1.25rem 0;
+  }
+
+  .points-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .point-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .point-no {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    color: var(--color-ed-bg);
+    background: var(--color-ed-accent);
+    border-radius: 50%;
+  }
+
+  .point-text {
+    flex: 1;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-ed-fg);
+    padding-top: 0.25rem;
+  }
+
+  /* 背面底部 */
+  .ticket-back-go {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-top: 1px dashed var(--color-ed-faint);
+  }
+
+  .back-flip {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ed-muted);
+    transition: color 0.25s var(--ease-ed);
+  }
+
+  .ticket-inner.flipped:hover .back-flip {
+    color: var(--color-ed-accent);
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ed-bg);
+    background: var(--color-ed-accent);
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .back-link:hover {
+    background: var(--color-ed-fg);
+    gap: 0.625rem;
+  }
+
+  /* 底部导航 */
+  .wallet-nav {
+    padding: 1.5rem 2rem;
+    background: var(--color-ed-subtle);
+    border: 1px solid var(--color-ed-faint);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .nav-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .nav-arrow {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-ed-faint);
+    background: var(--color-ed-bg);
+    border-radius: 6px;
+    color: var(--color-ed-fg);
+    cursor: pointer;
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .nav-arrow:hover {
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.1);
+  }
+
+  .nav-pills {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .nav-pill {
+    width: 44px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+    border: 1px solid var(--color-ed-faint);
+    background: var(--color-ed-bg);
+    border-radius: 6px;
+    color: var(--color-ed-muted);
+    cursor: pointer;
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .nav-pill[aria-current="true"] {
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-fg);
+  }
+
+  .nav-pill:not([aria-current="true"]):hover {
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-accent);
+    transform: translateY(-2px);
+  }
+
+  .nav-caption {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .nav-count {
+    font-size: 0.75rem;
+    font-family: var(--font-mono, monospace);
+    color: var(--color-ed-muted);
+    text-align: center;
+  }
+
+  /* 响应式：平板及以下 */
+  @media (max-width: 1024px) {
+    .wallet-stage {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .wallet-pane {
+      display: none;
+    }
+
+    .ticket-container {
+      min-height: 380px;
+    }
+  }
+
+  /* 响应式：手机 */
+  @media (max-width: 640px) {
+    .wallet-bar {
+      font-size: 0.75rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .wallet-stage {
+      padding: 1rem;
+    }
+
+    .ticket-sheet {
+      grid-template-columns: 1fr;
+      padding: 1rem;
+    }
+
+    .ticket-stub,
+    .ticket-perf {
+      display: none;
+    }
+
+    .ghost-no {
+      font-size: 3rem;
+    }
+
+    .ticket-name {
+      font-size: 1.25rem;
+    }
+
+    .wallet-nav {
+      padding: 1rem;
+    }
+
+    .nav-caption {
+      font-size: 0.8125rem;
+    }
+  }
+
+  /* 动画性能优化 */
+  .ticket-inner,
+  .nav-arrow,
+  .nav-pill,
+  .stack-chip,
+  .back-link {
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticket-inner,
+    .nav-arrow,
+    .nav-pill,
+    .stack-chip,
+    .back-link,
+    .pane-link {
+      transition: none;
+    }
+
+    .ticket-inner.flipped {
+      transform: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+    }
+  }
+</style>

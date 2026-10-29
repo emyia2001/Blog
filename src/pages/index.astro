@@ -4,6 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
+import ProjectWallet from "../components/ProjectWallet.astro";
 import { fetchContributions } from "../utils/contributions";
 import { postPath } from "../utils/urls";
 import {
@@ -117,6 +118,16 @@ const fmtYearMonth = (d: Date) =>
             </a>
           ))
         )}
+
+        <!-- 项目票夹 -->
+        <div class="home-sec-head mask-reveal" style="margin-top: 5rem">
+          <span class="home-sec-title">
+            项目票夹
+            <small>Project Wallet</small>
+          </span>
+          <a href="/projects/" class="home-sec-more">全部项目 →</a>
+        </div>
+        <ProjectWallet />
       </div>
 
       <!-- 右侧独立栏 -->

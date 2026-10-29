@@ -1,0 +1,231 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { PROJECTS } from '../data/projects'
+import { Icon } from 'astro-icon/components'
+
+const title = '项目'
+const description = '记录我构建的产品与实验。'
+---
+
+<BaseLayout {title} {description}>
+  <div class="mx-auto max-w-3xl px-6 py-12 md:px-8 md:py-16">
+    <header class="mb-12">
+      <h1 class="mb-3 font-serif text-4xl font-bold text-[var(--color-ed-fg)] md:text-5xl">
+        项目
+      </h1>
+      <p class="text-lg text-[var(--color-ed-muted)]">
+        {description}
+      </p>
+    </header>
+
+    <div class="space-y-8">
+      {PROJECTS.map((project) => (
+        <article class="project-card reveal">
+          <div class="project-header">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0 flex-1">
+                <div class="mb-2 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[var(--color-ed-muted)]">
+                  <span>PRJ / {project.no}</span>
+                  <span class="text-[var(--color-ed-sep)]">·</span>
+                  <span class="project-status">{project.status}</span>
+                </div>
+                <h2 class="mb-2 font-serif text-2xl font-bold text-[var(--color-ed-fg)]">
+                  {project.name}
+                </h2>
+                <p class="text-[var(--color-ed-muted)]">
+                  {project.sub}
+                </p>
+              </div>
+              {project.link && (
+                <a
+                  href={project.link}
+                  class="project-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`访问 ${project.name}`}
+                >
+                  <Icon name="mdi:open-in-new" class="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div class="project-body">
+            <div class="project-meta">
+              <div class="meta-item">
+                <Icon name="mdi:calendar-outline" class="meta-icon" />
+                <span>{project.date}</span>
+              </div>
+              <div class="meta-item">
+                <Icon name="mdi:target" class="meta-icon" />
+                <span>{project.focus}</span>
+              </div>
+            </div>
+
+            {project.stack.length > 0 && (
+              <div class="project-stack">
+                {project.stack.map(item => (
+                  <span class="stack-tag">{item}</span>
+                ))}
+              </div>
+            )}
+
+            {project.points.length > 0 && (
+              <div class="project-points">
+                <div class="points-label">核心要点</div>
+                <ul class="points-list">
+                  {project.points.map(point => (
+                    <li class="point-item">{point}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .project-card {
+    background: var(--color-ed-bg);
+    border: 1px solid var(--color-ed-faint);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s var(--ease-ed);
+  }
+
+  .project-card:hover {
+    border-color: var(--color-ed-muted);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+  }
+
+  .project-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--color-ed-faint);
+  }
+
+  .project-status {
+    color: var(--color-ed-accent);
+    font-weight: 600;
+  }
+
+  .project-link {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-ed-faint);
+    border-radius: 6px;
+    color: var(--color-ed-muted);
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .project-link:hover {
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.1);
+  }
+
+  .project-body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .project-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--color-ed-muted);
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .meta-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .project-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .stack-tag {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    background: var(--color-ed-subtle);
+    border: 1px solid var(--color-ed-faint);
+    border-radius: 999px;
+    color: var(--color-ed-fg);
+    transition: all 0.25s var(--ease-ed);
+  }
+
+  .stack-tag:hover {
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.05);
+  }
+
+  .project-points {
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-ed-faint);
+  }
+
+  .points-label {
+    font-size: 0.6875rem;
+    font-family: var(--font-mono, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-ed-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .points-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .point-item {
+    position: relative;
+    padding-left: 1.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--color-ed-fg);
+  }
+
+  .point-item::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--color-ed-accent);
+    font-weight: 700;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .project-card,
+    .project-link,
+    .stack-tag {
+      transition: none;
+    }
+  }
+</style>

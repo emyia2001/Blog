@@ -23,6 +23,8 @@ export const ROUTES = {
   home: "/",
   archive: "/archive/",
   timeline: "/timeline/",
+  graph: "/graph/",
+  projects: "/projects/",
   friends: "/friends/",
   rss: "/rss.xml",
 } as const;
