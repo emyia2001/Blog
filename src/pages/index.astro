@@ -4,7 +4,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
-import ProjectWallet from "../components/ProjectWallet.astro";
 import { fetchContributions } from "../utils/contributions";
 import { postPath } from "../utils/urls";
 import {
@@ -58,14 +57,8 @@ const fmtYearMonth = (d: Date) =>
       <div class="min-w-0">
         {heroPost && (
           <header class="home-masthead">
-            <span class="home-masthead__rail" aria-hidden="true">
-              {SITE_NAME}
-            </span>
             <div class="home-masthead__body">
               <div class="home-masthead__topline" aria-hidden="true"></div>
-              <div class="home-kicker ed-in" style="--d: 120ms">
-                <span class="home-kicker__label">最新文章</span>
-              </div>
               <a href={postPath(heroPost)} class="no-underline">
                 <h1 class="home-masthead__title" data-char-wipe>{heroPost.data.title}</h1>
               </a>
@@ -86,10 +79,7 @@ const fmtYearMonth = (d: Date) =>
         )}
 
         <div class="home-sec-head mask-reveal">
-          <span class="home-sec-title">
-            近期笔墨
-            <small>Recent Writing</small>
-          </span>
+          <h2 class="home-sec-title">近期笔墨</h2>
           <a href="/archive/" class="home-sec-more">全部文章 →</a>
         </div>
 
@@ -118,23 +108,13 @@ const fmtYearMonth = (d: Date) =>
             </a>
           ))
         )}
-
-        <!-- 项目票夹 -->
-        <div class="home-sec-head mask-reveal" style="margin-top: 5rem">
-          <span class="home-sec-title">
-            项目票夹
-            <small>Project Wallet</small>
-          </span>
-          <a href="/projects/" class="home-sec-more">全部项目 →</a>
-        </div>
-        <ProjectWallet />
       </div>
 
       <!-- 右侧独立栏 -->
       <aside class="home-side">
         <!-- 关于 -->
         <div class="home-side-card reveal">
-          <div class="home-side-label">关于 · About</div>
+          <h2 class="home-side-label">关于</h2>
           <div class="home-about-head">
             <img
               class="home-about-avatar"
@@ -186,7 +166,7 @@ const fmtYearMonth = (d: Date) =>
         <!-- 纪事 -->
         {moments.length > 0 && (
           <div class="home-side-card reveal" style="--reveal-delay: 80ms">
-            <div class="home-side-label">纪事 · Moments</div>
+            <h2 class="home-side-label">纪事</h2>
             {moments.slice(0, 4).map((m) => (
               <a href="/timeline/" class="home-moment-line">
                 <span class="home-moment-dot" aria-hidden="true"></span>
