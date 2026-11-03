@@ -10,11 +10,14 @@ const { grid, total } = Astro.props;
 
 // 取自站内纸 / 墨 / 砖红三色，由浅到深（原来用 GitHub 的绿色，放在纸色卡片上很跳）
 const CAL_COLORS = ["#ecebe6", "#d8d0c7", "#bda79a", "#94685a", "#a63a2b"];
+
+// 入场波浪：按周（列）递延，行再补一点斜向错位；240ms 时长 + 最长 440ms 延迟 ≈ 680ms 收尾
+const cellDelay = (w: number, d: number) => Math.min(w * 8 + d * 4, 440);
 ---
 
 {
   grid.length > 0 && (
-    <div>
+    <div class="heatmap" data-heatmap>
       <p class="mb-3 flex items-baseline gap-2 text-[11px] tracking-[0.12em] uppercase text-[var(--color-ed-subtle)]">
         GitHub 贡献
         {total !== null && (
@@ -32,13 +35,19 @@ const CAL_COLORS = ["#ecebe6", "#d8d0c7", "#bda79a", "#94685a", "#a63a2b"];
         {grid.map((col, w) =>
           col.map((cell, d) => (
             <rect
+              class="heat-cell"
               x={w * 16}
               y={d * 16}
               width="13"
               height="13"
               rx="3"
               fill={CAL_COLORS[cell.level]}
+              data-date={cell.date}
+              data-count={cell.count}
+              style={`--cell-delay:${cellDelay(w, d)}ms`}
             >
+              {/* 原生 title 保留做无障碍 / 无 JS 兜底；指针悬停时由脚本临时摘掉，
+                  避免它 1s 后弹出的黑色原生提示与下面的自定义标签重叠 */}
               <title>
                 {cell.date}：{cell.count} 次提交
               </title>
@@ -46,6 +55,203 @@ const CAL_COLORS = ["#ecebe6", "#d8d0c7", "#bda79a", "#94685a", "#a63a2b"];
           ))
         )}
       </svg>
+      <div class="heat-tip" data-heat-tip aria-hidden="true"></div>
     </div>
   )
 }
+
+<script>
+  // ===== 热力图自定义小标签 =====
+  // 原生 <title> 有约 1s 延迟且样式不可控，这里用一个同页绝对定位的 div 跟随指针。
+  // View Transitions：脚本会随换页重新执行，全局监听只在第一次绑，状态挂在 window 上。
+  type HeatState = { hide: (() => void) | null; bound: boolean };
+  const heatWindow = window as Window & { __heatState?: HeatState };
+  const HS: HeatState = (heatWindow.__heatState ??= { hide: null, bound: false });
+
+  function initHeatmap() {
+    const wrap = document.querySelector<HTMLElement>("[data-heatmap]");
+    const tip = wrap?.querySelector<HTMLElement>("[data-heat-tip]");
+    if (!wrap || !tip || wrap.dataset.bound === "1") return;
+    wrap.dataset.bound = "1";
+
+    let current: SVGRectElement | null = null;
+
+    const hide = () => {
+      if (!current) return;
+      if (current.dataset.tipTitle) {
+        current.setAttribute("title", current.dataset.tipTitle);
+        delete current.dataset.tipTitle;
+      }
+      current.classList.remove("is-hot");
+      current = null;
+      tip.classList.remove("is-on", "is-below");
+    };
+    HS.hide = hide;
+
+    const show = (cell: SVGRectElement) => {
+      if (current === cell) return;
+      hide();
+      current = cell;
+
+      const title = cell.getAttribute("title");
+      if (title) {
+        cell.dataset.tipTitle = title;
+        cell.removeAttribute("title");
+      }
+      cell.classList.add("is-hot");
+
+      tip.textContent = `${cell.dataset.date ?? ""}：${cell.dataset.count ?? "0"} 次`;
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const cellRect = cell.getBoundingClientRect();
+      const tipW = tip.offsetWidth;
+      const tipH = tip.offsetHeight;
+      // 水平居中并夹在容器内，避免贴边时溢出
+      const x = Math.max(
+        tipW / 2 + 2,
+        Math.min(
+          cellRect.left - wrapRect.left + cellRect.width / 2,
+          wrapRect.width - tipW / 2 - 2
+        )
+      );
+      // 顶行没有上方空间，翻到格子下面
+      const below = cellRect.top - wrapRect.top < tipH + 8;
+      tip.classList.toggle("is-below", below);
+      tip.style.setProperty("--tx", `${x}px`);
+      tip.style.setProperty(
+        "--ty",
+        `${
+          below
+            ? cellRect.bottom - wrapRect.top + 6
+            : cellRect.top - wrapRect.top - 6
+        }px`
+      );
+      tip.classList.add("is-on");
+    };
+
+    const cellOf = (e: Event) => {
+      const target = e.target as Element | null;
+      return (target?.closest(".heat-cell") ?? null) as SVGRectElement | null;
+    };
+
+    wrap.addEventListener("pointerover", (e) => {
+      const cell = cellOf(e);
+      if (cell) show(cell);
+    });
+    wrap.addEventListener("pointerout", (e) => {
+      if (cellOf(e)) hide();
+    });
+    wrap.addEventListener("pointerleave", hide);
+    // 格子本身不可聚焦（365 个 tab 停靠点会毁掉键盘可达性），
+    // 但保留 focus 分支，方便将来做 roving tabindex 时直接复用
+    wrap.addEventListener("focusin", (e) => {
+      const cell = cellOf(e);
+      if (cell) show(cell);
+    });
+    wrap.addEventListener("focusout", hide);
+
+    if (!HS.bound) {
+      HS.bound = true;
+      window.addEventListener("scroll", () => HS.hide?.(), { passive: true });
+      window.addEventListener("resize", () => HS.hide?.());
+      document.addEventListener("astro:before-swap", () => HS.hide?.());
+    }
+  }
+
+  document.addEventListener("astro:page-load", initHeatmap);
+  initHeatmap();
+</script>
+
+<style>
+  .heatmap {
+    position: relative;
+  }
+
+  /* SVG 里必须显式声明 transform-box/origin，否则 scale 会以整个 viewBox 为原点缩放。
+     只动 transform / opacity，不用 filter（SVG 上 filter 会打穿合成层）。
+     入场波浪：按列递延的淡入 + 轻微放大；backwards 让延迟期间保持 from 态。 */
+  .heat-cell {
+    transform-box: fill-box;
+    transform-origin: center;
+    stroke: transparent;
+    stroke-width: 2;
+    animation: heat-cell-in 240ms var(--ease-ed) backwards;
+    animation-delay: var(--cell-delay, 0ms);
+    transition:
+      transform 120ms var(--ease-ed),
+      stroke 120ms ease;
+  }
+
+  /* 关于卡还在滚动揭示中就先按住波浪，别让动画在视口外白跑一遍。
+     .js / .reveal 都是组件外的类，Astro 的作用域会把选择器改写掉，故用 :global() 包整段。
+     无 JS 时 .js 不存在 → 这条不生效，波浪照常播完并停在终态。 */
+  :global(.js .reveal:not(.is-visible)) .heat-cell {
+    animation-play-state: paused;
+  }
+
+  @keyframes heat-cell-in {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .heat-cell:hover,
+  .heat-cell:focus-visible,
+  .heat-cell.is-hot {
+    transform: scale(1.15);
+    stroke: var(--color-ed-fg);
+  }
+
+  /* 自定义小标签：墨色小片 + 纸色字，跟随格子定位（只改 transform / opacity） */
+  .heat-tip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    padding: 0.3rem 0.45rem;
+    border-radius: 2px;
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate3d(var(--tx, 0px), var(--ty, 0px), 0) translate(-50%, -100%);
+    transition: opacity 120ms var(--ease-ed);
+  }
+
+  .heat-tip.is-below {
+    transform: translate3d(var(--tx, 0px), var(--ty, 0px), 0) translate(-50%, 0);
+  }
+
+  .heat-tip.is-on {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* 直接显示最终态；悬停只留墨色描边 */
+    .heat-cell {
+      animation: none;
+      transition: stroke 120ms ease;
+    }
+
+    .heat-cell:hover,
+    .heat-cell:focus-visible,
+    .heat-cell.is-hot {
+      transform: none;
+      stroke: var(--color-ed-rule-strong);
+    }
+
+    .heat-tip {
+      transition: none;
+    }
+  }
+</style>

@@ -14,6 +14,7 @@ export interface FriendLink {
  * 顺序即展示顺序。
  */
 export const FRIENDS: FriendLink[] = [
+  { name: "测试友链", url: "https://example.com/", desc: "临时测试条目，接入真实友链后替换或删除" },
   // {
   //   name: "示例博客",
   //   url: "https://example.com/",

@@ -1,0 +1,1329 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { COLLECTION, COLLECTION_TOTAL } from "../data/collection";
+
+// 与 Wenku8_Flutter 一致：奶白档案色 + 等距投影
+const PAPER = [
+  { cover: "#FEFDF8", ink: "#2A2620" }, // 奶白
+  { cover: "#F4F1E8", ink: "#2A2620" }, // 象牙
+  { cover: "#E9E2D2", ink: "#2A2620" }, // 沙
+  { cover: "#D8CDB9", ink: "#241F18" }, // 石
+  { cover: "#38342E", ink: "#EDE7D8" }, // 墨（少量）
+];
+const SHELF_KINDS = new Set(["books", "music"]);
+const FILTERS = [
+  { id: "all", label: "全部" },
+  ...COLLECTION.map((c) => ({ id: c.id, label: c.label })),
+];
+---
+
+<BaseLayout
+  title="拾集"
+  description="拾集：书籍与漫画摆在立体书架，音乐、电影与电视剧铺成封面墙。"
+>
+  <div class="page-shell">
+    <header class="page-head">
+      <div class="page-head__row">
+        <h1 class="page-head__title">拾集</h1>
+        <span class="page-head__aside">{COLLECTION_TOTAL} 件收藏</span>
+      </div>
+    </header>
+
+    <div class="col-filter" role="tablist" aria-label="筛选收藏">
+      {FILTERS.map((f) => (
+        <button type="button" class={`col-chip ${f.id === "all" ? "is-active" : ""}`} data-filter={f.id} role="tab" aria-selected={f.id === "all" ? "true" : "false"}>
+          {f.label}
+        </button>
+      ))}
+    </div>
+
+    {COLLECTION.map((cat, ci) => {
+      const isShelf = SHELF_KINDS.has(cat.id);
+      const isAlbum = cat.id === "music";
+      const ar = cat.id === "movies" || cat.id === "tv" ? "2 / 3" : "3 / 4";
+      return (
+        <section class="col-shelf reveal" data-section data-cat={cat.id} style={`--reveal-delay:${ci * 60}ms`}>
+          <div class="col-shelf__head">
+            <span class="col-shelf__code">WK-{String(ci + 1).padStart(2, "0")}</span>
+            <h2 class="col-shelf__label">{cat.label}</h2>
+            <span class="col-shelf__rule" aria-hidden="true" />
+            <span class="col-shelf__mark" aria-hidden="true" />
+            <span class="col-shelf__count">{String(cat.items.length).padStart(2, "0")}</span>
+          </div>
+
+          {isShelf ? (
+            <div class="col-bank" data-bank data-mode={cat.id === "music" ? "album" : "book"}>
+              <button type="button" class="col-bank__nav col-bank__nav--prev" data-banknav="-1" aria-label="上一本">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7" /></svg>
+              </button>
+              <div class="col-bank__stage" data-stage>
+                {cat.items.map((item, i) => {
+                  const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                  const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                  return (
+                    <>
+                      <span class="vshadow" aria-hidden="true" />
+                      <button
+                        type="button"
+                        class="vol"
+                        style={`--paper:${paper.cover};--ink:${paper.ink}`}
+                        data-cover data-cat={cat.label} data-title={item.title}
+                        data-creator={item.creator} data-year={String(item.year)}
+                        data-note={item.note} data-cover-color={paper.cover}
+                        data-ink={paper.ink} data-code={fileNo} data-image={item.cover ?? ""}
+                        data-kind={cat.id === "music" ? "album" : "book"}
+                        data-desc-source={item.descSource ?? ""}
+                        data-ref={item.link ?? ""}
+                        data-desc={item.desc ?? ""}
+                        data-tracks={JSON.stringify(item.tracks ?? [])}
+                        data-en={cat.en}
+                        data-rating={item.rating != null ? String(item.rating) : ""}
+                        data-rating-count={item.ratingCount != null ? String(item.ratingCount) : ""}
+                        data-rating-source={item.ratingSource ?? ""}
+                        data-press={item.press ?? ""}
+                        data-pubdate={item.pubdate ?? ""}
+                        data-pages={item.pages != null ? String(item.pages) : ""}
+                        aria-label={`${item.title}，${item.creator}，${item.year}${cat.id === "music" ? "，在网易云播放" : ""}`}
+                      >
+                        {cat.id !== "music" && (
+                          <span class="vol__spine" aria-hidden="true">
+                            <span class="vol__num">{String(i + 1).padStart(2, "0")}</span>
+                            <span class="vol__stitle">{item.title}</span>
+                            <span class="vol__dot" />
+                          </span>
+                        )}
+                        <span class="vol__cover" aria-hidden="true">
+                          {item.cover ? (
+                            <img class="vol__img" src={item.cover} alt="" loading="lazy" />
+                          ) : (
+                            <span class="vol__text">
+                              <span class="vol__ctitle">{item.title}</span>
+                              <span class="vol__cby">{item.creator}</span>
+                            </span>
+                          )}
+                          {item.cover && (
+                            <>
+                              <span class="vol__scrim" />
+                              <span class="vol__albumtag">{fileNo}</span>
+                              <span class="vol__ticks" />
+                              <span class="vol__caption">
+                                <span class="vol__cap-title">{item.title}</span>
+                                <span class="vol__cap-by">{item.creator}{item.year ? ` · ${item.year}` : ""}{item.tracks && item.tracks.length > 1 ? ` · ${item.tracks.length} 首` : ""}</span>
+                              </span>
+                            </>
+                          )}
+                          <span class="vol__no">NO.{String(i + 1).padStart(3, "0")}</span>
+                          <span class="vol__code">{fileNo}</span>
+                        </span>
+                      </button>
+                    </>
+                  );
+                })}
+              </div>
+              <div class="col-bank__foot" data-bankfoot aria-live="polite"></div>
+              <button type="button" class="col-bank__nav col-bank__nav--next" data-banknav="1" aria-label="下一本">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          ) : isAlbum ? (
+            <div class="col-albums" data-albums>
+              <button type="button" class="col-albums__nav col-albums__nav--prev" data-albumnav="-1" aria-label="上一张专辑">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7" /></svg>
+              </button>
+              <div class="col-albums__track" data-albumtrack>
+                {cat.items.map((item, i) => {
+                  const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                  const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                  return (
+                    <button type="button" class="album" style={`--cover:${paper.cover};--ink:${paper.ink}`}
+                      data-cover data-cat={cat.label} data-title={item.title} data-creator={item.creator}
+                      data-year={String(item.year)} data-note={item.note} data-cover-color={paper.cover}
+                      data-ink={paper.ink} data-code={fileNo} data-image={item.cover ?? ""} aria-label={`${item.title}，${item.creator}，${item.year}`}>
+                      <span class="album__cover">
+                        {item.cover ? (
+                          <img class="album__img" src={item.cover} alt="" loading="lazy" />
+                        ) : (
+                          <span class="album__fallback">{item.title}</span>
+                        )}
+                        <span class="album__code">{fileNo}</span>
+                      </span>
+                      <span class="album__meta">
+                        <span class="album__title">{item.title}</span>
+                        <span class="album__by">{item.creator}{item.year ? ` · ${item.year}` : ""}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" class="col-albums__nav col-albums__nav--next" data-albumnav="1" aria-label="下一张专辑">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          ) : (
+            <ul class="col-wall" data-wall data-kind={cat.id} style={`--ar:${ar}`}>
+              {cat.items.map((item, i) => {
+                const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                return (
+                  <li class="col-wallitem">
+                    <button type="button" class="col-wallcard" style={`--cover:${paper.cover};--ink:${paper.ink}`}
+                      data-cover data-cat={cat.label} data-title={item.title} data-creator={item.creator}
+                      data-year={String(item.year)} data-note={item.note} data-cover-color={paper.cover}
+                      data-ink={paper.ink} data-code={fileNo}
+                      data-kind={cat.id === "movies" ? "film" : cat.id === "tv" ? "tv" : "book"}
+                      data-en={cat.en} data-ref={item.link ?? ""} data-desc={item.desc ?? ""}
+                      data-desc-source={item.descSource ?? ""}
+                      data-rating={item.rating != null ? String(item.rating) : ""}
+                      data-rating-count={item.ratingCount != null ? String(item.ratingCount) : ""}
+                      data-rating-source={item.ratingSource ?? ""}
+                      data-press={item.press ?? ""} data-pubdate={item.pubdate ?? ""} data-pages={item.pages ?? ""}
+                      data-image={item.cover ?? ""}
+                      aria-label={`${item.title}，${item.creator}，${item.year}`}>
+                      <span class={`col-wallcard__cover${item.cover ? " has-img" : ""}`}>
+                        {item.cover ? <img class="col-wallcard__img" src={item.cover} alt="" loading="lazy" /> : null}
+                        <span class="col-wallcard__code">{fileNo}</span>
+                        <span class="col-wallcard__title">{item.title}</span>
+                        <span class="col-wallcard__by">{item.creator}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      );
+    })}
+  </div>
+
+  <dialog id="col-dialog" class="col-dialog" aria-labelledby="cd-title">
+    <div class="col-dialog__panel">
+      <div class="col-dialog__rail">
+        <span class="col-dialog__code" id="cd-code"></span>
+        <span class="col-dialog__railsep" aria-hidden="true"></span>
+        <span class="col-dialog__cat" id="cd-cat"></span>
+        <span class="col-dialog__en" id="cd-en"></span>
+        <button type="button" class="col-dialog__close" data-close aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </div>
+
+      <div class="col-dialog__inner">
+        <aside class="col-dialog__aside">
+          <div class="col-dialog__coverwrap">
+            <span class="col-dialog__pad col-dialog__pad--tl" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--tr" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--bl" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--br" aria-hidden="true"></span>
+            <div class="col-dialog__cover" id="cd-cover" aria-hidden="true"><span class="col-dialog__cover-title" data-cd-cover-title></span></div>
+          </div>
+          <dl class="col-dialog__facts" id="cd-facts">
+            <div class="col-dialog__fact" data-fact="press"><dt>出版</dt><dd id="cd-press"></dd></div>
+            <div class="col-dialog__fact" data-fact="pubdate"><dt>年月</dt><dd id="cd-pubdate"></dd></div>
+            <div class="col-dialog__fact" data-fact="pages"><dt>页数</dt><dd id="cd-pages"></dd></div>
+          </dl>
+        </aside>
+
+        <div class="col-dialog__body">
+          <h2 class="col-dialog__title" id="cd-title"></h2>
+          <p class="col-dialog__by" id="cd-by"></p>
+
+          <div class="col-dialog__score" id="cd-score" hidden>
+            <span class="col-dialog__score-value" id="cd-score-value"></span>
+            <span class="col-dialog__score-meta" id="cd-score-meta"></span>
+            <span class="col-dialog__score-bar" aria-hidden="true"><span class="col-dialog__score-fill" id="cd-score-fill"></span></span>
+          </div>
+
+          <section class="col-dialog__section" id="cd-desc-wrap" hidden>
+            <h3 class="col-dialog__label">简介</h3>
+            <p class="col-dialog__desc" id="cd-desc"></p>
+            <a class="col-dialog__src" id="cd-desc-src" target="_blank" rel="noopener noreferrer" hidden>简介来源 · 维基百科</a>
+          </section>
+
+          <section class="col-dialog__section" id="cd-note-wrap" hidden>
+            <h3 class="col-dialog__label">短评</h3>
+            <p class="col-dialog__note" id="cd-note"></p>
+          </section>
+
+          <section class="col-dialog__section" id="cd-tracks-wrap" hidden>
+            <h3 class="col-dialog__label">曲目</h3>
+            <ol class="col-dialog__tracks" id="cd-tracks"></ol>
+          </section>
+
+          <a class="col-dialog__ref" id="cd-ref" target="_blank" rel="noopener noreferrer" hidden>查看条目</a>
+        </div>
+      </div>
+
+      <div class="col-dialog__foot">
+        <span class="col-dialog__mark">拾集 · COLLECTION</span>
+        <span class="col-dialog__esc">ESC 关闭</span>
+      </div>
+    </div>
+  </dialog>
+</BaseLayout>
+
+<style>
+  .col-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.25rem 0 0.5rem; }
+  .col-chip {
+    font-family: var(--font-sans); font-size: 0.75rem; letter-spacing: 0.04em;
+    padding: 0.42rem 0.9rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.12);
+    background: rgba(254, 253, 248, 0.55);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+    color: var(--color-ed-muted); cursor: pointer;
+    transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+  }
+  .col-chip:hover { color: var(--color-ed-fg); border-color: rgba(28, 28, 28, 0.28); }
+  .col-chip.is-active { background: var(--color-ed-fg); color: var(--color-ed-bg); border-color: var(--color-ed-fg); }
+
+  /* 书架/专辑/封面墙内部用了 200~420 的 z-index（扇面抽书、悬停放大）：
+     给分区建独立层叠上下文，避免这些元素压过吸顶导航和页面外框。 */
+  .col-shelf { margin-top: 2.6rem; isolation: isolate; }
+  .col-shelf:first-of-type { margin-top: 1.4rem; }
+  /* 筛选切换：先淡出/收起，落定后才 hidden（JS 用内联 transition 驱动，
+     避免和全局 .reveal 的 transition 抢属性）。淡出中不接受点击。 */
+  .col-shelf[hidden] { display: none; }
+  .col-shelf.is-filtering-out { pointer-events: none; }
+  .col-shelf__head { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.2rem; }
+  .col-shelf__code, .col-shelf__count {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.12em; color: var(--color-ed-subtle); font-variant-numeric: tabular-nums;
+  }
+  .col-shelf__label { margin: 0; font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400; line-height: 1.2; color: var(--color-ed-fg); }
+  .col-shelf__rule { flex: 1; height: 1px; background: var(--color-ed-hairline); align-self: center; }
+  .col-shelf__mark { width: 3px; height: 3px; background: var(--color-ed-fg); align-self: center; }
+
+  /* ===== 立体书架（等距扇面，520px 档案柜） ===== */
+  .col-bank { position: relative; width: 100%; margin: 0.2rem auto 0; }
+  .col-bank__stage { position: relative; width: 100%; height: 420px; overflow: hidden; }
+  .vshadow {
+    position: absolute; left: 0; top: 0;
+    width: var(--FOOT, 100px); height: 16px;
+    background: radial-gradient(ellipse at 32% center, rgba(90, 78, 56, 0.20), rgba(90, 78, 56, 0) 72%);
+    filter: blur(2px); pointer-events: none; will-change: transform;
+  }
+  .vol {
+    position: absolute; left: 0; top: 0;
+    width: var(--FOOT, 100px); height: var(--H, 206px);
+    border: 0; margin: 0; padding: 0; background: none;
+    cursor: pointer; text-align: left;
+    transform-origin: 0 0; will-change: transform;
+  }
+  .vol__spine {
+    position: absolute; left: 0; top: 0;
+    width: var(--S, 18px); height: var(--H, 206px);
+    transform: matrix(1, 0.10, 0, 1, 0, 0); transform-origin: 0 0;
+    background: #F2F0E9; color: #2A2620;
+    box-shadow: inset 0 0 0 1px rgba(28, 28, 28, 0.10), inset -2px 0 3px -2px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0;
+  }
+  .vol__num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.04em; opacity: 0.55; }
+  .vol__stitle {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    font-family: var(--font-serif); font-size: 9px; line-height: 1.08; font-weight: 600;
+    max-height: 76%; overflow: hidden; text-align: center;
+    display: flex; align-items: center; justify-content: center; flex: 1; margin: 6px 0;
+  }
+  .vol__dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(28, 28, 28, 0.32); }
+  .vol__cover {
+    position: absolute; left: var(--S, 18px); top: calc(var(--S, 18px) * 0.10);
+    width: var(--C, 128px); height: var(--H, 206px);
+    transform: matrix(0.66, -0.30, 0, 1, 0, 0); transform-origin: 0 0;
+    background: var(--paper, #FEFDF8); color: var(--ink, #2A2620);
+    box-shadow: inset 0 0 0 1px rgba(28, 28, 28, 0.09);
+    transition: box-shadow 220ms var(--ease-ed), filter 220ms var(--ease-ed);
+    overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 9px 9px 7px;
+  }
+  .vol__no { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.08em; opacity: 0.55; }
+  .vol__ctitle {
+    font-family: var(--font-serif); font-size: 16px; line-height: 1.22;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vol__cby { font-size: 9px; letter-spacing: 0.02em; opacity: 0.6; margin-top: 2px; }
+  .vol__code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.06em; opacity: 0.5; padding-top: 4px; border-top: 1px solid rgba(28, 28, 28, 0.10); }
+  .vol__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: block; }
+  .vol__text { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px; z-index: 1; }
+  .vol__cover .vol__no { position: absolute; top: 7px; left: 7px; z-index: 2; background: rgba(254, 253, 248, 0.82); padding: 1px 5px; border-radius: 2px; }
+  .vol__cover .vol__code { position: absolute; bottom: 7px; left: 7px; right: 7px; z-index: 2; background: rgba(254, 253, 248, 0.72); padding: 2px 5px; border-radius: 2px; border-top: 0; }
+  .vol__scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 56%; z-index: 1; pointer-events: none; background: linear-gradient(to top, rgba(10, 8, 6, 0.74), rgba(10, 8, 6, 0)); }
+  .vol__albumtag { position: absolute; top: 7px; right: 7px; z-index: 2; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.1em; color: #fff; background: rgba(0, 0, 0, 0.34); padding: 2px 6px; border-radius: 2px; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  .vol__caption { position: absolute; left: 9px; right: 9px; bottom: 9px; z-index: 2; display: flex; flex-direction: column; gap: 2px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+  .vol__cap-title { font-family: var(--font-serif); font-size: 11px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vol__cap-by { font-size: 8px; letter-spacing: 0.02em; opacity: 0.86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-bank[data-mode="album"] .vol__no, .col-bank[data-mode="album"] .vol__code { display: none; }
+  .col-bank[data-mode="album"] .vol__cover { outline: 1px solid rgba(28, 28, 28, 0.18); outline-offset: 3px; }
+  .vol__ticks {
+    position: absolute; inset: 6px; z-index: 2; pointer-events: none; opacity: 0.72;
+    --tick: rgba(255, 255, 255, 0.92);
+    background:
+      linear-gradient(var(--tick), var(--tick)) left top / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left top / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / 1px 7px no-repeat;
+  }
+  .vol:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 4px; }
+  .vol, .vshadow { transition: transform 520ms var(--ease-ed); }
+  /* 焦点高亮只跟「抬起」绑定：小屏中间那本是抬起的，所以给小屏；
+     桌面端不默认抬起，也就不画环（悬停只做原有的放大/浮起）。 */
+  @media (max-width: 1023px) {
+    .vol.is-focus .vol__cover {
+      box-shadow:
+        0 0 0 1.5px var(--color-ed-accent),
+        0 0 0 6px rgba(166, 58, 43, 0.1),
+        0 24px 40px -22px rgba(30, 20, 10, 0.55);
+    }
+  }
+  .col-bank.is-drag .vol, .col-bank.is-drag .vshadow { transition: none; }
+
+  .col-bank__foot {
+    min-height: 1.5rem; padding: 0 2.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.1em; color: var(--color-ed-subtle);
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .col-bank__nav {
+    position: absolute; top: 42%; z-index: 300;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.1rem; height: 2.1rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.14);
+    background: rgba(254, 253, 248, 0.72);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: var(--color-ed-fg); cursor: pointer;
+    transition: background-color 180ms ease, border-color 180ms ease;
+  }
+  .col-bank__nav:hover { border-color: rgba(28, 28, 28, 0.35); }
+  .col-bank__nav svg { width: 0.95rem; height: 0.95rem; }
+  .col-bank__nav--prev { left: -2px; }
+  .col-bank__nav--next { right: -2px; }
+
+  /* 去掉底部落地阴影 */
+  .vshadow { display: none !important; }
+
+  /* 音乐专辑：悬停浮出完整（去等距斜切）封面 */
+  .col-bank[data-mode="album"] .vol__cover {
+    transition: transform 260ms var(--ease-ed), box-shadow 260ms var(--ease-ed), filter 260ms var(--ease-ed);
+    transform-origin: 50% 50%;
+  }
+  .col-bank[data-mode="album"] .vol:hover { z-index: 420 !important; }
+  .col-bank[data-mode="album"] .vol:hover .vol__cover,
+  .col-bank[data-mode="album"] .vol:focus-visible .vol__cover {
+    transform: scale(1.14);
+    z-index: 80;
+    box-shadow: 0 24px 42px -22px rgba(30, 20, 10, 0.5), inset 0 0 0 1px rgba(28, 28, 28, 0.14);
+    filter: brightness(1.03);
+  }
+
+  /* ===== 音乐专辑横向轮播（只借滚动动画，保留专辑封面样式） ===== */
+  .col-albums { position: relative; }
+  .col-albums__track {
+    display: flex; gap: 18px;
+    overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none; -ms-overflow-style: none;
+    padding: 14px 6px 18px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  }
+  .col-albums__track::-webkit-scrollbar { display: none; }
+  .album {
+    flex: 0 0 auto; width: 172px;
+    border: 0; margin: 0; padding: 0; background: none; cursor: pointer;
+    scroll-snap-align: center; text-align: left;
+    display: block; text-decoration: none; color: inherit;
+    transform-origin: bottom center; will-change: transform;
+    /* 不要在这里加 transform 过渡：滚动时 JS 每帧写 transform，CSS 过渡会逐帧重启，
+       结果是封面追不上指针、整体"飘"。滚动动画交给 scroll-snap + rAF。 */
+  }
+  .album__cover {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between;
+    aspect-ratio: 1 / 1; padding: 14px 12px 12px; border-radius: 3px; color: var(--ink);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover) 96%, white), var(--cover));
+    box-shadow: 0 12px 24px -18px rgba(60, 48, 30, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.1);
+    overflow: hidden;
+  }
+  .album__cover::before { content: ""; position: absolute; inset: 9px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 2px; pointer-events: none; }
+  .album__code { position: relative; z-index: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.5rem; letter-spacing: 0.1em; opacity: 0.5; }
+  .album__title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.06rem; line-height: 1.28; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .album__by { position: relative; z-index: 1; font-size: 0.625rem; letter-spacing: 0.04em; opacity: 0.6; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 5px; }
+  .album__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: block; }
+  .album__fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; font-family: var(--font-serif); font-size: 1.1rem; line-height: 1.3; color: var(--ink); z-index: 1; }
+  .album__code { position: absolute !important; top: 8px; left: 8px; background: rgba(254, 253, 248, 0.82); padding: 2px 6px; border-radius: 2px; z-index: 2; }
+  .album__meta { display: block; margin-top: 8px; }
+  .album__meta .album__title { display: block; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.3; color: var(--color-ed-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album__meta .album__by { display: block; margin-top: 2px; border-top: 0; padding-top: 0; font-size: 0.6875rem; letter-spacing: 0.02em; color: var(--color-ed-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-albums__nav {
+    position: absolute; top: 44%; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.1rem; height: 2.1rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.14);
+    background: rgba(254, 253, 248, 0.72);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: var(--color-ed-fg); cursor: pointer;
+    transition: background-color 180ms ease, border-color 180ms ease;
+  }
+  .col-albums__nav:hover { border-color: rgba(28, 28, 28, 0.35); }
+  .col-albums__nav svg { width: 0.95rem; height: 0.95rem; }
+  .col-albums__nav--prev { left: -4px; }
+  .col-albums__nav--next { right: -4px; }
+
+  /* ===== 封面墙 ===== */
+  .col-wall { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 18px; }
+  .col-wallitem { min-width: 0; }
+  .col-wallcard { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+  .col-wallcard__cover {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between;
+    aspect-ratio: var(--ar, 3 / 4); padding: 14px 12px 12px; border-radius: 3px; color: var(--ink);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover) 96%, white), var(--cover));
+    box-shadow: 0 10px 22px -18px rgba(60, 48, 30, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.1);
+    overflow: hidden; transition: transform 260ms var(--ease-ed), box-shadow 260ms var(--ease-ed);
+  }
+  .col-wallcard__cover::before { content: ""; position: absolute; inset: 8px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 1px; pointer-events: none; }
+  .col-wallcard:hover .col-wallcard__cover, .col-wallcard:focus-visible .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  .col-wallcard__code { position: relative; z-index: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.5rem; letter-spacing: 0.1em; opacity: 0.5; }
+  .col-wallcard__title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.02rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .col-wallcard__by { position: relative; z-index: 1; font-size: 0.625rem; letter-spacing: 0.04em; opacity: 0.6; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-wallcard:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 5px; }
+
+  /* 有真实海报时：图铺满，底部渐变压暗，文字反白 */
+  .col-wallcard__img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 0; display: block;
+  }
+  .col-wallcard__cover.has-img {
+    background: #241f18;
+    box-shadow: 0 14px 28px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.18);
+  }
+  .col-wallcard__cover.has-img::before { border-color: rgba(247, 243, 234, 0.28); }
+  .col-wallcard__cover.has-img::after {
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(to top, rgba(10, 8, 6, 0.82) 0%, rgba(10, 8, 6, 0.28) 36%, rgba(10, 8, 6, 0) 62%);
+    pointer-events: none;
+  }
+  .col-wallcard__cover.has-img .col-wallcard__code,
+  .col-wallcard__cover.has-img .col-wallcard__title,
+  .col-wallcard__cover.has-img .col-wallcard__by { color: #f7f3ea; text-shadow: 0 1px 14px rgba(0, 0, 0, 0.45); }
+  .col-wallcard__cover.has-img .col-wallcard__by { border-top-color: rgba(247, 243, 234, 0.32); }
+
+  /* ===== 详情弹层（档案卡） ===== */
+  /* 居中不依赖 UA 的 dialog{margin:auto}（会被 Tailwind preflight 的 *{margin:0} 干掉）：
+     dialog 铺满视口当 flex 容器，外观、宽度与滚动都交给 .col-dialog__panel。 */
+  .col-dialog {
+    position: fixed; inset: 0; margin: 0; padding: 0;
+    width: auto; height: auto; max-width: none; max-height: none;
+    border: 0; background: transparent; color: var(--color-ed-fg);
+    overflow: visible;
+  }
+  .col-dialog[open] { display: flex; align-items: center; justify-content: center; }
+
+  .col-dialog__panel {
+    position: relative;
+    width: min(94vw, 58rem); max-height: 90vh; overflow: auto;
+    background:
+      linear-gradient(90deg, rgba(28, 28, 28, 0.045), rgba(28, 28, 28, 0) 32px),
+      var(--color-ed-bg);
+    border: 1px solid var(--color-ed-rule);
+    border-top: 3px solid var(--color-ed-accent);
+    box-shadow: 0 70px 140px -70px rgba(20, 14, 9, 0.7), 0 2px 0 rgba(28, 28, 28, 0.04);
+    outline: 1px solid var(--color-ed-hairline);
+    outline-offset: -12px;
+    overscroll-behavior: contain;
+  }
+  .col-dialog::backdrop {
+    background: radial-gradient(120% 120% at 50% 0%, rgba(28, 28, 28, 0.42), rgba(28, 28, 28, 0.66));
+    backdrop-filter: blur(6px) saturate(0.9);
+    -webkit-backdrop-filter: blur(6px) saturate(0.9);
+  }
+
+  /* 入场：背板先压暗，面板上浮+微放大，封面再晚一拍跟进 */
+  .col-dialog[open]::backdrop { animation: col-dialog-backdrop-in 260ms ease-out both; }
+  @keyframes col-dialog-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+  .col-dialog[open] .col-dialog__panel {
+    animation: col-dialog-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: opacity, transform;
+  }
+  @keyframes col-dialog-in {
+    from { opacity: 0; transform: translateY(18px) scale(0.962); }
+    to { opacity: 1; transform: none; }
+  }
+  .col-dialog[open] .col-dialog__cover {
+    animation: col-dialog-cover-in 460ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+  }
+  @keyframes col-dialog-cover-in {
+    from { opacity: 0; translate: 0 10px; scale: 1.035; }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+  /* 退场：220ms 收回（比入场快一档，不拖沓），动画结束再真正 close()（见 closeDetail） */
+  .col-dialog.is-closing::backdrop { animation: col-dialog-backdrop-out 220ms ease-in both; }
+  @keyframes col-dialog-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+  .col-dialog.is-closing .col-dialog__panel {
+    animation: col-dialog-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  @keyframes col-dialog-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(12px) scale(0.978); }
+  }
+  .col-dialog.is-closing .col-dialog__cover { animation: none; }
+
+  /* 顶部编号条：WK-00001 · 分类 · 英文 · 关闭 */
+  .col-dialog__rail {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 1rem 1.4rem 1rem 2.5rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__code { color: var(--color-ed-fg); font-variant-numeric: tabular-nums; }
+  .col-dialog__railsep { width: 1.1rem; height: 1px; background: var(--color-ed-rule); }
+  .col-dialog__cat { color: var(--color-ed-accent); }
+  .col-dialog__en { color: var(--color-ed-subtle); opacity: 0.7; letter-spacing: 0.22em; }
+  .col-dialog__close {
+    margin-left: auto;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.4rem; height: 2.4rem; padding: 0;
+    border: 1px solid var(--color-ed-hairline); border-radius: 999px;
+    background: transparent; color: var(--color-ed-muted); cursor: pointer;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease;
+  }
+  .col-dialog__close:hover, .col-dialog__close:focus-visible {
+    color: var(--color-ed-fg); border-color: var(--color-ed-rule);
+    background: rgba(28, 28, 28, 0.04);
+  }
+  .col-dialog__close svg { width: 1rem; height: 1rem; }
+
+  /* 主体：左侧封面 + 出版信息，右侧文字档案 */
+  .col-dialog__inner {
+    display: grid; grid-template-columns: 236px minmax(0, 1fr);
+    gap: 2.75rem; padding: 2rem 2.5rem 2.4rem;
+  }
+  .col-dialog__aside { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+  .col-dialog__coverwrap {
+    position: relative; width: 100%; aspect-ratio: 3 / 4;
+    perspective: 900px;
+  }
+  .col-dialog[data-kind="album"] .col-dialog__coverwrap { aspect-ratio: 1 / 1; }
+  .col-dialog[data-kind="film"] .col-dialog__coverwrap,
+  .col-dialog[data-kind="tv"] .col-dialog__coverwrap { aspect-ratio: 2 / 3; }
+  .col-dialog__pad { position: absolute; z-index: 2; width: 50%; height: 50%; }
+  .col-dialog__pad--tl { left: 0; top: 0; }
+  .col-dialog__pad--tr { right: 0; top: 0; }
+  .col-dialog__pad--bl { left: 0; bottom: 0; }
+  .col-dialog__pad--br { right: 0; bottom: 0; }
+  .col-dialog__cover {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: flex-end; padding: 1.2rem;
+    border-radius: 2px; color: var(--ink, #2a2620);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover, #fefdf8) 96%, white), var(--cover, #fefdf8));
+    box-shadow: 0 30px 46px -28px rgba(20, 14, 9, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+    overflow: hidden;
+    /* 热区在上层，封面不接收指针，保证四角 hover 生效 */
+    pointer-events: none;
+    transform-style: preserve-3d;
+    transition: transform 500ms var(--ease-ed), box-shadow 500ms var(--ease-ed);
+  }
+  .col-dialog__cover::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--ink, #2a2620) 20%, transparent); border-radius: 1px; pointer-events: none; }
+  .col-dialog__cover::after { content: ""; position: absolute; inset: 0; box-shadow: inset 9px 0 18px -14px rgba(0, 0, 0, 0.6); pointer-events: none; }
+  .col-dialog__cover-title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.32; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* 音乐专辑：方形封面（去掉书脊暗部），播放按钮做成实心 CTA */
+  .col-dialog[data-kind="album"] .col-dialog__cover { aspect-ratio: 1 / 1; }
+  .col-dialog[data-kind="album"] .col-dialog__cover::after { display: none; }
+  /* 专辑封面：鼠标移到哪个角，卡片就朝那个角凹进去（纯 CSS 兄弟选择器，无 JS） */
+  .col-dialog[data-kind="album"] .col-dialog__pad { cursor: default; }
+  .col-dialog[data-kind="album"] .col-dialog__pad--tl:hover ~ .col-dialog__cover {
+    transform: rotateX(12deg) rotateY(-12deg);
+    box-shadow: 16px 20px 36px rgba(20, 14, 9, 0.38), -10px -8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--tr:hover ~ .col-dialog__cover {
+    transform: rotateX(12deg) rotateY(12deg);
+    box-shadow: -16px 20px 36px rgba(20, 14, 9, 0.38), 10px -8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--bl:hover ~ .col-dialog__cover {
+    transform: rotateX(-12deg) rotateY(-12deg);
+    box-shadow: 16px -16px 36px rgba(20, 14, 9, 0.38), -10px 8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--br:hover ~ .col-dialog__cover {
+    transform: rotateX(-12deg) rotateY(12deg);
+    box-shadow: -16px -16px 36px rgba(20, 14, 9, 0.38), 10px 8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__ref {
+    border-color: var(--color-ed-accent);
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__ref:hover,
+  .col-dialog[data-kind="album"] .col-dialog__ref:focus-visible {
+    background: transparent;
+    color: var(--color-ed-accent);
+  }
+
+  .col-dialog__facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem 1.1rem; }
+  .col-dialog__fact { display: flex; flex-direction: column; gap: 0.2rem; padding-top: 0.55rem; border-top: 1px solid var(--color-ed-hairline); }
+  .col-dialog__fact[hidden] { display: none; }
+  .col-dialog__fact dt {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__fact dd { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--color-ed-fg); }
+
+  .col-dialog__body { padding-top: 0.1rem; min-width: 0; }
+  .col-dialog__title { margin: 0 0 0.6rem; font-family: var(--font-serif); font-size: clamp(1.75rem, 3vw, 2.35rem); line-height: 1.18; font-weight: 400; }
+  .col-dialog__by {
+    margin: 0 0 1.4rem; padding-bottom: 0.95rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle); font-variant-numeric: tabular-nums;
+  }
+
+  /* 评分：大号衬线数字 + 来源/人数 + 细进度条 */
+  .col-dialog__score {
+    display: grid; grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "value meta" "value bar";
+    gap: 0.4rem 1.15rem; align-items: center;
+    margin: 0 0 1.8rem; padding-bottom: 1.6rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+  }
+  .col-dialog__score[hidden] { display: none; }
+  .col-dialog__score-value {
+    grid-area: value; font-family: var(--font-serif);
+    font-size: 3rem; line-height: 0.88; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .col-dialog__score-meta {
+    grid-area: meta; align-self: end;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__score-bar { grid-area: bar; position: relative; height: 2px; background: var(--color-ed-hairline); overflow: hidden; }
+  .col-dialog__score-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--color-ed-accent); transition: width 480ms var(--ease-ed); }
+
+  /* 分节：小标签 + 细线 */
+  .col-dialog__section { margin: 0 0 1.6rem; }
+  .col-dialog__section[hidden] { display: none; }
+  .col-dialog__label {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin: 0 0 0.75rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 400; color: var(--color-ed-subtle);
+  }
+  .col-dialog__label::after { content: ""; flex: 1; height: 1px; background: var(--color-ed-hairline); }
+  .col-dialog__desc { margin: 0; font-size: 0.9375rem; line-height: 1.95; color: var(--color-ed-muted); white-space: pre-line; }
+  .col-dialog__src {
+    display: inline-block; margin-top: 0.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-ed-subtle); text-decoration: none;
+    border-bottom: 1px solid transparent; transition: color 160ms ease, border-color 160ms ease;
+  }
+  .col-dialog__src:hover, .col-dialog__src:focus-visible { color: var(--color-ed-accent); border-color: currentColor; }
+  .col-dialog__src[hidden] { display: none; }
+  .col-dialog__note {
+    position: relative; margin: 0; padding: 0.1rem 0 0.1rem 1.15rem;
+    border-left: 2px solid var(--color-ed-accent);
+    font-family: var(--font-serif); font-size: 1rem; line-height: 1.95;
+    color: var(--color-ed-fg);
+  }
+
+  .col-dialog__ref {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    margin-top: 0.3rem; padding: 0.62rem 0.95rem;
+    border: 1px solid var(--color-ed-rule);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-ed-fg); text-decoration: none;
+    transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+  }
+  .col-dialog__ref::after { content: "↗"; font-size: 0.9em; }
+  .col-dialog__ref:hover, .col-dialog__ref:focus-visible { border-color: var(--color-ed-accent); color: var(--color-ed-accent); background: rgba(166, 58, 43, 0.05); }
+  .col-dialog__ref[hidden] { display: none; }
+  /* 曲目行由 JS 生成，Astro 的 scoped 属性加不到这些节点上，故用 :global 选择器 */
+  .col-dialog__tracks { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
+  .col-dialog__tracks :global(li) { display: flex; align-items: baseline; gap: 1.5rem; min-width: 0; }
+  .col-dialog__tracks :global(.col-dialog__track-idx) {
+    flex: none; width: 1.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.08em; color: var(--color-ed-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+  .col-dialog__tracks :global(a) {
+    flex: 1; min-width: 0; text-align: right;
+    font-size: 0.9375rem; line-height: 1.6;
+    color: var(--color-ed-fg); text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color 160ms ease, border-color 160ms ease;
+  }
+  .col-dialog__tracks :global(a:hover),
+  .col-dialog__tracks :global(a:focus-visible) {
+    color: var(--color-ed-accent); border-color: color-mix(in srgb, var(--color-ed-accent) 45%, transparent);
+  }
+
+  /* 底部条：刊名 + 关闭提示 */
+  .col-dialog__foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.85rem 2.5rem;
+    border-top: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__mark { color: var(--color-ed-muted); }
+
+  @media (max-width: 720px) {
+    .col-bank__nav { display: none; }
+    .col-wall { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 14px; }
+    .col-dialog__rail { padding: 0.8rem 1rem 0.8rem 1.4rem; }
+    .col-dialog__en { display: none; }
+    .col-dialog__inner { grid-template-columns: 1fr; gap: 1.25rem; padding: 1.1rem 1.4rem 1.6rem; }
+    .col-dialog__aside { flex-direction: row; align-items: flex-start; gap: 1rem; }
+    .col-dialog__coverwrap { width: 104px; flex: none; }
+    .col-dialog__cover { padding: 0.6rem; }
+    .col-dialog__cover-title { font-size: 0.8125rem; }
+    .col-dialog__facts { flex: 1; gap: 0.7rem 0.9rem; }
+    .col-dialog__title { font-size: 1.65rem; }
+    .col-dialog__score-value { font-size: 2.4rem; }
+    .col-dialog__foot { padding: 0.7rem 1.4rem; }
+    .col-dialog__esc { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vol, .vshadow { transition: none; }
+    .col-wallcard__cover { transition: none; }
+    .col-dialog__cover { transition: none; }
+    /* 减少动态：直接不倾斜，保留平面封面 */
+    .col-dialog[data-kind="album"] .col-dialog__pad:hover ~ .col-dialog__cover { transform: none; }
+    .col-dialog[open] .col-dialog__panel,
+    .col-dialog[open]::backdrop,
+    .col-dialog.is-closing .col-dialog__panel,
+    .col-dialog.is-closing::backdrop { animation: none; }
+  }
+</style>
+
+<script>
+  // ===== 立体书架：按 Wenku8_Flutter 的几何与物理 =====
+  const DEPTH_X = 0.66, DEPTH_Y = -0.30, RADIUS = 1.48;
+
+  type Bank = { root: HTMLElement; layout: () => void; step: (d: number) => void; refresh: () => void };
+  const banks: Bank[] = [];
+
+  function makeBank(root: HTMLElement): Bank {
+    const stage = root.querySelector<HTMLElement>("[data-stage]")!;
+    const foot = root.querySelector<HTMLElement>("[data-bankfoot]");
+    const vols = Array.from(stage.querySelectorAll<HTMLElement>(".vol"));
+    const shadows = Array.from(stage.querySelectorAll<HTMLElement>(".vshadow"));
+    const n = vols.length;
+    const mode = root.dataset.mode || "book";
+    let S = 18, C = 128, H = 206, FOOT = S + C * DEPTH_X, BASEY = -C * DEPTH_Y + H * 0.6 + 12, PITCH = 30;
+    let focus = Math.floor((n - 1) / 2);
+    let dragging = false, lastX = 0, lastT = 0, vel = 0;
+
+    function measure() {
+      const W = stage.clientWidth || 520;
+      if (mode === "album") {
+        // 专辑：方形封面，无书脊；沿用同样的扇面排布与抽出动画
+        C = Math.max(120, Math.min(172, W * 0.15));
+        S = 0;
+        H = C;
+        FOOT = C * DEPTH_X;
+        BASEY = 46;
+        PITCH = Math.max(44, Math.min(120, C * 0.55));
+        stage.style.height = H + 96 + "px";
+      } else {
+        S = Math.max(14, Math.min(18, W * 0.043));
+        C = Math.max(100, Math.min(128, W * 0.32));
+        H = ((C - 20) * 166) / 118 + 54;
+        FOOT = S + C * DEPTH_X;
+        BASEY = -C * DEPTH_Y + H * 0.6 + 12;
+        PITCH = Math.max(22, Math.min(150, (W - FOOT) / Math.max(1, n - 1)));
+        stage.style.height = BASEY + H + 70 + "px";
+      }
+      stage.style.setProperty("--S", S + "px");
+      stage.style.setProperty("--C", C + "px");
+      stage.style.setProperty("--H", H + "px");
+      stage.style.setProperty("--FOOT", FOOT + "px");
+    }
+    const railY = (_d: number) => 0; // 不要弧度：整排压平
+    const weight = (d: number) => { const a = Math.abs(d); if (a >= RADIUS) return 0; const v = Math.cos((a / RADIUS) * Math.PI / 2); return v * v; };
+
+    function layout() {
+      const W = stage.clientWidth || 520;
+      const cx = W / 2;
+      vols.forEach((el, i) => {
+        const d = i - focus;
+        const w = weight(d);
+        const lift = w * w * (3 - 2 * w);
+        let ox: number, oy: number;
+        // 桌面端默认不抬起中间那一本（悬停/点击仍可交互）；小屏保留抬起
+        const liftK = window.matchMedia("(min-width: 1024px)").matches ? 0 : 1;
+        if (mode === "album") {
+          const pull = C * 0.30 * w * (1.24 - 0.24 * w);
+          ox = -pull * DEPTH_X;
+          oy = BASEY - H * 0.16 * lift * liftK;
+        } else {
+          const pull = C * 0.78 * w * (1.24 - 0.24 * w);
+          ox = -pull * DEPTH_X;
+          oy = BASEY + 0.30 * pull - H * 0.28 * lift * liftK;
+        }
+        const xSlot = cx - FOOT / 2 + d * PITCH;
+        el.style.transform = `translate(${(xSlot + ox).toFixed(2)}px, ${(railY(d) + oy).toFixed(2)}px)`;
+        el.style.zIndex = String(200 - Math.round(Math.abs(d) * 8));
+        const sh = shadows[i];
+        if (sh) {
+          sh.style.transform = `translate(${xSlot.toFixed(2)}px, ${(railY(d) + BASEY + H - 6).toFixed(2)}px)`;
+          sh.style.opacity = String(Math.max(0.15, 0.95 - Math.abs(d) * 0.08));
+        }
+      });
+      const focusIdx = Math.max(0, Math.min(n - 1, Math.round(focus)));
+      vols.forEach((el, i) => el.classList.toggle("is-focus", i === focusIdx));
+      if (foot) {
+        const el = vols[focusIdx];
+        const t = el?.dataset.title ?? "";
+        const a = el?.dataset.creator ?? "";
+        foot.textContent = t ? `${String(Math.round(focus) + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")}　${t} · ${a}` : "";
+      }
+    }
+
+    function animateTo(t: number) {
+      // 位置由 CSS transition 平滑过渡，只设置目标焦点
+      focus = Math.max(0, Math.min(n - 1, t));
+      layout();
+    }
+
+    function step(d: number) { animateTo(Math.round(focus) + d); }
+    function refresh() { measure(); layout(); }
+
+    let startX = 0, moved = false;
+    stage.addEventListener("pointerdown", (e) => {
+      dragging = true; moved = false; startX = e.clientX; lastX = e.clientX; lastT = performance.now(); vel = 0;
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      if (!moved && Math.abs(e.clientX - startX) > 5) { moved = true; root.classList.add("is-drag"); }
+      if (!moved) return;
+      const now = performance.now();
+      const dx = e.clientX - lastX;
+      const dt = Math.max(1, now - lastT);
+      vel = dx / dt;
+      focus = Math.max(0, Math.min(n - 1, focus - dx / PITCH));
+      layout();
+      lastX = e.clientX; lastT = now;
+    });
+    const endDrag = (e?: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      root.classList.remove("is-drag");
+      if (moved) {
+        (window as any).__shelfSuppressClick = performance.now();
+        const projected = focus - vel * 10;
+        animateTo(Math.round(projected));
+      } else if (e) {
+        // 轻点：命中处找书，命中不到就取离指针最近的一本（等距斜面 bbox 可能偏）
+        const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+        let cover = hit?.closest?.("[data-cover]") as HTMLElement | null;
+        if (!cover) {
+          let best: HTMLElement | null = null, bd = 1e9;
+          vols.forEach((v) => {
+            const r = v.getBoundingClientRect();
+            const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+            const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+            const d = Math.hypot(dx, dy);
+            if (d < bd) { bd = d; best = v; }
+          });
+          if (best && bd < 36) cover = best;
+        }
+        if (cover) { (window as any).__shelfSuppressClick = performance.now(); openDetail(cover); }
+      }
+    };
+    stage.addEventListener("pointerup", (e) => endDrag(e));
+    stage.addEventListener("pointercancel", () => endDrag());
+    stage.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+        step(Math.sign(e.deltaX));
+      }
+    }, { passive: false });
+    root.querySelectorAll<HTMLElement>("[data-banknav]").forEach((btn) => {
+      btn.addEventListener("click", () => step(Number(btn.dataset.banknav || "0")));
+    });
+    stage.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    });
+    window.addEventListener("resize", () => { measure(); layout(); });
+
+    return { root, layout, step, refresh };
+  }
+
+  function initBanks() {
+    banks.length = 0;
+    document.querySelectorAll<HTMLElement>("[data-bank]").forEach((root) => {
+      const b = makeBank(root);
+      banks.push(b);
+      b.refresh();
+    });
+  }
+
+  type Album = { root: HTMLElement; refresh: () => void };
+  const albums: Album[] = [];
+  function makeAlbums(root: HTMLElement): Album {
+    const track = root.querySelector<HTMLElement>("[data-albumtrack]")!;
+    let pending = false;
+    function update() {
+      const tr = track.getBoundingClientRect();
+      const cx = tr.left + tr.width / 2;
+      track.querySelectorAll<HTMLElement>(".album").forEach((it) => {
+        const r = it.getBoundingClientRect();
+        const d = Math.abs(r.left + r.width / 2 - cx);
+        const range = Math.max(120, r.width * 1.5);
+        let w = 0;
+        if (d < range) w = 0.5 + 0.5 * Math.cos((d / range) * Math.PI);
+        it.style.transform = `translateY(${(-6 * w).toFixed(2)}px) scale(${(1 + 0.06 * w).toFixed(3)})`;
+        it.style.zIndex = String(Math.round(w * 100));
+      });
+    }
+    track.addEventListener("scroll", () => {
+      if (pending) return; pending = true;
+      requestAnimationFrame(() => { pending = false; update(); });
+    }, { passive: true });
+    root.querySelectorAll<HTMLElement>("[data-albumnav]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const first = track.querySelector<HTMLElement>(".album");
+        const pitch = first ? first.offsetWidth + 18 : 190;
+        track.scrollBy({ left: Number(btn.dataset.albumnav || "0") * pitch, behavior: "smooth" });
+      });
+    });
+    window.addEventListener("resize", update);
+    return { root, refresh: update };
+  }
+  function initAlbums() {
+    albums.length = 0;
+    document.querySelectorAll<HTMLElement>("[data-albums]").forEach((root) => {
+      const a = makeAlbums(root);
+      albums.push(a);
+      a.refresh();
+    });
+  }
+
+  // ===== 筛选：淡出/收起 → 落定后再 hidden；按书架 30ms 交错 =====
+  const FILTER_MS = 200;
+  const FILTER_STAGGER = 30;
+  const shelfTimers = new WeakMap<HTMLElement, number>();
+  const colReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // 用内联 transition 驱动：全局 .reveal 也给 .col-shelf 声明了 transition，
+  // 走类名会和它抢属性；内联样式优先级更高，且随时可被下一次点击打断。
+  function shelfToggle(sec: HTMLElement, show: boolean, delay: number) {
+    const prev = shelfTimers.get(sec);
+    if (prev) { window.clearTimeout(prev); shelfTimers.delete(sec); }
+    const target = show ? "in" : "out";
+    if (sec.dataset.shelfState === target && !sec.hidden === show) return;
+    sec.dataset.shelfState = target;
+    const st = sec.style;
+
+    if (colReduced()) {
+      st.transition = ""; st.transitionDelay = "";
+      st.maxHeight = ""; st.overflow = ""; st.opacity = ""; st.transform = "";
+      sec.classList.remove("is-filtering-out");
+      sec.hidden = !show;
+      return;
+    }
+
+    st.transition = `opacity ${FILTER_MS}ms var(--ease-ed), transform ${FILTER_MS}ms var(--ease-ed), max-height ${FILTER_MS}ms var(--ease-ed)`;
+    st.transitionDelay = `${delay}ms`;
+
+    if (show) {
+      sec.hidden = false;
+      st.overflow = "hidden";
+      st.maxHeight = "0px";
+      st.opacity = "0";
+      st.transform = "translateY(4px)";
+      void sec.offsetHeight; // 起始值生效后再改终点，过渡才会真的跑
+      st.maxHeight = `${sec.scrollHeight}px`;
+      st.opacity = "1";
+      st.transform = "translateY(0)";
+      shelfTimers.set(sec, window.setTimeout(() => {
+        // 撤掉临时约束，避免裁掉悬停溢出
+        st.maxHeight = ""; st.overflow = "";
+        st.transition = ""; st.transitionDelay = "";
+        shelfTimers.delete(sec);
+      }, FILTER_MS + delay + 40));
+    } else {
+      sec.classList.add("is-filtering-out");
+      st.overflow = "hidden";
+      st.maxHeight = `${sec.offsetHeight}px`;
+      void sec.offsetHeight;
+      st.maxHeight = "0px";
+      st.opacity = "0";
+      st.transform = "translateY(4px)";
+      shelfTimers.set(sec, window.setTimeout(() => {
+        sec.hidden = true;
+        sec.classList.remove("is-filtering-out");
+        st.maxHeight = ""; st.overflow = ""; st.opacity = ""; st.transform = "";
+        st.transition = ""; st.transitionDelay = "";
+        shelfTimers.delete(sec);
+      }, FILTER_MS + delay + 40));
+    }
+  }
+
+  function refreshBanks() {
+    banks.forEach((b) => { if (!b.root.closest<HTMLElement>("[data-section]")?.hidden) b.refresh(); });
+    albums.forEach((a) => { if (!a.root.closest<HTMLElement>("[data-section]")?.hidden) a.refresh(); });
+  }
+
+  function initFilter() {
+    const chips = Array.from(document.querySelectorAll<HTMLElement>("[data-filter]"));
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-section]"));
+    sections.forEach((sec) => { if (!sec.hidden) sec.dataset.shelfState = "in"; });
+    chips.forEach((chip) => {
+      if (chip.dataset.filterBound === "1") return; // astro:page-load 会重复 init
+      chip.dataset.filterBound = "1";
+      chip.addEventListener("click", () => {
+        const f = chip.dataset.filter || "all";
+        chips.forEach((c) => { const on = c === chip; c.classList.toggle("is-active", on); c.setAttribute("aria-selected", on ? "true" : "false"); });
+        sections.forEach((sec, i) => shelfToggle(sec, f === "all" || sec.dataset.cat === f, i * FILTER_STAGGER));
+        // 新出现的段要立刻重算几何（隐藏段此时已 visible、只是 opacity 0）
+        requestAnimationFrame(refreshBanks);
+        window.setTimeout(refreshBanks, FILTER_MS + sections.length * FILTER_STAGGER + 60);
+      });
+    });
+  }
+
+  const dialog = () => document.getElementById("col-dialog") as HTMLDialogElement | null;
+  let closeTimer = 0;
+  // 关闭：先播 220ms 退场（.is-closing），动画结束再真正 close()。
+  // 连点关闭 / 动画未触发（后台标签页）都有兜底，不会卡住打不开。
+  function closeDetail() {
+    const dlg = dialog();
+    if (!dlg || !dlg.open) return;
+    if (colReduced()) { dlg.classList.remove("is-closing"); dlg.close(); return; }
+    if (dlg.classList.contains("is-closing")) return;
+    dlg.classList.add("is-closing");
+    let done = false;
+    const onEnd = (e: AnimationEvent) => {
+      // 退场动画挂在 .col-dialog__panel 上；backdrop 的动画事件 target 是 dialog
+      const panel = dlg.querySelector(".col-dialog__panel");
+      if (e.target !== dlg && e.target !== panel) return;
+      finish();
+    };
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(closeTimer);
+      dlg.removeEventListener("animationend", onEnd);
+      dlg.classList.remove("is-closing");
+      if (dlg.open) dlg.close();
+    };
+    dlg.addEventListener("animationend", onEnd);
+    closeTimer = window.setTimeout(finish, 300);
+  }
+
+  function openDetail(btn: HTMLElement) {
+    const dlg = dialog(); if (!dlg) return;
+    const d = btn.dataset;
+    const kind = d.kind ?? "book";
+    const $ = (id: string) => document.getElementById(id);
+
+    const code = $("cd-code");
+    const cat = $("cd-cat");
+    const en = $("cd-en");
+    const title = $("cd-title");
+    const by = $("cd-by");
+    const cover = $("cd-cover");
+    const coverTitle = cover?.querySelector<HTMLElement>("[data-cd-cover-title]");
+
+    if (code) code.textContent = d.code ?? "";
+    if (cat) cat.textContent = d.cat ?? "";
+    if (en) en.textContent = d.en ?? "";
+    if (title) title.textContent = d.title ?? "";
+    if (by) {
+      const yr = d.year && d.year !== "0" ? ` · ${d.year}` : "";
+      by.textContent = `${d.creator ?? ""}${yr}`;
+    }
+
+    // 评分：大号数字 + 来源/人数 + 进度条（宽度 = 分值 × 10%）
+    const score = $("cd-score");
+    const scoreValue = $("cd-score-value");
+    const scoreMeta = $("cd-score-meta");
+    const scoreFill = $("cd-score-fill");
+    const rating = d.rating ? Number(d.rating) : NaN;
+    if (score) {
+      const hasRating = Number.isFinite(rating) && rating > 0;
+      score.hidden = !hasRating;
+      if (hasRating) {
+        if (scoreValue) scoreValue.textContent = rating.toFixed(1);
+        if (scoreFill) scoreFill.style.width = `${Math.max(4, Math.min(100, rating * 10))}%`;
+        const source = (d.ratingSource ?? "").trim();
+        const count = Number(d.ratingCount ?? 0);
+        const countText = count >= 10000
+          ? `${(count / 10000).toFixed(1).replace(/\.0$/, "")} 万人评价`
+          : count > 0 ? `${count} 人评价` : "";
+        if (scoreMeta) scoreMeta.textContent = [source, countText].filter(Boolean).join(" · ");
+      }
+    }
+
+    // 事实行标签：书籍 / 电影 / 剧集各用一套说法
+    const factLabels: Record<string, [string, string, string]> = {
+      book: ["出版", "年月", "页数"],
+      film: ["制片", "上映", "片长"],
+      tv: ["制片", "首播", "集数"],
+    };
+    const labels = factLabels[kind] ?? factLabels.book;
+    [["press", labels[0]], ["pubdate", labels[1]], ["pages", labels[2]]].forEach(([key, text]) => {
+      const dt = dlg.querySelector(`[data-fact="${key}"] dt`);
+      if (dt) dt.textContent = text;
+    });
+
+    // 出版信息：空字段整行隐藏，全空则隐藏整个列表
+    const facts: Array<[string, string]> = [
+      ["press", "cd-press"],
+      ["pubdate", "cd-pubdate"],
+      ["pages", "cd-pages"],
+    ];
+    let factCount = 0;
+    for (const [key, id] of facts) {
+      const row = dlg.querySelector<HTMLElement>(`[data-fact="${key}"]`);
+      const dd = $(id);
+      const text = ((d[key] as string | undefined) ?? "").trim();
+      if (dd) dd.textContent = text;
+      if (row) row.hidden = text === "";
+      if (text !== "") factCount += 1;
+    }
+    const factsEl = $("cd-facts");
+    if (factsEl) factsEl.hidden = factCount === 0;
+
+    // 分节：简介 / 短评
+    const descWrap = $("cd-desc-wrap");
+    const desc = $("cd-desc");
+    const descText = (d.desc ?? "").trim();
+    if (desc) desc.textContent = descText;
+    if (descWrap) descWrap.hidden = descText === "";
+    const descSrc = $("cd-desc-src") as HTMLAnchorElement | null;
+    if (descSrc) {
+      const url = d.descSource ?? "";
+      if (url) descSrc.href = url;
+      descSrc.hidden = url === "";
+    }
+
+    const noteWrap = $("cd-note-wrap");
+    const note = $("cd-note");
+    const noteText = (d.note ?? "").trim();
+    if (note) note.textContent = noteText;
+    if (noteWrap) noteWrap.hidden = noteText === "";
+
+    // 曲目：同一张专辑在歌单里的所有歌，逐首可点
+    const tracksWrap = $("cd-tracks-wrap");
+    const tracksEl = $("cd-tracks");
+    if (tracksWrap && tracksEl) {
+      let tracks: { id: number; name: string }[] = [];
+      try { tracks = JSON.parse(d.tracks || "[]"); } catch { tracks = []; }
+      tracksEl.replaceChildren(...tracks.map((t, i) => {
+        const li = document.createElement("li");
+        const idx = document.createElement("span");
+        idx.className = "col-dialog__track-idx";
+        idx.textContent = String(i + 1).padStart(2, "0");
+        const a = document.createElement("a");
+        a.href = `https://music.163.com/#/song?id=${t.id}`;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = t.name || "未命名曲目";
+        li.append(idx, a);
+        return li;
+      }));
+      tracksWrap.hidden = tracks.length === 0;
+    }
+
+    // 外链：有 link 才显示
+    const isAlbum = kind === "album";
+    const ref = $("cd-ref") as HTMLAnchorElement | null;
+    if (ref) {
+      const href = d.ref ?? "";
+      if (href) {
+        ref.href = href;
+        ref.textContent = isAlbum
+          ? "在网易云播放"
+          : href.includes("douban.com") ? "豆瓣条目" : "查看来源";
+      }
+      ref.hidden = href === "";
+    }
+
+    if (cover) {
+      if (d.image) {
+        cover.style.backgroundImage = `url("${d.image}")`;
+        cover.style.backgroundSize = "cover";
+        cover.style.backgroundPosition = "center";
+      } else {
+        cover.style.backgroundImage = "";
+        cover.style.setProperty("--cover", d.coverColor ?? "#fefdf8");
+        cover.style.setProperty("--ink", d.ink ?? "#2a2620");
+      }
+    }
+    if (coverTitle) coverTitle.textContent = d.image ? "" : (d.title ?? "");
+
+    dlg.dataset.kind = kind;
+
+    if (!dlg.open) {
+      dlg.classList.remove("is-closing");
+      dlg.showModal();
+    }
+  }
+
+  let bound = false;
+  function bindOnce() {
+    if (bound) return; bound = true;
+    document.addEventListener("click", (e) => {
+      const w = window as unknown as { __shelfSuppressClick?: number };
+      if (w.__shelfSuppressClick && performance.now() - w.__shelfSuppressClick < 350) return;
+      const target = e.target as HTMLElement | null; if (!target) return;
+      if (target.closest("[data-close]")) { closeDetail(); return; }
+      let cover = target.closest<HTMLElement>("[data-cover]");
+      if (!cover) {
+        const bank = target.closest<HTMLElement>("[data-bank]");
+        if (bank) {
+          const vols = Array.from(bank.querySelectorAll<HTMLElement>(".vol"));
+          let best: HTMLElement | null = null, bd = 1e9;
+          for (const v of vols) {
+            const r = v.getBoundingClientRect();
+            const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+            const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+            const d = Math.hypot(dx, dy);
+            if (d < bd) { bd = d; best = v; }
+          }
+          if (best && bd < 44) cover = best;
+        }
+      }
+      if (cover) openDetail(cover);
+    });
+    document.addEventListener("click", (e) => { const dlg = dialog(); if (dlg && dlg.open && e.target === dlg) closeDetail(); });
+    document.addEventListener("astro:page-load", () => {
+      initBanks(); initAlbums(); initFilter(); bindDialogEsc();
+    });
+    document.addEventListener("astro:before-swap", () => { banks.length = 0; dialog()?.close(); });
+  }
+
+  // Esc 也走同一条退场动画（cancel 事件不冒泡，直接绑在 dialog 上）
+  function bindDialogEsc() {
+    const dlg = dialog();
+    if (!dlg || dlg.dataset.escBound === "1") return;
+    dlg.dataset.escBound = "1";
+    dlg.addEventListener("cancel", (e) => {
+      if (!dlg.classList.contains("is-closing")) e.preventDefault();
+      closeDetail();
+    });
+  }
+
+  bindOnce();
+  initBanks();
+  initAlbums();
+  initFilter();
+  bindDialogEsc();
+</script>

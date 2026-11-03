@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
 import {
   SITE_NAME,
   SITE_URL,
@@ -8,10 +9,18 @@ import {
   SITE_SOCIAL,
 } from "../consts";
 import { FRIENDS } from "../data/friends";
+import FriendTreeDialog from "../components/FriendTreeDialog.astro";
 
 const github = SITE_SOCIAL.find((s) => s.icon === "mdi:github");
 const avatarUrl = new URL(SITE_AVATAR, SITE_URL).href;
 const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+const friendItems = FRIENDS.map((f) => ({
+  name: f.name,
+  url: f.url,
+  host: bare(f.url),
+  desc: f.desc,
+  avatar: f.avatar ?? null,
+}));
 ---
 
 <BaseLayout title="友链" description="友链：独立博客之间的互相推荐与交换。">
@@ -19,12 +28,17 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">友链</h1>
-        <a
-          href="https://www.travellings.cn/go.html"
-          class="page-head__aside"
-          target="_blank"
-          rel="noopener noreferrer">开往 →</a
-        >
+        <div class="page-head__asides">
+          <button type="button" class="page-head__aside" data-friend-site-tree>
+            本站二维码
+          </button>
+          <a
+            href="https://www.travellings.cn/go.html"
+            class="page-head__aside"
+            target="_blank"
+            rel="noopener noreferrer">开往 →</a
+          >
+        </div>
       </div>
     </header>
 
@@ -32,14 +46,14 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
       <section class="mb-14" aria-labelledby="friends-label">
         <h2 class="sr-only" id="friends-label">友链</h2>
 
-        <ul class="friend-grid">
-          {FRIENDS.map((friend) => (
-            <li>
-              <a
+        <ul class="friend-grid" data-friend-grid>
+          {FRIENDS.map((friend, i) => (
+            <li class="friend-item">
+              <button
+                type="button"
                 class="friend-card"
-                href={friend.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                data-friend-select={i}
+                aria-haspopup="dialog"
               >
                 {friend.avatar ? (
                   <img
@@ -60,7 +74,11 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
                   {friend.desc && <span class="friend-desc">{friend.desc}</span>}
                   <span class="friend-host">{bare(friend.url)}</span>
                 </span>
-              </a>
+                <span class="friend-qr" aria-hidden="true">
+                  <Icon name="mdi:qrcode" />
+                </span>
+                <span class="sr-only">打开二维码</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -98,9 +116,21 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
       )}
     </section>
   </div>
+
+  <FriendTreeDialog
+    friends={friendItems}
+    siteName={SITE_NAME}
+    siteUrl={SITE_URL}
+    siteDesc={SITE_DESCRIPTION}
+    siteAvatar={SITE_AVATAR}
+  />
 </BaseLayout>
 
 <style>
+  .friend-item {
+    position: relative;
+  }
+
   .friend-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -114,22 +144,34 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
     display: flex;
     align-items: flex-start;
     gap: 0.9rem;
+    width: 100%;
     height: 100%;
     padding: 1.1rem 1.15rem;
     border: 0;
     border-radius: 4px;
     background: rgba(28, 28, 28, 0.035);
+    font: inherit;
+    text-align: left;
     color: var(--color-ed-fg);
-    text-decoration: none;
+    cursor: pointer;
     transition: background-color 180ms ease;
   }
   .friend-card:hover,
   .friend-card:focus-visible {
     background: rgba(166, 58, 43, 0.07);
   }
+  .friend-card:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: -2px;
+  }
   .friend-card:hover .friend-name,
   .friend-card:focus-visible .friend-name {
     color: var(--color-ed-accent);
+  }
+  .friend-card:hover .friend-qr,
+  .friend-card:focus-visible .friend-qr {
+    color: var(--color-ed-accent);
+    opacity: 1;
   }
 
   .friend-avatar {
@@ -176,6 +218,21 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
     color: var(--color-ed-subtle);
   }
 
+  /* 卡片右侧的二维码提示：让人知道点开是二维码，而不是直接跳走 */
+  .friend-qr {
+    margin-left: auto;
+    align-self: center;
+    flex: none;
+    color: var(--color-ed-subtle);
+    opacity: 0.5;
+    transition: color 180ms ease, opacity 180ms ease;
+  }
+  .friend-qr :global(svg) {
+    display: block;
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
   .friend-info {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -218,6 +275,29 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
     text-decoration: underline;
     text-decoration-color: var(--color-ed-subtle);
     text-underline-offset: 0.15em;
+  }
+
+  /* 页头右侧：本站二维码 + 开往 */
+  .page-head__asides {
+    display: flex;
+    align-items: baseline;
+    gap: 1.25rem;
+    flex-shrink: 0;
+  }
+  button.page-head__aside {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ed-subtle);
+    cursor: pointer;
+    transition: color 180ms ease;
+  }
+  button.page-head__aside:hover,
+  button.page-head__aside:focus-visible {
+    color: var(--color-ed-accent);
   }
 
   @media (max-width: 640px) {

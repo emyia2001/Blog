@@ -76,7 +76,7 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
       <div class="page-head__row">
         <h1 class="page-head__title">归档</h1>
         <div class="flex items-baseline gap-5">
-          <a href="/tags/" class="page-head__aside">全部标签 →</a>
+          <a href="/tags/" class="page-head__aside">全部标签 <span class="aside-arrow">→</span></a>
         </div>
       </div>
       <p class="page-head__meta">
@@ -101,8 +101,11 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
       {years.length === 0 ? (
         <p class="empty-note">暂无内容。</p>
       ) : (
-        years.map((year) => (
-          <div class="mb-12 reveal">
+        years.map((year, i) => (
+          <div
+            class="mb-12 reveal"
+            style={`--reveal-delay: ${Math.min(i, 5) * 60}ms`}
+          >
             <h3 class="year-label">
               <span class="year-label__num">{year}</span>
               <span class="year-label__count">
@@ -149,6 +152,53 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
   @media (max-width: 640px) {
     .graph-tall {
       --graph-h: 26rem;
+    }
+  }
+
+  /* 年份标题右侧的结构线：随年份块揭示从左长出（scaleX 0→1，不动布局宽度）。
+     无 JS 时 .js 不存在，线直接是全长；reduced-motion 也直接给全长。 */
+  .year-label::after {
+    content: "";
+    flex: 1 1 auto;
+    align-self: center;
+    height: 1px;
+    background: var(--color-ed-rule);
+    transform-origin: left center;
+  }
+
+  :global(.js) .reveal .year-label::after {
+    transform: scaleX(0);
+    transition: transform 900ms var(--ease-ed) 120ms;
+  }
+
+  :global(.js) .reveal.is-visible .year-label::after {
+    transform: scaleX(1);
+  }
+
+  /* 「全部标签 →」箭头：hover 时右移 2px，与全站微交互同一条缓动 */
+  .aside-arrow {
+    display: inline-block;
+    transition: transform 200ms var(--ease-ed);
+  }
+
+  .page-head__aside:hover .aside-arrow,
+  .page-head__aside:focus-visible .aside-arrow {
+    transform: translateX(2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .reveal .year-label::after {
+      transform: none;
+      transition: none;
+    }
+
+    .aside-arrow {
+      transition: none;
+    }
+
+    .page-head__aside:hover .aside-arrow,
+    .page-head__aside:focus-visible .aside-arrow {
+      transform: none;
     }
   }
 </style>

@@ -11,7 +11,7 @@ import TagCloud from "../../components/TagCloud.astro";
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">标签</h1>
-        <a href="/archive/" class="page-head__aside">归档 →</a>
+        <a href="/archive/" class="page-head__aside">归档 <span class="aside-arrow">→</span></a>
       </div>
     </header>
 
@@ -21,3 +21,27 @@ import TagCloud from "../../components/TagCloud.astro";
     </section>
   </div>
 </BaseLayout>
+
+<style>
+  /* 「归档 →」箭头：hover 时右移 2px，与归档 / 标签页同一条微交互 */
+  .aside-arrow {
+    display: inline-block;
+    transition: transform 200ms var(--ease-ed);
+  }
+
+  .page-head__aside:hover .aside-arrow,
+  .page-head__aside:focus-visible .aside-arrow {
+    transform: translateX(2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aside-arrow {
+      transition: none;
+    }
+
+    .page-head__aside:hover .aside-arrow,
+    .page-head__aside:focus-visible .aside-arrow {
+      transform: none;
+    }
+  }
+</style>

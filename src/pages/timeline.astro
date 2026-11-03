@@ -406,6 +406,8 @@ const defaultRendered =
     padding: 0.625rem 0 0.625rem 1.5rem; /* 左 padding 让位给线/点 */
     cursor: pointer;
     border-radius: 4px;
+    /* 悬停/激活底色与边框（手机端卡片）都走同一条短过渡，避免硬切 */
+    transition: background-color 160ms ease, border-color 160ms ease;
     /* 入场动画：整体淡入上移（delay 由 --tl-i 逐条错开） */
     opacity: 0;
     animation: tl-point-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -547,8 +549,33 @@ const defaultRendered =
 
   /* —— 纪事内容解锁（加密文章）—— */
   .lock-box {
+    position: relative;
     border: 1px dashed var(--color-ed-rule);
     padding: 1rem;
+  }
+  /* 解锁成功：边框闪一次砖红。用叠加层只动 opacity（不动 border-color），
+     既符合「只动 transform/opacity」，也不触发逐帧重绘边框。 */
+  .lock-box::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--color-ed-accent);
+    pointer-events: none;
+    opacity: 0;
+  }
+  .lock-box.is-unlocked::after {
+    animation: lock-box-flash 400ms ease-out both;
+  }
+  @keyframes lock-box-flash {
+    0% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
   .lock-question {
     font-family: var(--font-serif);
@@ -574,22 +601,102 @@ const defaultRendered =
     outline: 2px solid var(--color-ed-accent);
     outline-offset: 1px;
   }
+  /* 答错：输入框轻抖一次（reduced-motion 下由媒体查询降级为无抖动） */
+  .lock-input.is-shake {
+    animation: lock-shake 260ms ease;
+  }
+  @keyframes lock-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-3px);
+    }
+    45% {
+      transform: translateX(3px);
+    }
+    70% {
+      transform: translateX(-2px);
+    }
+    88% {
+      transform: translateX(1px);
+    }
+  }
   .lock-btn {
+    /* 锁定宽度：「解锁」→「解锁中…」时按钮不抖，输入框也不跟着跳 */
+    min-width: 5.25rem;
     border: 1px solid var(--color-ed-fg);
     background: transparent;
     color: var(--color-ed-fg);
     padding: 0.5rem 1rem;
     cursor: pointer;
     font-size: 0.85rem;
+    transition: transform 120ms ease, background-color 160ms ease,
+      color 160ms ease, opacity 160ms ease;
   }
-  .lock-btn:hover {
+  .lock-btn:hover:not(:disabled) {
     background: var(--color-ed-fg);
     color: var(--color-ed-bg);
+  }
+  .lock-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  /* PBKDF2 派生期间（约 100–300ms）禁止重复提交 */
+  .lock-btn:disabled {
+    cursor: progress;
+    opacity: 0.55;
   }
   .lock-error {
     margin: 0.5rem 0 0;
     font-size: 0.8rem;
     color: var(--color-ed-accent);
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+  .lock-error.is-shown {
+    opacity: 1;
+  }
+  /* 解锁成功：正文淡入上移（透明揭示），与锁行收起的 220ms 并行 */
+  .lock-content.is-reveal {
+    animation: lock-content-in 320ms var(--ease-ed) both;
+  }
+  @keyframes lock-content-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lock-box::after,
+    .lock-box.is-unlocked::after {
+      animation: none;
+      opacity: 0;
+    }
+    .lock-content.is-reveal {
+      animation: lock-content-fade 160ms linear both;
+    }
+    .lock-input.is-shake {
+      animation: none;
+    }
+    .lock-btn {
+      transition: none;
+    }
+    .lock-btn:active:not(:disabled) {
+      transform: none;
+    }
+  }
+  @keyframes lock-content-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   /* ===== 版面：桌面「左文右轴」，手机「横轴在上、正文在下」 ===== */
@@ -1062,16 +1169,61 @@ const defaultRendered =
     sessionStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(locks));
   }
 
-  function fillLocked(box: HTMLElement, plain: string) {
+  // 解锁成功：锁行高度收起 220ms。max-height 必须从「量出来的实际高度」收到 0，
+  // 直接写 auto → 0 不会产生过渡，所以先钉住起始高度、强制 reflow 再改终点。
+  function collapseLockRow(box: HTMLElement, reduced: boolean) {
+    const parts = [
+      box.querySelector<HTMLElement>(".lock-question"),
+      box.querySelector<HTMLElement>(".lock-row"),
+    ].filter((el): el is HTMLElement => Boolean(el));
+    const drop = () => {
+      parts.forEach((el) => el.remove());
+      box
+        .querySelectorAll<HTMLElement>(".lock-input, .lock-btn")
+        .forEach((el) => el.remove());
+    };
+    if (reduced || parts.length === 0) {
+      drop();
+      return;
+    }
+    parts.forEach((el) => {
+      el.style.maxHeight = `${el.getBoundingClientRect().height}px`;
+      el.style.overflow = "hidden";
+    });
+    void box.offsetHeight; // 强制 reflow：让起始高度生效后再改终点
+    parts.forEach((el) => {
+      el.style.transition =
+        "max-height 220ms var(--ease-ed), opacity 160ms ease, margin-bottom 220ms var(--ease-ed)";
+      el.style.maxHeight = "0px";
+      el.style.opacity = "0";
+      el.style.marginBottom = "0px";
+    });
+    window.setTimeout(drop, 240);
+  }
+
+  function fillLocked(box: HTMLElement, plain: string, animate = true) {
     const contentEl = box.querySelector<HTMLElement>(".lock-content");
     if (!contentEl) return;
     contentEl.innerHTML = renderPlainMd(plain);
     contentEl.hidden = false;
-    box.querySelector(".lock-input")?.remove();
-    box.querySelector(".lock-btn")?.remove();
-    box.querySelector(".lock-question")?.remove();
     const err = box.querySelector<HTMLElement>(".lock-error");
-    if (err) err.hidden = true;
+    if (err) {
+      err.hidden = true;
+      err.classList.remove("is-shown");
+    }
+    box.dataset.unlocked = "1";
+    if (animate) {
+      // 正文透明揭示（reduced-motion 下 CSS 降级为纯淡入）
+      contentEl.classList.add("is-reveal");
+      collapseLockRow(box, TL_REDUCED);
+      // 边框闪一次砖红（CSS ::after 只动 opacity）
+      box.classList.add("is-unlocked");
+    } else {
+      // 会话记忆恢复 / 首屏直出：不做揭示动画，直接落到终态
+      contentEl.classList.remove("is-reveal");
+      collapseLockRow(box, true);
+      box.classList.remove("is-unlocked");
+    }
 
     // 解锁成功后才放出本条纪事的 BGM：MiniPlayer 带 gated 标记时先隐藏、不自动播放，
     // 由这里显式启动（会话记忆恢复也走同一条路径）。
@@ -1088,11 +1240,15 @@ const defaultRendered =
     const memo = loadLocks();
     root.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
       const id = box.dataset.lockId ?? "";
-      if (id && memo[id]) fillLocked(box, memo[id]);
+      if (id && memo[id]) fillLocked(box, memo[id], false);
     });
   }
 
   async function tryUnlock(box: HTMLElement) {
+    // 已解锁 / 正在解密：忽略重复提交（PBKDF2 120k 有 100–300ms 空窗）
+    if (box.dataset.unlocked === "1" || box.dataset.pending === "1") {
+      return;
+    }
     const id = box.dataset.lockId ?? "";
     const input = box.querySelector<HTMLInputElement>(".lock-input");
     const answer = input?.value ?? "";
@@ -1103,13 +1259,43 @@ const defaultRendered =
       fillLocked(box, memo[id]);
       return;
     }
-    const plain = await decryptBlock(box, answer);
+
+    // pending：按钮禁用 + 文案「解锁中…」，min-width 保证宽度不抖
+    const btn = box.querySelector<HTMLButtonElement>(".lock-btn");
     const err = box.querySelector<HTMLElement>(".lock-error");
+    box.dataset.pending = "1";
+    if (btn) {
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent ?? "解锁";
+      btn.disabled = true;
+      btn.textContent = "解锁中…";
+    }
+    if (input) input.readOnly = true;
+
+    const plain = await decryptBlock(box, answer);
+
+    delete box.dataset.pending;
+    // 解密期间可能已换页 / 被解锁（元素脱离文档），先确认还在
+    if (btn?.isConnected) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.label ?? "解锁";
+    }
+    if (input?.isConnected) input.readOnly = false;
+
     if (plain !== null) {
       if (id) saveLock(id, plain);
       fillLocked(box, plain);
-    } else if (err) {
-      err.hidden = false;
+    } else {
+      if (err) {
+        err.hidden = false;
+        void err.offsetWidth; // 先让 display:block 生效（opacity 仍是 0），再淡入
+        err.classList.add("is-shown");
+      }
+      // 输入框轻抖一次；reduced-motion 只保留错误文案淡入
+      if (input && !TL_REDUCED) {
+        input.classList.remove("is-shake");
+        void input.offsetWidth;
+        input.classList.add("is-shake");
+      }
     }
   }
 
@@ -1134,7 +1320,7 @@ const defaultRendered =
   document.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
     const id = box.dataset.lockId ?? "";
     const locks = loadLocks();
-    if (id && locks[id]) fillLocked(box, locks[id]);
+    if (id && locks[id]) fillLocked(box, locks[id], false);
   });
 
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====

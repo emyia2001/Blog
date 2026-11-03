@@ -57,7 +57,7 @@ body {
     content: '';
     position: fixed;
     inset: 0.875rem;
-    z-index: 30;
+    z-index: 35;
     pointer-events: none;
     border: 1px solid var(--color-ed-rule);
     border-top-color: rgba(166, 58, 43, 0.6);
@@ -110,7 +110,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--color-ed-accent);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 320ms var(--ease-ed);
+  transition: transform 280ms var(--ease-ed);
 }
 
 .hover-underline:hover::after {
@@ -279,12 +279,15 @@ a.page-head__aside:hover {
   background: var(--color-ed-accent);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 480ms var(--ease-ed);
+  transition: transform 280ms var(--ease-ed);
 }
 .entry-row:hover,
 .entry-row:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+}
+.entry-row:active {
+  transform: translateY(0) scale(0.995);
 }
 .entry-row:hover::after,
 .entry-row:focus-visible::after {
@@ -393,6 +396,9 @@ a.page-head__aside:hover {
 }
 .tag-chip:hover b {
   transform: scale(1.08);
+}
+.tag-chip:active {
+  transform: translateY(0) scale(0.97);
 }
 
 /* 空状态：列表页/搜索共用的「没内容」排版 */
@@ -505,6 +511,7 @@ a.page-head__aside:hover {
 }
 
 .prose h3 {
+  scroll-margin-top: 5rem;
   font-size: 1.15rem;
   line-height: 1.5;
   font-weight: 700;
@@ -513,6 +520,7 @@ a.page-head__aside:hover {
 }
 
 .prose h4 {
+  scroll-margin-top: 5rem;
   font-size: 0.98rem;
   line-height: 1.6;
   font-weight: 700;
@@ -540,16 +548,18 @@ a.page-head__aside:hover {
   text-decoration-color: rgba(166, 58, 43, 0.5);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
-  transition: text-decoration-color 200ms ease, color 200ms ease;
+  transition:
+    text-decoration-color 200ms ease,
+    color 200ms ease,
+    text-underline-offset 180ms var(--ease-ed);
 }
 
-.prose a:hover {
+/* hover/focus 统一为砖红下划线 + 下划线微微下沉（paint-only，不触发重排） */
+.prose a:hover,
+.prose a:focus-visible {
   color: var(--color-ed-accent);
   text-decoration-color: var(--color-ed-accent);
-}
-
-.prose a:hover {
-  text-decoration-color: var(--color-ed-fg);
+  text-underline-offset: 0.28em;
 }
 
 .prose blockquote {
@@ -691,6 +701,16 @@ a.page-head__aside:hover {
 .prose img {
   max-width: 100%;
   height: auto;
+}
+
+/* 正文图片载入淡入：避免硬弹入。BaseLayout 在 load/complete 时补 .is-loaded。
+   只动 opacity，不改变排版（图片尺寸缺失造成的 CLS 另案处理）。 */
+.js .prose img {
+  opacity: 0;
+  transition: opacity 320ms var(--ease-ed);
+}
+.js .prose img.is-loaded {
+  opacity: 1;
 }
 
 .prose figcaption {
@@ -898,6 +918,30 @@ html.nav-hidden .ed-progress {
     transition: none;
   }
 
+  /* 补洞：这些此前漏了 reduced-motion 覆盖 */
+  .js .prose img {
+    opacity: 1;
+    transition: none;
+  }
+  .ed-progress {
+    transition: none;
+  }
+  .code-block__copy.is-copied {
+    animation: none;
+  }
+  .entry-row::after,
+  .home-post-row::after {
+    transition: none;
+  }
+  .entry-row:active,
+  .tag-chip:active,
+  .home-post-row:active {
+    transform: none;
+  }
+  .js .toc-item:not(.is-collapsed) > .toc-list {
+    animation: none;
+  }
+
   /* 尊重「减少动态效果」：不位移、不模糊，只保留一段轻淡入淡出 */
   ::view-transition-old(root) {
     animation: page-out-fade 120ms linear both;
@@ -966,6 +1010,21 @@ html.nav-hidden .ed-progress {
 /* 收起时：子列表隐藏，箭头旋转为向右 */
 .toc-item.is-collapsed > .toc-list {
   display: none;
+}
+/* 展开时子列表轻微上浮淡入（关闭保持瞬时，形成利落的非对称）
+   注意：只对「未收起」列表加 animation，display 仍由 .is-collapsed 权威控制 */
+@keyframes toc-sublist-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.js .toc-item:not(.is-collapsed) > .toc-list {
+  animation: toc-sublist-in 160ms var(--ease-ed);
 }
 .toc-item.is-collapsed > .toc-row > .toc-caret:not(.toc-caret--leaf) svg {
   transform: rotate(-90deg);
@@ -1128,12 +1187,15 @@ a:hover .home-masthead__title {
   background: var(--color-ed-accent);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 480ms var(--ease-ed);
+  transition: transform 280ms var(--ease-ed);
 }
 .home-post-row:hover,
 .home-post-row:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+}
+.home-post-row:active {
+  transform: translateY(0) scale(0.997);
 }
 .home-post-row:hover::after,
 .home-post-row:focus-visible::after {
@@ -1358,20 +1420,8 @@ a:hover .home-masthead__title {
   box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.55);
 }
 
-.search-modal.flex .search-panel {
-  animation: search-panel-in 220ms var(--ease-ed) both;
-}
-
-@keyframes search-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.995);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
+/* 搜索弹层的开合过渡现在由 SearchModal.astro 的 scoped <style> 统一负责
+   （visibility/opacity + 面板 translateY），此处不再保留旧的 keyframe 动画。 */
 
 .search-field {
   display: flex;
@@ -1487,9 +1537,6 @@ a:hover .home-masthead__title {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .search-modal.flex .search-panel {
-    animation: none;
-  }
   .search-field,
   .search-result,
   .search-result__title {

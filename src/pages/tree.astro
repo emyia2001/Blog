@@ -1,0 +1,298 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="树"
+  description="把任意链接种成一棵会飘叶的树，点开是一张可扫描的二维码。"
+>
+  <main class="page-shell qrtree-page">
+    <header class="page-head">
+      <div class="page-head__row">
+        <h1 class="page-head__title">树</h1>
+        <a
+          class="page-head__aside hover-underline"
+          href="https://tree.icqr.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          原作
+        </a>
+      </div>
+    </header>
+
+    <section class="qrtree" data-qrtree>
+      <div class="qrtree__stage">
+        <canvas data-qrtree-canvas aria-label="二维码树：点击切换俯视二维码"></canvas>
+        <p class="qrtree__hint" data-qrtree-hint aria-live="polite">点击画面查看二维码</p>
+        <p class="qrtree__fallback">当前浏览器不支持 WebGL2</p>
+      </div>
+
+      <div class="qrtree__bar">
+        <label class="qrtree__field">
+          <span class="qrtree__label">链接</span>
+          <input
+            data-qrtree-url
+            type="url"
+            inputmode="url"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="https://icqr.com/"
+            aria-label="要生成二维码的链接"
+          />
+        </label>
+
+        <div class="qrtree__seasons" role="group" aria-label="季节">
+          <button type="button" data-qrtree-season="0" aria-pressed="true">春</button>
+          <button type="button" data-qrtree-season="1" aria-pressed="false">夏</button>
+          <button type="button" data-qrtree-season="2" aria-pressed="false">秋</button>
+        </div>
+
+        <div class="qrtree__actions">
+          <button type="button" data-qrtree-copy>复制链接</button>
+          <button type="button" data-qrtree-save>下载二维码</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import "../scripts/qrtree/app.js";
+</script>
+
+<style>
+  .qrtree-page {
+    max-width: 880px;
+    padding-bottom: 4rem;
+  }
+
+  .qrtree {
+    border: 1px solid var(--color-ed-rule);
+    background: var(--color-ed-bg);
+  }
+
+  .qrtree__stage {
+    position: relative;
+    height: clamp(400px, 62vh, 600px);
+    border-bottom: 1px solid var(--color-ed-hairline);
+    overflow: hidden;
+  }
+
+  .qrtree__stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    touch-action: manipulation;
+    /* 换季/换链接时由 app.js 写 opacity 做交叉淡化（只动 opacity） */
+    opacity: 1;
+    transition: opacity 140ms ease-out;
+  }
+
+  /* 画布底部渐隐到纸色：地面小岛延伸到画面外时不会出现生硬的裁切边 */
+  .qrtree__stage::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56px;
+    background: linear-gradient(to bottom, transparent, var(--color-ed-bg) 82%);
+    pointer-events: none;
+  }
+
+  .qrtree__hint {
+    position: absolute;
+    left: 50%;
+    bottom: 0.9rem;
+    z-index: 1;
+    transform: translateX(-50%);
+    margin: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-ed-subtle);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .qrtree__fallback {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 0.8125rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-muted);
+  }
+
+  .qrtree.is-unsupported canvas,
+  .qrtree.is-unsupported .qrtree__hint {
+    display: none;
+  }
+
+  .qrtree.is-unsupported .qrtree__fallback {
+    display: flex;
+  }
+
+  .qrtree__bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.85rem 1.15rem;
+    flex-wrap: wrap;
+  }
+
+  .qrtree__field {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+
+  .qrtree__label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    color: var(--color-ed-subtle);
+    flex-shrink: 0;
+  }
+
+  .qrtree__field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-bottom: 1px solid var(--color-ed-hairline);
+    background: transparent;
+    padding: 0.25rem 0;
+    font: inherit;
+    font-size: 0.875rem;
+    letter-spacing: 0.01em;
+    color: var(--color-ed-fg);
+    border-radius: 0;
+    transition: border-color 180ms ease;
+  }
+
+  .qrtree__field input::placeholder {
+    color: var(--color-ed-subtle);
+  }
+
+  .qrtree__field input:focus {
+    outline: none;
+    border-bottom-color: var(--color-ed-accent);
+  }
+
+  .qrtree__seasons {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+  }
+
+  .qrtree__seasons button,
+  .qrtree__actions button {
+    border: 0;
+    background: transparent;
+    padding: 0.35rem 0;
+    font: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    color: var(--color-ed-subtle);
+    cursor: pointer;
+    position: relative;
+    transition: color 180ms ease;
+  }
+
+  .qrtree__seasons button::after,
+  .qrtree__actions button::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 320ms var(--ease-ed);
+  }
+
+  .qrtree__seasons button:hover,
+  .qrtree__actions button:hover {
+    color: var(--color-ed-fg);
+  }
+
+  .qrtree__seasons button:hover::after,
+  .qrtree__actions button:hover::after {
+    transform: scaleX(1);
+  }
+
+  .qrtree__seasons button[aria-pressed='true'] {
+    color: var(--color-ed-accent);
+  }
+
+  .qrtree__seasons button[aria-pressed='true']::after {
+    transform: scaleX(1);
+    background: var(--color-ed-accent);
+  }
+
+  .qrtree__actions {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    margin-left: auto;
+  }
+
+  .qrtree__actions button[data-flash] {
+    color: var(--color-ed-accent);
+  }
+
+  /* 非法链接：输入文字/下划线换砖红并轻抖一次（border-color 过渡原本就有） */
+  .qrtree__field input {
+    transition: border-color 180ms ease, color 180ms ease;
+  }
+
+  .qrtree.is-invalid .qrtree__field input {
+    border-bottom-color: var(--color-ed-accent);
+    color: var(--color-ed-accent);
+    animation: qrtree-shake 260ms ease;
+  }
+
+  @keyframes qrtree-shake {
+    0%,
+    100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    45% { transform: translateX(3px); }
+    70% { transform: translateX(-2px); }
+    88% { transform: translateX(1px); }
+  }
+
+  @media (max-width: 640px) {
+    .qrtree__bar {
+      gap: 0.9rem 1.2rem;
+      padding: 0.8rem 0.95rem;
+    }
+    .qrtree__actions {
+      margin-left: 0;
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qrtree__seasons button::after,
+    .qrtree__actions button::after {
+      transition: none;
+    }
+    /* 换季直接切（app.js 同样走 instant 分支）、非法输入不抖，只保留颜色变化 */
+    .qrtree__stage canvas {
+      transition: none;
+    }
+    .qrtree.is-invalid .qrtree__field input {
+      animation: none;
+    }
+  }
+</style>

@@ -2,15 +2,32 @@
 /**
  * 文章图片点击放大（lightbox）。
  * - 作用于 .prose 内的图片；点击在原图位置原地放大到视口内最大可显示尺寸
+ * - 开合用 FLIP：图片从被点位置长到适配尺寸，关闭时缩回原位
  * - 再点任意处 / Esc 关闭；滚轮与拖拽平移查看细节
  * - 纯展示层增强：无 JS 或图片加载失败时点击无副作用，不影响原排版
  */
 ---
 
 <script>
-  type State = { overlay: HTMLElement; img: HTMLImageElement; tx: number; ty: number; scale: number };
+  type State = {
+    overlay: HTMLElement;
+    img: HTMLImageElement;
+    tx: number;
+    ty: number;
+    scale: number;
+    /** 被点击的原图：关闭时反向 FLIP 的落点 */
+    origin: HTMLImageElement | null;
+  };
 
   let state: State | null = null;
+
+  const EASE_ED = "cubic-bezier(0.16, 1, 0.3, 1)";
+  const OPEN_MS = 320;
+  const CLOSE_MS = 200;
+
+  function prefersReducedMotion(): boolean {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
 
   function clampPan(s: State) {
     const vw = window.innerWidth;
@@ -26,18 +43,54 @@
 
   function applyTransform(s: State) {
     clampPan(s);
+    // 滚轮/拖拽/1x↔2x 都是即时跟随指针的，不能挂着开合过渡
+    s.img.style.transition = "none";
     s.img.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
   }
 
-  function close() {
-    if (!state) return;
-    state.overlay.remove();
-    document.body.style.overflow = "";
+  /**
+   * 关闭：immediate=true 用于换页/替换时立即摘除；否则反向 FLIP 缩回原图位置再移除。
+   */
+  function close(immediate = false) {
+    const s = state;
+    if (!s) return;
+    // 立即释放 state：避免连按 Esc / 连点造成重入
     state = null;
+    document.body.style.overflow = "";
+
+    const finish = () => s.overlay.remove();
+    const origin = s.origin;
+    const target = origin && origin.isConnected ? origin.getBoundingClientRect() : null;
+
+    if (immediate || prefersReducedMotion() || !target || target.width === 0) {
+      finish();
+      return;
+    }
+
+    // 从当前视觉状态（可能已缩放/平移）反推布局盒中心与未变换宽度，
+    // 再算出「回到原图矩形」需要的 translate + scale
+    const cur = s.img.getBoundingClientRect();
+    if (!cur.width || !cur.height) {
+      finish();
+      return;
+    }
+    const baseCx = cur.left + cur.width / 2 - s.tx;
+    const baseCy = cur.top + cur.height / 2 - s.ty;
+    const layoutW = cur.width / s.scale;
+    const k = target.width / layoutW;
+    const tx = target.left + target.width / 2 - baseCx;
+    const ty = target.top + target.height / 2 - baseCy;
+
+    s.img.style.transition = `transform ${CLOSE_MS}ms ${EASE_ED}, opacity ${CLOSE_MS}ms ${EASE_ED}`;
+    s.img.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+    s.img.style.opacity = "0";
+    s.overlay.style.transition = `opacity ${CLOSE_MS}ms ${EASE_ED}`;
+    s.overlay.style.opacity = "0";
+    window.setTimeout(finish, CLOSE_MS + 20);
   }
 
-  function open(src: string, alt: string) {
-    if (state) close();
+  function open(src: string, alt: string, origin: HTMLImageElement | null) {
+    if (state) close(true);
     const overlay = document.createElement("div");
     overlay.className = "lightbox-overlay";
 
@@ -46,8 +99,10 @@
     img.alt = alt;
     img.decoding = "async";
     img.className = "lightbox-img";
+    // 入场前不可见：等图有尺寸后再从原图位置飞入，避免先闪一下最终尺寸
+    img.style.opacity = "0";
 
-    const s: State = { overlay, img, tx: 0, ty: 0, scale: 1 };
+    const s: State = { overlay, img, tx: 0, ty: 0, scale: 1, origin };
     state = s;
 
     overlay.addEventListener("click", (e: Event) => {
@@ -98,6 +153,53 @@
     document.body.style.overflow = "hidden";
     overlay.appendChild(img);
     document.documentElement.appendChild(overlay);
+
+    // ---- 入场 FLIP：先落到被点图片的位置，下一帧过渡到最终适配位置 ----
+    const startFlip = () => {
+      if (state !== s) return; // 已经关闭/替换
+      const from = origin && origin.isConnected ? origin.getBoundingClientRect() : null;
+      const finalRect = img.getBoundingClientRect();
+
+      if (prefersReducedMotion() || !from || !from.width || !finalRect.width) {
+        // reduced-motion：不做位移，只做一次淡入
+        img.style.transition = `opacity 160ms ${EASE_ED}`;
+        img.style.opacity = "1";
+        return;
+      }
+
+      const k = from.width / finalRect.width;
+      const dx = from.left + from.width / 2 - (finalRect.left + finalRect.width / 2);
+      const dy = from.top + from.height / 2 - (finalRect.top + finalRect.height / 2);
+
+      img.style.transition = "none";
+      img.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`;
+      // 双 rAF：确保初始变换先落到一帧，过渡才有起点
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (state !== s) return;
+          img.style.transition = `transform ${OPEN_MS}ms ${EASE_ED}, opacity ${OPEN_MS}ms ${EASE_ED}`;
+          img.style.transform = "translate(0px, 0px) scale(1)";
+          img.style.opacity = "1";
+          img.addEventListener(
+            "transitionend",
+            () => {
+              if (state === s) img.style.transition = "none";
+            },
+            { once: true }
+          );
+        });
+      });
+    };
+
+    if (img.complete && img.naturalWidth) {
+      startFlip();
+    } else {
+      img.addEventListener("load", startFlip, { once: true });
+      // 加载失败：至少让蒙层里有内容可见，不卡在 opacity 0
+      img.addEventListener("error", () => {
+        img.style.opacity = "1";
+      }, { once: true });
+    }
   }
 
   function initLightbox() {
@@ -110,12 +212,13 @@
       const src = target.currentSrc || target.src;
       if (!src) return;
       e.preventDefault();
-      open(src, target.alt);
+      open(src, target.alt, target);
     });
   }
 
   document.addEventListener("astro:page-load", () => {
-    if (state) close();
+    // 换页时旧蒙层没有意义，立即摘除（不做反向动画）
+    if (state) close(true);
   });
   document.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Escape") close();
@@ -133,7 +236,8 @@
     justify-content: center;
     background: rgba(20, 20, 20, 0.92);
     cursor: zoom-out;
-    animation: lightbox-fade 0.18s ease-out;
+    /* 与图片入场 FLIP 同节奏：320ms 的 dim，避免蒙层先落定、图还在飞 */
+    animation: lightbox-fade 320ms var(--ease-ed);
   }
 
   .lightbox-img {
@@ -145,6 +249,7 @@
     user-select: none;
     -webkit-user-drag: none;
     touch-action: none;
+    will-change: transform, opacity;
   }
 
   @keyframes lightbox-fade {

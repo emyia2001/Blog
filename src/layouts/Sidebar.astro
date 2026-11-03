@@ -97,7 +97,7 @@ const related = published
             <span>&middot;</span>
             <span>{readMin} 分钟阅读</span>
             <span>&middot;</span>
-            <span data-view-count data-slug={post.slug ?? post.id.replace(/\.mdx?$/, "")}>…</span>
+            <span class="view-count" data-view-count data-slug={post.slug ?? post.id.replace(/\.mdx?$/, "")}>…</span>
           </div>
         </header>
 
@@ -189,11 +189,12 @@ const related = published
 
   {bgm?.src && <MiniPlayer src={bgm.src} title={bgm.title} />}
 
-  <!-- Mobile TOC toggle (floating, opens a side drawer) -->
+  <!-- Mobile TOC toggle (floating, opens a side drawer).
+       纵向抬高到 bottom-20：MiniPlayer（bgm 文章）同样钉在 bottom-6 right-6，
+       圆形按钮与展开后的播放条都会压住这个角；垂直错开后两种状态都不重叠。 -->
   <button
     id="toc-toggle"
-    class="hidden max-lg:fixed max-lg:bottom-6 max-lg:right-6 max-lg:z-50 max-lg:inline-flex max-lg:h-11 max-lg:items-center max-lg:justify-center max-lg:gap-1.5 max-lg:rounded-full max-lg:px-4 max-lg:font-sans max-lg:text-sm max-lg:tracking-wide"
-    style="background: var(--color-ed-fg); color: var(--color-ed-bg);"
+    class="hidden max-lg:fixed max-lg:bottom-20 max-lg:right-6 max-lg:z-50 max-lg:inline-flex max-lg:h-11 max-lg:items-center max-lg:justify-center max-lg:gap-1.5 max-lg:rounded-full max-lg:px-4 max-lg:font-sans max-lg:text-sm max-lg:tracking-wide"
     aria-label="打开目录"
     aria-controls="toc-panel"
     aria-expanded="false"
@@ -201,10 +202,11 @@ const related = published
     目录
   </button>
 
-  <!-- Mobile TOC backdrop -->
+  <!-- Mobile TOC backdrop: 不再用 hidden 瞬切（display 无法过渡），
+       改由 opacity 0↔1 过渡，关闭态 pointer-events:none 不挡正文。 -->
   <div
     id="toc-backdrop"
-    class="hidden max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:bg-black/20"
+    class="max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:bg-black/20 lg:hidden"
     aria-hidden="true"
   ></div>
   <ImageLightbox />
@@ -282,7 +284,8 @@ const related = published
     const backdrop = document.getElementById("toc-backdrop");
     if (!panel || !backdrop) return;
     panel.classList.add("toc-open");
-    backdrop.classList.remove("hidden");
+    // 蒙层与面板同帧起势（opacity 过渡，见 <style>）
+    backdrop.classList.add("toc-open");
     document.body.style.overflow = "hidden";
     syncTocInert();
     panel.querySelector<HTMLElement>("a, button")?.focus();
@@ -293,7 +296,7 @@ const related = published
     if (!panel || !backdrop) return;
     const wasOpen = panel.classList.contains("toc-open");
     panel.classList.remove("toc-open");
-    backdrop.classList.add("hidden");
+    backdrop.classList.remove("toc-open");
     document.body.style.overflow = "";
     syncTocInert();
     if (restoreFocus && wasOpen) document.getElementById("toc-toggle")?.focus();
@@ -395,6 +398,24 @@ const related = published
     return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k 次阅读`;
   }
 
+  function prefersReducedMotion(): boolean {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  // 占位 … → 数字：先淡出旧值再换字淡入（过渡见 .view-count），避免文字硬切。
+  // 宽度由 .view-count 的 min-width 兜住，换字不会推动同一行的日期/阅读时长。
+  function setViewText(el: HTMLElement, text: string) {
+    if (prefersReducedMotion()) {
+      el.textContent = text;
+      return;
+    }
+    el.style.opacity = "0";
+    window.setTimeout(() => {
+      el.textContent = text;
+      el.style.opacity = "1";
+    }, 90);
+  }
+
   function reportViews() {
     const el = document.querySelector<HTMLElement>("[data-view-count]");
     if (!el) return;
@@ -411,14 +432,28 @@ const related = published
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: { views?: number }) => {
         if (typeof data.views === "number") {
-          el.textContent = formatViews(data.views);
+          // 首次加载与 astro:page-load 会各跑一次，取先到的结果即可
+          if (el.dataset.vcDone === "1") return;
+          el.dataset.vcDone = "1";
+          setViewText(el, formatViews(data.views));
           if (!counted) localStorage.setItem(dedupeKey, String(Date.now()));
         }
       })
       .catch(() => {
-        // Worker 不可达时静默降级:去掉占位和它前面的分隔点
-        el.previousElementSibling?.remove();
-        el.remove();
+        // Worker 不可达时静默降级:先淡出，再摘掉占位和它前面的分隔点，
+        // 让 reflow 发生在不可见之后（成功分支已写入时不动节点）
+        if (el.dataset.vcDone === "1") return;
+        el.dataset.vcDone = "1";
+        const drop = () => {
+          el.previousElementSibling?.remove();
+          el.remove();
+        };
+        if (prefersReducedMotion()) {
+          drop();
+          return;
+        }
+        el.style.opacity = "0";
+        window.setTimeout(drop, 180);
       });
   }
 
@@ -431,11 +466,58 @@ const related = published
   @media (max-width: 1023px) {
     #toc-panel {
       transform: translateX(100%);
-      transition: transform 0.3s ease;
+      transition: transform 320ms var(--ease-ed);
       overscroll-behavior: contain;
     }
     #toc-panel.toc-open {
       transform: translateX(0);
+    }
+  }
+
+  /* 蒙层：display 瞬切改成 opacity 过渡，与面板同帧起势。
+     关闭态 opacity 0 + pointer-events:none，既不挡正文点击也不参与命中测试。 */
+  #toc-backdrop {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms var(--ease-ed);
+  }
+  #toc-backdrop.toc-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 目录浮动按钮：原先没有任何按下反馈。
+     background/color 从行内 style 移到此处，:active 才能覆盖底色。 */
+  #toc-toggle {
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform 100ms var(--ease-ed),
+      background-color 160ms var(--ease-ed);
+  }
+  #toc-toggle:active {
+    transform: scale(0.96);
+    background-color: var(--color-ed-accent);
+  }
+
+  /* 阅读量：占位与数字同宽（min-width 兜住），tabular-nums 让数字不抖 */
+  .view-count {
+    display: inline-block;
+    min-width: 5.5em;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 180ms var(--ease-ed);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #toc-panel,
+    #toc-backdrop,
+    #toc-toggle,
+    .view-count {
+      transition: none;
+    }
+    #toc-toggle:active {
+      transform: none;
     }
   }
 </style>

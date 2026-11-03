@@ -1,10 +1,13 @@
 <!-- Search modal: opens via `open-search` CustomEvent, or Cmd/Ctrl+K -->
+<!-- 开合用 data-open 驱动（opacity + visibility），不用 hidden 瞬切，因此关闭过程可被打断 -->
 <div
   id="search-modal"
-  class="search-modal fixed inset-0 z-[60] hidden items-start justify-center"
+  class="search-modal fixed inset-0 z-[60] items-start justify-center"
   role="dialog"
   aria-modal="true"
   aria-labelledby="search-title"
+  aria-hidden="true"
+  data-open="false"
 >
   <div class="search-panel">
     <h2 id="search-title" class="sr-only">站内搜索</h2>
@@ -46,6 +49,118 @@
   </div>
 </div>
 
+<style>
+  /* 弹层开合：scrim（弹层本体）160ms 淡入淡出，面板 140ms 位移淡出。
+     visibility 延迟切换 —— 关闭时等淡出走完才真正隐藏，不再 hidden 瞬切；
+     重开只是把 data-open 改回 true，CSS transition 天然可打断，无需计时器。 */
+  .search-modal {
+    display: flex;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 160ms var(--ease-ed),
+      visibility 0s linear 160ms;
+  }
+  .search-modal[data-open="true"] {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition:
+      opacity 160ms var(--ease-ed),
+      visibility 0s;
+  }
+
+  /* 面板：开 180ms 起、关 140ms 收（transition 取目标态的值） */
+  .search-panel {
+    transition:
+      opacity 180ms var(--ease-ed),
+      transform 180ms var(--ease-ed);
+  }
+  .search-modal[data-open="false"] .search-panel {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition:
+      opacity 140ms var(--ease-ed),
+      transform 140ms var(--ease-ed);
+  }
+
+  /* 每次打开后的首次结果渲染淡入一次；之后逐键换结果保持瞬时 */
+  #search-results.is-entering {
+    animation: search-results-in 160ms var(--ease-ed) both;
+  }
+  /* 空结果只淡入、不位移 */
+  #search-results.is-entering.is-empty {
+    animation: search-results-fade 140ms var(--ease-ed) both;
+  }
+  @keyframes search-results-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes search-results-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* 冷启动载入：1px 不确定进度条（只动 transform），替代一行「正在载入…」 */
+  :global(.search-loading) {
+    position: relative;
+    height: 1px;
+    margin: 1.15rem 0.5rem 1.35rem;
+    overflow: hidden;
+    background: var(--color-ed-hairline);
+  }
+  :global(.search-loading__bar) {
+    display: block;
+    height: 100%;
+    background: var(--color-ed-accent);
+    transform-origin: left center;
+    animation: search-loading-sweep 1100ms var(--ease-ed) infinite;
+  }
+  @keyframes search-loading-sweep {
+    0% {
+      transform: scaleX(0.15);
+    }
+    50% {
+      transform: scaleX(0.9);
+    }
+    100% {
+      transform: scaleX(0.15);
+    }
+  }
+
+  /* 结果行补按压反馈（hover 已有背景，这里压深一档） */
+  :global(#search-results .search-result:active) {
+    background: rgba(28, 28, 28, 0.07);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .search-modal,
+    .search-modal[data-open="true"],
+    .search-panel,
+    .search-modal[data-open="false"] .search-panel {
+      transition: none;
+    }
+    #search-results.is-entering {
+      animation: none;
+    }
+    :global(.search-loading__bar) {
+      animation: none;
+      transform: scaleX(0.4);
+    }
+  }
+</style>
+
 <script>
   // 注:本站启用了 Astro View Transitions,站内跳转会替换 <body> 内 DOM,
   // 缓存的元素引用和元素级监听器会随旧节点一起失效。
@@ -65,9 +180,14 @@
   const PROMPT = "";
   const LOADING = "正在载入搜索索引…";
 
+  // 打开后是否已经做过「首次结果淡入」：每次打开重置，逐键换结果不再动画
+  let resultsAnimated = false;
+
+  const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   function trapFocus(e: KeyboardEvent) {
     const { modal } = getRefs();
-    if (!modal || modal.classList.contains("hidden") || e.key !== "Tab") return;
+    if (!modal || modal.dataset.open !== "true" || e.key !== "Tab") return;
     const nodes = Array.from(modal.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
       (el) => el.offsetParent !== null
     );
@@ -131,10 +251,28 @@
     return frag;
   }
 
+  // 每次打开后的首次渲染才做淡入；之后逐键换结果保持瞬时
+  function animateResultsOnce() {
+    const { results } = getRefs();
+    if (!results || resultsAnimated) return;
+    resultsAnimated = true;
+    if (reducedMotion()) return;
+    results.classList.remove("is-entering");
+    void results.offsetWidth; // 强制 reflow，动画才能重播
+    results.classList.add("is-entering");
+    results.addEventListener(
+      "animationend",
+      () => results.classList.remove("is-entering"),
+      { once: true }
+    );
+  }
+
   function setMessage(message: string, countText?: string) {
     const { results } = getRefs();
     if (!results) return;
     results.replaceChildren();
+    // 空结果/0 条：只淡入，不位移
+    results.classList.toggle("is-empty", Boolean(message));
     if (message) {
       const p = document.createElement("p");
       p.className = "search-empty";
@@ -143,11 +281,30 @@
       announce(message);
     }
     setCount(countText ?? "");
+    if (message) animateResultsOnce();
+  }
+
+  // 冷启动载入索引：一条 1px 不确定进度条，比一行「正在载入…」更像在跑
+  function setLoading() {
+    const { results } = getRefs();
+    if (!results) return;
+    results.replaceChildren();
+    results.classList.remove("is-empty");
+    const bar = document.createElement("div");
+    bar.className = "search-loading";
+    bar.setAttribute("role", "presentation");
+    const fill = document.createElement("span");
+    fill.className = "search-loading__bar";
+    bar.appendChild(fill);
+    results.appendChild(bar);
+    setCount("载入中…");
+    announce(LOADING);
+    animateResultsOnce();
   }
 
   async function loadSearch() {
     if (loadPromise) return loadPromise;
-    setMessage(LOADING, "载入中…");
+    setLoading();
     loadPromise = (async () => {
       try {
         // pagefind.js 是 ES module，API 是具名导出（init/search...），不挂 window.Pagefind
@@ -174,8 +331,13 @@
     const { modal, input } = getRefs();
     if (!modal || !input) return;
     lastFocused = document.activeElement as HTMLElement | null;
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
+    // 内容在「不可见」时复位（关闭后 visibility:hidden），不会看到面板里内容跳动
+    input.value = "";
+    setMessage(PROMPT);
+    resultsAnimated = false;
+    // data-open 是唯一状态源：重新打开会直接打断正在进行的关闭过渡
+    modal.dataset.open = "true";
+    modal.removeAttribute("aria-hidden");
     document.body.style.overflow = "hidden";
     requestAnimationFrame(() => input.focus());
     if (!loaded) void loadSearch();
@@ -183,20 +345,20 @@
 
   function close() {
     const { modal, input } = getRefs();
-    if (!modal || !input) return;
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
+    if (!modal || !input || modal.dataset.open !== "true") return;
+    // 面板与 scrim 的淡出交给 CSS（visibility 延迟到过渡结束才 hidden）；
+    // 输入框内容与结果留到下次 open 再清，关闭过程里不会先一步空掉
+    modal.dataset.open = "false";
+    modal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
-    input.value = "";
     clearTimeout(debounce);
-    setMessage(PROMPT);
     lastFocused?.focus?.();
     lastFocused = null;
   }
 
   function isOpen() {
     const { modal } = getRefs();
-    return modal ? !modal.classList.contains("hidden") : false;
+    return modal ? modal.dataset.open === "true" : false;
   }
 
   // 上下键在结果之间移动焦点（结果本身就是链接，回车即可打开）
@@ -243,7 +405,7 @@
     const target = e.target as HTMLElement | null;
     if (!target) return;
     const { modal } = getRefs();
-    if (!modal || modal.classList.contains("hidden")) return;
+    if (!modal || modal.dataset.open !== "true") return;
     if (target === modal) {
       close();
       return;
@@ -302,7 +464,11 @@
         fragment.appendChild(link);
       }
       const results = getRefs().results;
-      if (results) results.replaceChildren(fragment);
+      if (results) {
+        results.replaceChildren(fragment);
+        results.classList.remove("is-empty");
+      }
+      animateResultsOnce();
 
       const count = search.results.length;
       setCount(`${count} 条结果`);

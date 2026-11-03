@@ -23,23 +23,41 @@ const label = "回到顶部";
 <script>
   // 本站启用 View Transitions：换页会替换 <body>，直接绑在按钮上的监听器会随旧节点丢失。
   // 因此点击走 document 委托，按钮引用在事件发生时现查。
-  function syncBackToTop() {
+  //
+  // 出现/隐藏带滞回：进入阈值 0.85 屏 + 40px，退出阈值 -40px，
+  // 单点阈值在边界上会来回抖；滚动事件合并到一个 rAF 里评估。
+  let shown = false;
+  let raf = 0;
+
+  function evaluate() {
+    raf = 0;
     const btn = document.getElementById("back-to-top");
     if (!btn) return;
-    const show = window.scrollY > window.innerHeight * 0.8; // 滚过大半屏后出现
-    btn.classList.toggle("is-shown", show);
-    if (show) btn.removeAttribute("inert");
+    const vh = window.innerHeight;
+    const y = window.scrollY;
+    if (!shown && y > vh * 0.85 + 40) shown = true;
+    else if (shown && y < vh * 0.85 - 40) shown = false;
+    btn.classList.toggle("is-shown", shown);
+    if (shown) btn.removeAttribute("inert");
     else btn.setAttribute("inert", "");
   }
 
-  window.addEventListener("scroll", syncBackToTop, { passive: true });
-  document.addEventListener("astro:page-load", syncBackToTop);
+  function schedule() {
+    if (!raf) raf = requestAnimationFrame(evaluate);
+  }
+
+  window.addEventListener("scroll", schedule, { passive: true });
+  window.addEventListener("resize", schedule, { passive: true });
+  document.addEventListener("astro:page-load", () => {
+    shown = false;
+    schedule();
+  });
   document.addEventListener("click", (e) => {
     if (!(e.target as HTMLElement | null)?.closest?.("#back-to-top")) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   });
-  syncBackToTop();
+  schedule();
 </script>
 
 <style>
@@ -76,13 +94,29 @@ const label = "回到顶部";
     color: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
   }
+  /* 按压：只做 transform 回缩，90ms 比进入更快，手指下有「按下去了」的确认 */
+  .back-to-top:active {
+    transform: scale(0.96);
+    transition-duration: 90ms;
+  }
   .back-to-top svg {
     width: 1rem;
     height: 1rem;
+    transition: transform 220ms var(--ease-ed);
+  }
+  /* 悬停时箭头往上提 2px：指向「顶部」，比整颗按钮位移更轻 */
+  .back-to-top:hover svg {
+    transform: translateY(-2px);
   }
   @media (prefers-reduced-motion: reduce) {
-    .back-to-top {
+    .back-to-top,
+    .back-to-top svg {
       transition: none;
+    }
+    /* 去掉位移与缩放，只留颜色变化 */
+    .back-to-top:hover svg,
+    .back-to-top:active {
+      transform: none;
     }
   }
 </style>

@@ -8,23 +8,94 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   noindex
 >
   <div class="page-shell page-shell--narrow">
-    <section class="py-28 text-center md:py-40">
+    <section class="nf py-28 text-center md:py-40">
       <h1
-        class="mt-4 font-serif leading-none text-[clamp(4.5rem,16vw,8rem)] text-[var(--color-ed-fg)]"
+        class="nf-code mt-4 font-serif leading-none text-[clamp(4.5rem,16vw,8rem)] text-[var(--color-ed-fg)]"
       >
         404
       </h1>
-      <p class="mx-auto mt-6 max-w-md text-sm leading-relaxed text-[var(--color-ed-muted)]">
+      <p class="nf-lede mx-auto mt-6 max-w-md text-sm leading-relaxed text-[var(--color-ed-muted)]">
         这个页面不存在，可能是链接过期、地址拼错，或者内容已经被移走了。
       </p>
       <nav
-        class="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm"
+        class="nf-nav mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm"
         aria-label="404 页面导航"
       >
-        <a href="/" class="hover-underline hit-24 text-[var(--color-ed-fg)]">返回首页</a>
-        <a href="/archive/" class="hover-underline hit-24 text-[var(--color-ed-fg)]">浏览归档</a>
-        <a href="/timeline/" class="hover-underline hit-24 text-[var(--color-ed-fg)]">看看纪事</a>
+        <a href="/" class="nf-link hover-underline hit-24 text-[var(--color-ed-fg)]">返回首页</a>
+        <a href="/archive/" class="nf-link hover-underline hit-24 text-[var(--color-ed-fg)]">浏览归档</a>
+        <a href="/timeline/" class="nf-link hover-underline hit-24 text-[var(--color-ed-fg)]">看看纪事</a>
       </nav>
     </section>
   </div>
 </BaseLayout>
+
+<style>
+  /* 整页只有一次入场：大字从下沿托入 + 收焦，文案与链接随后 60ms 步进淡入。
+     纯 CSS，不需要脚本，也不依赖 .js 门控（无 JS 时同样能播完并停在终态）。 */
+  .nf-code {
+    animation: nf-code-in 560ms var(--ease-ed) both;
+  }
+
+  .nf-lede {
+    animation: nf-rise 460ms var(--ease-ed) 60ms both;
+  }
+
+  .nf-link {
+    animation: nf-rise 460ms var(--ease-ed) both;
+  }
+
+  .nf-link:nth-child(1) {
+    animation-delay: 120ms;
+  }
+
+  .nf-link:nth-child(2) {
+    animation-delay: 180ms;
+  }
+
+  .nf-link:nth-child(3) {
+    animation-delay: 240ms;
+  }
+
+  @keyframes nf-code-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+  }
+
+  @keyframes nf-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* 只留淡入：不位移、不模糊、不排队 */
+    .nf-code,
+    .nf-lede,
+    .nf-link {
+      animation: nf-fade 180ms ease both;
+      animation-delay: 0ms;
+    }
+  }
+
+  @keyframes nf-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+</style>

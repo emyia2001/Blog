@@ -33,6 +33,8 @@ const { src, title, gated = false } = Astro.props;
     <button id="mp-play" class="font-serif text-sm" aria-label="Play/Pause">
       &#9654;
     </button>
+    <!-- 播放中的均衡器：4 根 1px 竖条，只用 scaleY 律动（暂停时静止） -->
+    <span id="mp-eq" class="mp-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
     {title && (
       <span class="text-xs text-[var(--color-ed-muted)] whitespace-nowrap max-w-[120px] truncate">
         {title}
@@ -53,7 +55,9 @@ const { src, title, gated = false } = Astro.props;
   #mp-btn,
   #mp-play {
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.12s ease;
+    transition:
+      transform 0.12s ease,
+      opacity 120ms var(--ease-ed);
   }
   #mp-btn:active,
   #mp-play:active {
@@ -73,9 +77,91 @@ const { src, title, gated = false } = Astro.props;
       transform: scale(1);
     }
   }
+
+  /* 播放条入场：display 切换不再瞬现，从 8px 下方淡入（同 BackToTop 的入场语言） */
+  #mp-bar {
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 240ms var(--ease-ed),
+      transform 240ms var(--ease-ed);
+  }
+  #mp-bar.mp-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* 播放中均衡器：transform-origin 在底部，只用 scaleY，暂停时静止在 0.3 */
+  .mp-eq {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+  }
+  .mp-eq i {
+    display: block;
+    width: 1px;
+    height: 100%;
+    background: var(--color-ed-fg);
+    transform: scaleY(0.3);
+    transform-origin: bottom center;
+    transition: transform 200ms var(--ease-ed);
+  }
+  #mp-bar.is-playing .mp-eq i {
+    animation: mp-eq 900ms ease-in-out infinite alternate;
+  }
+  #mp-bar.is-playing .mp-eq i:nth-child(2) {
+    animation-duration: 720ms;
+    animation-delay: -180ms;
+  }
+  #mp-bar.is-playing .mp-eq i:nth-child(3) {
+    animation-duration: 1080ms;
+    animation-delay: -420ms;
+  }
+  #mp-bar.is-playing .mp-eq i:nth-child(4) {
+    animation-duration: 840ms;
+    animation-delay: -300ms;
+  }
+  @keyframes mp-eq {
+    from {
+      transform: scaleY(0.25);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  /* 暂停时进度线退到 55%，播放时恢复 */
+  #mp-progress {
+    transition: opacity 200ms var(--ease-ed);
+  }
+  #mp-bar:not(.is-playing) #mp-progress {
+    opacity: 0.55;
+  }
+
+  /* 图标切换（▶/■）：120ms opacity 过渡，避免字形硬切。
+     用 transition 而非 animation，避免和 .mp-pulse 抢同一个 animation 简写。 */
+  #mp-icon {
+    transition: opacity 120ms var(--ease-ed);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mp-pulse {
       animation: none;
+    }
+    /* 入场只留 opacity，不做位移 */
+    #mp-bar {
+      transform: none;
+      transition: opacity 240ms linear;
+    }
+    #mp-bar.mp-visible {
+      transform: none;
+    }
+    .mp-eq {
+      display: none;
+    }
+    #mp-progress {
+      transition: none;
     }
   }
 </style>
@@ -100,6 +186,8 @@ const { src, title, gated = false } = Astro.props;
     playBtn: HTMLElement | null = null;
     progress: HTMLElement | null = null;
     icon: HTMLElement | null = null;
+    // 上次渲染的播放状态：只在真正切换时做图标过渡
+    iconState: boolean | null = null;
     unlockEvents: string[] = ["pointerdown", "keydown", "scroll", "touchstart"];
 
     _onUnlock = () => {
@@ -193,7 +281,7 @@ const { src, title, gated = false } = Astro.props;
       delete this.dataset.gated;
       this.hidden = false;
       if (this.btn) this.btn.style.display = "none";
-      if (this.bar) this.bar.style.display = "flex";
+      this.showBar();
       this.unlocked = true;
       this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
       this.setIcons(false);
@@ -222,6 +310,14 @@ const { src, title, gated = false } = Astro.props;
         }
       });
 
+      // 均衡器/进度线只跟真实播放状态走：自动播放被拦截、淡出暂停都不会误动
+      this.audio.addEventListener("play", () => {
+        this.bar?.classList.add("is-playing");
+      });
+      this.audio.addEventListener("pause", () => {
+        this.bar?.classList.remove("is-playing");
+      });
+
       this.audio.addEventListener("error", () => {
         // disconnect 时清空 src 会异步触发 error 事件，此时 audio 已销毁
         if (!this.audio) return;
@@ -236,7 +332,7 @@ const { src, title, gated = false } = Astro.props;
           this.btn.style.display = "flex";
           this.btn.innerHTML = "!";
         }
-        if (this.bar) this.bar.style.display = "none";
+        this.hideBar();
         this.setIcons(false);
         window.setTimeout(() => {
           if (this.btn) this.btn.innerHTML = "&#9654;";
@@ -244,7 +340,7 @@ const { src, title, gated = false } = Astro.props;
       });
 
       this.btn?.addEventListener("click", () => {
-        if (this.bar) this.bar.style.display = "flex";
+        this.showBar();
         if (this.btn) this.btn.style.display = "none";
         this.pulse();
         this.play(true); // 用户主动点击：立即出声
@@ -252,16 +348,11 @@ const { src, title, gated = false } = Astro.props;
 
       this.playBtn?.addEventListener("click", () => this.toggle());
 
-      // Respect prefers-reduced-motion
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches && this.bar) {
-        this.bar.style.transition = "none";
-      }
-
       // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮。
       // 锁定内容（data-gated）例外：既不显示也不播放，也不注册"首次交互即解锁播放"，
       // 否则用户随便滚动一下就把加密文章的 BGM 放出来了。
       if (this.dataset.gated !== "true") {
-        if (this.bar) this.bar.style.display = "flex";
+        this.showBar();
         if (this.btn) this.btn.style.display = "none";
         this.setIcons(false);
         this.play();
@@ -303,10 +394,48 @@ const { src, title, gated = false } = Astro.props;
       this.hardStop();
     }
 
+    // 显示播放条：display 从 none 切到 flex 后，下一帧再挂 .mp-visible，
+    // 让 240ms 的 opacity/translateY 入场真的跑起来（reduced-motion 只留 opacity）。
+    showBar(): void {
+      const bar = this.bar;
+      if (!bar) return;
+      if (bar.style.display === "flex" && bar.classList.contains("mp-visible")) return;
+      bar.classList.remove("mp-visible");
+      bar.style.display = "flex";
+      requestAnimationFrame(() => {
+        if (this.bar === bar) bar.classList.add("mp-visible");
+      });
+    }
+
+    hideBar(): void {
+      const bar = this.bar;
+      if (!bar) return;
+      bar.classList.remove("mp-visible");
+      bar.style.display = "none";
+    }
+
     setIcons(isPlaying: boolean): void {
       const glyph = isPlaying ? "&#9632;" : "&#9654;";
+      const changed = this.iconState !== isPlaying;
+      this.iconState = isPlaying;
       if (this.playBtn) this.playBtn.innerHTML = glyph;
       if (this.icon) this.icon.innerHTML = glyph;
+      // 图标字形是直接替换的，补一次 120ms 淡入，避免硬切
+      if (changed) this.swapGlyphs();
+    }
+
+    // 图标字形是直接替换的，补一次 120ms opacity 过渡，避免硬切
+    // （用 transition 而非 animation：.mp-pulse 已占用 animation 简写）
+    swapGlyphs(): void {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      for (const el of [this.playBtn, this.icon]) {
+        if (!el) continue;
+        el.style.transition = "none";
+        el.style.opacity = "0.35";
+        void el.offsetWidth; // 让起点值先落地，过渡才有起点
+        el.style.transition = "";
+        el.style.opacity = "1";
+      }
     }
 
     fadeTo(target: number, onDone?: () => void, step = FADE_STEP): void {

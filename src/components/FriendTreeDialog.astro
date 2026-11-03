@@ -1,0 +1,536 @@
+---
+/**
+ * 友链二维码树 · 确认弹窗
+ *
+ * 点卡片（或页头的「本站二维码」）→ 弹出这张卡：站点名/地址/简介 + 二维码树 + 前往。
+ * 桌面和移动端共用同一个弹窗，树只在打开时挂载，关闭即暂停。
+ */
+interface FriendItem {
+  name: string;
+  url: string;
+  host: string;
+  desc?: string;
+  avatar?: string | null;
+}
+interface Props {
+  friends: FriendItem[];
+  siteName: string;
+  siteUrl: string;
+  siteDesc: string;
+  siteAvatar?: string | null;
+}
+const { friends, siteName, siteUrl, siteDesc, siteAvatar } = Astro.props;
+const siteHost = siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+const payload = JSON.stringify({
+  site: { name: siteName, url: siteUrl, host: siteHost, desc: siteDesc, avatar: siteAvatar },
+  friends,
+}).replace(/</g, "\\u003c");
+---
+
+<dialog class="fta" data-ft-dialog aria-labelledby="fta-name" tabindex="-1">
+  <div class="fta__panel">
+    <header class="fta__head">
+      <div class="fta__ident">
+        <span class="fta__avatar" aria-hidden="true">
+          <img data-ft-avatar alt="" width="44" height="44" hidden />
+          <span data-ft-avatar-fallback></span>
+        </span>
+        <div class="fta__meta">
+          <h2 class="fta__name" id="fta-name" data-ft-name></h2>
+          <p class="fta__host" data-ft-host></p>
+        </div>
+        <a class="fta__go" data-ft-go target="_blank" rel="noopener noreferrer" hidden>
+          前往<span aria-hidden="true"> ↗</span>
+        </a>
+      </div>
+
+      <p class="fta__desc" data-ft-desc hidden></p>
+    </header>
+
+    <div class="fta__stage">
+      <canvas data-qrtree-canvas role="img" aria-label="二维码树：点击切换到俯视二维码"></canvas>
+      <p class="fta__hint" data-qrtree-hint>点击画面查看二维码</p>
+      <p class="fta__fallback">当前浏览器不支持 WebGL2</p>
+    </div>
+  </div>
+</dialog>
+
+<script type="application/json" data-friend-tree-data set:html={payload}></script>
+
+<script>
+  import { mountTree } from "../scripts/qrtree/app.js";
+
+  interface Subject {
+    name: string;
+    url: string;
+    host: string;
+    desc?: string;
+    avatar?: string | null;
+    site?: boolean;
+  }
+  interface TreeInstance {
+    setUrl(url: string): void;
+    setSeason(season: number): void;
+    pause(): void;
+    resume(): void;
+    destroy(): void;
+  }
+
+  let cleanup: null | (() => void) = null;
+  let bootedData: Element | null = null;
+
+  function init(): null | (() => void) {
+    const dialog = document.querySelector<HTMLDialogElement>("[data-ft-dialog]");
+    const grid = document.querySelector<HTMLElement>("[data-friend-grid]");
+    const dataEl = document.querySelector<HTMLScriptElement>("[data-friend-tree-data]");
+    if (!dialog || !dataEl) return null;
+
+    let site: Subject | null = null;
+    let friends: Subject[] = [];
+    try {
+      const raw = JSON.parse(dataEl.textContent || "{}") as {
+        site?: Subject;
+        friends?: Subject[];
+      };
+      if (raw.site && raw.site.url) site = { ...raw.site, site: true };
+      if (Array.isArray(raw.friends)) friends = raw.friends;
+    } catch {
+      /* 数据坏了就别挂，页面本身还能用 */
+    }
+    const home = site;
+    if (!home) return null;
+
+    const nameEl = dialog.querySelector<HTMLElement>("[data-ft-name]");
+    const hostEl = dialog.querySelector<HTMLElement>("[data-ft-host]");
+    const descEl = dialog.querySelector<HTMLElement>("[data-ft-desc]");
+    const avatarImg = dialog.querySelector<HTMLImageElement>("[data-ft-avatar]");
+    const avatarFallback = dialog.querySelector<HTMLElement>("[data-ft-avatar-fallback]");
+    const goEl = dialog.querySelector<HTMLAnchorElement>("[data-ft-go]");
+    const panel = dialog.querySelector<HTMLElement>(".fta__panel");
+    const siteTrigger = document.querySelector<HTMLButtonElement>("[data-friend-site-tree]");
+
+    const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let instance: TreeInstance | null = null;
+    let unsupported = false;
+    let trigger: HTMLElement | null = null;
+    let current: Subject = home;
+
+    // 同一个链接永远是同一棵树：季节由 URL 派生，本站固定用春
+    function seasonOf(s: Subject): number {
+      if (s.site) return 0;
+      let h = 0;
+      for (let i = 0; i < s.url.length; i++) h = (h * 31 + s.url.charCodeAt(i)) >>> 0;
+      return h % 3;
+    }
+
+    function fill(s: Subject) {
+      current = s;
+      if (nameEl) nameEl.textContent = s.name;
+      if (hostEl) hostEl.textContent = s.host;
+      if (avatarImg && avatarFallback) {
+        if (s.avatar) {
+          avatarImg.src = s.avatar;
+          avatarImg.hidden = false;
+          avatarFallback.hidden = true;
+        } else {
+          avatarImg.hidden = true;
+          avatarImg.removeAttribute("src");
+          avatarFallback.hidden = false;
+          avatarFallback.textContent = s.name.slice(0, 1);
+        }
+      }
+      if (descEl) {
+        descEl.textContent = s.desc || "";
+        descEl.hidden = !s.desc;
+      }
+      if (goEl) {
+        if (s.site) {
+          goEl.hidden = true;
+          goEl.removeAttribute("href");
+        } else {
+          goEl.hidden = false;
+          goEl.href = s.url;
+        }
+      }
+    }
+
+    /** @returns true 表示这次刚挂上（已经按当前主体建好树） */
+    function ensure(): boolean {
+      if (instance || unsupported) return false;
+      const created = mountTree(dialog, {
+        url: current.url,
+        season: seasonOf(current),
+        updateHistory: false,
+        // 弹窗里把整座岛收进画面：缩小 + 略微上移（俯视二维码时都会还原）
+        zoom: 0.78,
+        shiftY: 0.07,
+      }) as unknown as TreeInstance;
+      if (!created || typeof created.setUrl !== "function") {
+        // WebGL2 不可用：mountTree 已经给 dialog 加了 is-unsupported，别反复重试
+        unsupported = true;
+        return false;
+      }
+      instance = created;
+      return true;
+    }
+
+    function paintTree() {
+      const mounted = ensure();
+      if (!instance) return;
+      if (!mounted) {
+        instance.setUrl(current.url);
+        instance.setSeason(seasonOf(current));
+      }
+      instance.resume();
+    }
+
+    function openFor(i: number, source: HTMLElement | null) {
+      const s = i < 0 ? home : friends[i];
+      if (!s) return;
+      trigger = source;
+      fill(s);
+      if (!dialog!.open) {
+        dialog!.classList.remove("is-closing");
+        dialog!.showModal();
+        // 没有关闭按钮了：先把焦点给弹窗本身（会读 aria-labelledby），Tab 再到「前往」
+        dialog!.focus();
+      }
+      // 已有实例：下一帧换树即可。
+      // 首次挂载则等面板入场动画结束——动画期间 getBoundingClientRect 带着 transform，
+      // 这时候建画布会按缩小后的尺寸分配缓冲。
+      if (instance) {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (dialog!.open) paintTree();
+          })
+        );
+        return;
+      }
+      let mountTimer = 0;
+      const start = () => {
+        window.clearTimeout(mountTimer);
+        panel?.removeEventListener("animationend", start);
+        if (!dialog!.open || instance) return;
+        paintTree();
+      };
+      if (reduced()) {
+        start();
+        return;
+      }
+      // 动画事件偶尔会丢（标签页切后台、主线程被渲染占满），用定时器兜底；
+      // 两个入口都先自我摘除，免得留下一个到下个弹窗才触发的孤儿监听。
+      mountTimer = window.setTimeout(start, 460);
+      panel?.addEventListener("animationend", start);
+    }
+
+    function close() {
+      if (!dialog!.open) return;
+      if (reduced()) {
+        dialog!.close();
+        return;
+      }
+      if (dialog!.classList.contains("is-closing")) return;
+      // 先把渲染循环停掉，退场动画才不会被每秒五帧的渲染拖慢
+      instance?.pause();
+      dialog!.classList.add("is-closing");
+      let closeTimer = 0;
+      const finish = () => {
+        window.clearTimeout(closeTimer);
+        panel?.removeEventListener("animationend", finish);
+        if (!dialog!.open || !dialog!.classList.contains("is-closing")) return;
+        dialog!.classList.remove("is-closing");
+        dialog!.close();
+      };
+      closeTimer = window.setTimeout(finish, 460);
+      panel?.addEventListener("animationend", finish);
+    }
+
+    const onGridClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement | null)?.closest?.(
+        "[data-friend-select]"
+      ) as HTMLElement | null;
+      if (!btn) return;
+      openFor(Number(btn.dataset.friendSelect), btn);
+    };
+    const onSiteClick = () => openFor(-1, siteTrigger);
+    const onBackdropClick = (e: MouseEvent) => {
+      // 面板之外的点击都落在 dialog 自己身上
+      if (e.target === dialog) close();
+    };
+    const onCancel = (e: Event) => {
+      // Esc：先播退场再真正关闭
+      e.preventDefault();
+      close();
+    };
+    const onDialogClose = () => {
+      dialog!.classList.remove("is-closing");
+      instance?.pause();
+      trigger?.focus({ preventScroll: true });
+    };
+
+    grid?.addEventListener("click", onGridClick);
+    siteTrigger?.addEventListener("click", onSiteClick);
+    dialog.addEventListener("click", onBackdropClick);
+    dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("close", onDialogClose);
+
+    return () => {
+      grid?.removeEventListener("click", onGridClick);
+      siteTrigger?.removeEventListener("click", onSiteClick);
+      dialog.removeEventListener("click", onBackdropClick);
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("close", onDialogClose);
+      instance?.destroy();
+      instance = null;
+      if (dialog.open) dialog.close();
+    };
+  }
+
+  // 同一页只初始化一次；View Transitions 换页时重来
+  function boot() {
+    const dataEl = document.querySelector("[data-friend-tree-data]");
+    if (!dataEl || dataEl === bootedData) return;
+    bootedData = dataEl;
+    cleanup?.();
+    cleanup = init();
+  }
+
+  document.addEventListener("astro:page-load", boot);
+  document.addEventListener("astro:before-swap", () => {
+    cleanup?.();
+    cleanup = null;
+    bootedData = null;
+  });
+  boot();
+</script>
+
+<style>
+  /* 铺满视口当 flex 容器，居中出现交给面板（UA 的 dialog{margin:auto} 会被 preflight 干掉） */
+  .fta {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    background: transparent;
+    color: var(--color-ed-fg);
+    overflow: visible;
+  }
+  .fta[open] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fta__panel {
+    position: relative;
+    width: min(94vw, 40rem);
+    max-height: 90vh;
+    overflow: auto;
+    background: var(--color-ed-bg);
+    border: 1px solid var(--color-ed-rule);
+    border-top: 3px solid var(--color-ed-accent);
+    border-radius: 2px;
+    box-shadow: 0 70px 140px -70px rgba(20, 14, 9, 0.7);
+    overscroll-behavior: contain;
+  }
+
+  .fta::backdrop {
+    background: radial-gradient(120% 120% at 50% 0%, rgba(28, 28, 28, 0.34), rgba(28, 28, 28, 0.6));
+    backdrop-filter: blur(6px) saturate(0.9);
+    -webkit-backdrop-filter: blur(6px) saturate(0.9);
+  }
+
+  /* 入场：背板压暗，面板上浮；退场比入场快一档 */
+  .fta[open]::backdrop {
+    animation: fta-backdrop-in 240ms ease-out both;
+  }
+  @keyframes fta-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .fta[open] .fta__panel {
+    animation: fta-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes fta-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.978); }
+    to { opacity: 1; transform: none; }
+  }
+  .fta.is-closing::backdrop {
+    animation: fta-backdrop-out 200ms ease-in both;
+  }
+  @keyframes fta-backdrop-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  .fta.is-closing .fta__panel {
+    animation: fta-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  @keyframes fta-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(8px) scale(0.99); }
+  }
+
+  .fta__head {
+    position: relative;
+    padding: 1.1rem 1.25rem 0.95rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+  }
+
+  /* 头像 + 名称；「前往」贴着名称那一行的右端，右上角单独放「关闭」 */
+  .fta__ident {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+  }
+
+  .fta__avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    overflow: hidden;
+    border-radius: 50%;
+    background: rgba(28, 28, 28, 0.06);
+  }
+  .fta__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .fta__avatar [data-ft-avatar-fallback] {
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    color: var(--color-ed-muted);
+  }
+
+  .fta__meta {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .fta__name {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-ed-fg);
+  }
+
+  .fta__host {
+    margin: 0.2rem 0 0;
+    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--color-ed-subtle);
+  }
+
+  .fta__desc {
+    margin: 0.7rem 0 0;
+    max-width: 34rem;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--color-ed-muted);
+  }
+
+  /* 画布只占上部，底部留一段纸色空档：树的边缘不会再贴着卡片底边 */
+  .fta__stage {
+    position: relative;
+    height: clamp(300px, 46vh, 420px);
+    padding-bottom: 2.5rem;
+    overflow: hidden;
+  }
+
+  .fta__stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    touch-action: manipulation;
+    opacity: 1;
+    transition: opacity 140ms ease-out;
+  }
+
+  .fta__hint {
+    position: absolute;
+    left: 50%;
+    bottom: 0.85rem;
+    transform: translateX(-50%);
+    margin: 0;
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+    color: var(--color-ed-subtle);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .fta__fallback {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 0.8125rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-muted);
+  }
+
+  .fta.is-unsupported .fta__stage canvas,
+  .fta.is-unsupported .fta__hint {
+    display: none;
+  }
+  .fta.is-unsupported .fta__fallback {
+    display: flex;
+  }
+
+  .fta__go {
+    margin-left: auto;
+    flex: none;
+    font-size: 0.9375rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ed-accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.22em;
+    text-decoration-color: rgba(166, 58, 43, 0.45);
+    transition: text-decoration-color 180ms ease;
+  }
+  .fta__go:hover,
+  .fta__go:focus-visible {
+    text-decoration-color: currentColor;
+  }
+
+  @media (max-width: 640px) {
+    .fta__head {
+      padding: 1rem 1rem 0.9rem;
+    }
+    .fta__name {
+      font-size: 1.2rem;
+    }
+    .fta__stage {
+      height: clamp(280px, 42vh, 360px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fta[open]::backdrop,
+    .fta[open] .fta__panel,
+    .fta.is-closing::backdrop,
+    .fta.is-closing .fta__panel {
+      animation: none;
+    }
+    .fta__stage canvas {
+      transition: none;
+    }
+  }
+</style>

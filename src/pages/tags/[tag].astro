@@ -38,7 +38,7 @@ const posts = allPosts
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">#{tag}</h1>
-        <a href="/tags/" class="page-head__aside">全部标签 →</a>
+        <a href="/tags/" class="page-head__aside">全部标签 <span class="aside-arrow">→</span></a>
       </div>
       <p class="page-head__meta">{posts.length} 篇文章</p>
     </header>
@@ -68,3 +68,27 @@ const posts = allPosts
     )}
   </div>
 </BaseLayout>
+
+<style>
+  /* 「全部标签 →」箭头：hover 时右移 2px，与归档 / 标签页同一条微交互 */
+  .aside-arrow {
+    display: inline-block;
+    transition: transform 200ms var(--ease-ed);
+  }
+
+  .page-head__aside:hover .aside-arrow,
+  .page-head__aside:focus-visible .aside-arrow {
+    transform: translateX(2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aside-arrow {
+      transition: none;
+    }
+
+    .page-head__aside:hover .aside-arrow,
+    .page-head__aside:focus-visible .aside-arrow {
+      transform: none;
+    }
+  }
+</style>

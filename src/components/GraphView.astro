@@ -176,10 +176,19 @@ const linkCount = links.length;
   /* 极简模式：只留节点与连线（相关文章迷你图谱用）；标签平时隐藏，悬停/选中才出现 */
   .graph-view[data-bare="1"] :global(.graph-label) {
     opacity: 0;
+    transition: opacity 160ms ease;
   }
   .graph-view[data-bare="1"] :global(.graph-node.is-hover .graph-label),
   .graph-view[data-bare="1"] :global(.graph-node.is-active .graph-label) {
     opacity: 1;
+  }
+  /* bare 模式没有详情抽屉，节点就是链接：给按下反馈与手型光标 */
+  .graph-view[data-bare="1"] :global(.graph-node) {
+    cursor: pointer;
+  }
+  .graph-view[data-bare="1"] :global(.graph-node:active .graph-node-shape) {
+    transform: scale(0.96);
+    transition: transform 120ms ease;
   }
   .graph-view[data-bare="1"] .graph-legend,
   .graph-view[data-bare="1"] .graph-legend,
@@ -399,6 +408,16 @@ const linkCount = links.length;
     background: rgba(28, 28, 28, 0.55);
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(3px);
+    /* 展开不再瞬跳：整层（遮罩 + 画布）240ms 淡入，画布自身的 box-shadow 走 .graph-canvas 的 300ms */
+    animation: graph-expand-in 240ms var(--ease-ed) both;
+  }
+  @keyframes graph-expand-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   .graph-layout.is-expanded .graph-canvas {
     flex: 1;
@@ -511,6 +530,21 @@ const linkCount = links.length;
   :global(.graph-node),
   :global(.graph-link) {
     animation: graph-in 0.5s var(--ease-ed) backwards;
+  }
+
+  /* 抽屉已开时换节点：内文 160ms 淡入，避免整块文字瞬换 */
+  :global(.graph-detail-inner.is-swapping) {
+    animation: graph-detail-swap 160ms ease-out both;
+  }
+  @keyframes graph-detail-swap {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   /* 详情抽屉内容（DOM 由脚本拼装） */
@@ -690,6 +724,14 @@ const linkCount = links.length;
     :global(.graph-link) {
       animation: none;
     }
+    /* 展开 / 换篇：直接落位（缩放补间在脚本里也走 instant 分支） */
+    .graph-layout.is-expanded,
+    :global(.graph-detail-inner.is-swapping) {
+      animation: none;
+    }
+    .graph-view[data-bare="1"] :global(.graph-node:active .graph-node-shape) {
+      transform: none;
+    }
   }
 </style>
 
@@ -703,6 +745,9 @@ const linkCount = links.length;
   const nodesG = document.querySelector<SVGGElement>("#graph-nodes")!;
   const layoutEl = document.getElementById("graph-layout");
   const panel = document.getElementById("graph-detail");
+  // bare（相关文章迷你图谱）：详情抽屉被 display:none，点击必须直接跳转
+  const isBare =
+    document.getElementById("graph-view")?.dataset.bare === "1";
   const data = JSON.parse(
     document.querySelector<HTMLScriptElement>("#graph-data")?.textContent ?? "{}"
   ) as { nodes: GraphNode[]; links: GraphLink[] };
@@ -1067,6 +1112,7 @@ const linkCount = links.length;
 
   function cleanup() {
     cleanupController.abort();
+    stopZoomAnim();
     resizeObserver?.disconnect();
     resizeObserver = null;
     simulation.stop();
@@ -1251,6 +1297,70 @@ const linkCount = links.length;
   }
   applyZoom();
 
+  // cubic-bezier(0.16, 1, 0.3, 1) 求值：与 CSS 的 var(--ease-ed) 同一条曲线，
+  // 这样按钮缩放和站点其它动效的节奏一致。
+  const EASE_ED = (() => {
+    const x1 = 0.16;
+    const y1 = 1;
+    const x2 = 0.3;
+    const y2 = 1;
+    const cx = 3 * x1;
+    const bx = 3 * (x2 - x1) - cx;
+    const ax = 1 - cx - bx;
+    const cy = 3 * y1;
+    const by = 3 * (y2 - y1) - cy;
+    const ay = 1 - cy - by;
+    const sx = (t: number) => ((ax * t + bx) * t + cx) * t;
+    const sy = (t: number) => ((ay * t + by) * t + cy) * t;
+    const dsx = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
+    return (x: number) => {
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      let t = x;
+      for (let i = 0; i < 6; i++) {
+        const d = dsx(t);
+        if (Math.abs(d) < 1e-6) break;
+        t -= (sx(t) - x) / d;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+      }
+      return sy(t);
+    };
+  })();
+
+  // 按钮缩放 / 复位补间 200ms；滚轮、捏合、再次点按钮都会立刻打断重算
+  let zoomRaf = 0;
+  function stopZoomAnim() {
+    if (zoomRaf) cancelAnimationFrame(zoomRaf);
+    zoomRaf = 0;
+  }
+  function animateZoomTo(target: { k: number; tx: number; ty: number }) {
+    stopZoomAnim();
+    if (prefersReducedMotion) {
+      zoom = target;
+      applyZoom();
+      return;
+    }
+    const from = { ...zoom };
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / 200);
+      const e = EASE_ED(p);
+      zoom.k = from.k + (target.k - from.k) * e;
+      zoom.tx = from.tx + (target.tx - from.tx) * e;
+      zoom.ty = from.ty + (target.ty - from.ty) * e;
+      applyZoom();
+      if (p < 1) {
+        zoomRaf = requestAnimationFrame(tick);
+      } else {
+        zoomRaf = 0;
+        zoom = target;
+        applyZoom();
+      }
+    };
+    zoomRaf = requestAnimationFrame(tick);
+  }
+
   function svgPoint(e: { clientX: number; clientY: number }) {
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
@@ -1263,6 +1373,7 @@ const linkCount = links.length;
     (e) => {
       e.preventDefault();
       markInteracted();
+      stopZoomAnim(); // 滚轮随时接管补间
       const p = svgPoint(e);
       const factor = Math.exp(-e.deltaY * 0.001);
       const newK = Math.min(ZMAX, Math.max(ZMIN, zoom.k * factor));
@@ -1275,15 +1386,18 @@ const linkCount = links.length;
   );
 
   function zoomBy(factor: number) {
+    const rect = svg.getBoundingClientRect();
     const p = svgPoint({
-      clientX: svg.getBoundingClientRect().left + svg.clientWidth / 2,
-      clientY: svg.getBoundingClientRect().top + svg.clientHeight / 2,
+      clientX: rect.left + svg.clientWidth / 2,
+      clientY: rect.top + svg.clientHeight / 2,
     });
     const newK = Math.min(ZMAX, Math.max(ZMIN, zoom.k * factor));
-    zoom.tx = p.x - ((p.x - zoom.tx) / zoom.k) * newK;
-    zoom.ty = p.y - ((p.y - zoom.ty) / zoom.k) * newK;
-    zoom.k = newK;
-    applyZoom();
+    // 以「当前可见缩放」为基准算目标，补间中途再点也不会漂
+    animateZoomTo({
+      k: newK,
+      tx: p.x - ((p.x - zoom.tx) / zoom.k) * newK,
+      ty: p.y - ((p.y - zoom.ty) / zoom.k) * newK,
+    });
   }
 
   document
@@ -1307,8 +1421,7 @@ const linkCount = links.length;
   resetBtn?.addEventListener(
     "click",
     () => {
-      zoom = { k: 1, tx: 0, ty: 0 };
-      applyZoom();
+      animateZoomTo({ k: 1, tx: 0, ty: 0 });
     },
     { signal: cleanupController.signal }
   );
@@ -1345,6 +1458,19 @@ const linkCount = links.length;
     }
   }
 
+  // 节点激活的统一入口。bare 模式（相关文章迷你图谱）没有详情抽屉，
+  // 之前点击只会高亮、什么都不发生 —— 有落地页的节点直接跳转。
+  function activateNode(id: string) {
+    if (isBare) {
+      const url = nodeById.get(id)?.url ?? "";
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+    }
+    selectOrToggle(id);
+  }
+
   svg.addEventListener(
     "pointerdown",
     (e) => {
@@ -1357,6 +1483,7 @@ const linkCount = links.length;
           clientX: (a.x + b.x) / 2,
           clientY: (a.y + b.y) / 2,
         });
+        stopZoomAnim(); // 捏合接管补间
         pinch = {
           dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
           k: zoom.k,
@@ -1460,7 +1587,7 @@ const linkCount = links.length;
       simulation.alphaTarget(0);
     }
     if (!cancelled && downOnNode && !dragged && pointerId) {
-      selectOrToggle(pointerId);
+      activateNode(pointerId);
     }
     pointerId = null;
     downOnNode = false;
@@ -1688,8 +1815,12 @@ const linkCount = links.length;
 
   function showDetail(n: GraphNode) {
     if (!panel) return;
+    // 抽屉已经开着：内文 160ms 淡入，别让整块文字瞬换（首次打开用抽屉自身的滑入）
+    const wasOpen = panel.classList.contains("is-open");
     panel.innerHTML = "";
-    panel.appendChild(buildPreview(n));
+    const inner = buildPreview(n);
+    if (wasOpen) inner.classList.add("is-swapping");
+    panel.appendChild(inner);
     panel.classList.add("is-open");
     panel.setAttribute("aria-hidden", "false");
   }
@@ -1752,6 +1883,10 @@ const linkCount = links.length;
           e.preventDefault();
           const id = g.dataset.id;
           if (!id) return;
+          if (isBare && (nodeById.get(id)?.url ?? "")) {
+            window.location.href = nodeById.get(id)!.url!;
+            return;
+          }
           if (activeId === id) {
             clearActive();
             g.focus();

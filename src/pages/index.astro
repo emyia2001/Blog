@@ -129,15 +129,15 @@ const fmtYearMonth = (d: Date) =>
           </div>
           <div class="home-about-stats">
             <div class="home-stat">
-              <span class="home-stat__num">{published.length}</span>
+              <span class="home-stat__num" data-count-to={published.length}>{published.length}</span>
               <span class="home-stat__label">文章</span>
             </div>
             <div class="home-stat">
-              <span class="home-stat__num">{moments.length}</span>
+              <span class="home-stat__num" data-count-to={moments.length}>{moments.length}</span>
               <span class="home-stat__label">纪事</span>
             </div>
             <div class="home-stat">
-              <span class="home-stat__num">{daysNum}</span>
+              <span class="home-stat__num" data-count-to={daysNum}>{daysNum}</span>
               <span class="home-stat__label">天</span>
             </div>
           </div>
@@ -186,4 +186,118 @@ const fmtYearMonth = (d: Date) =>
 
   <!-- 逐字擦除与进度条脚本已上移至 BaseLayout（全站共享） -->
 </BaseLayout>
+
+<script>
+  // ===== 首页统计数字 count-up =====
+  // 目标值走 data-count-to（不解析文本，避免把「天」之类的单位混进数字）。
+  // View Transitions：脚本每次换页会重新执行，监听只绑一次，状态挂 window。
+  const homeWindow = window as Window & { __homeCountBound?: boolean };
+
+  // 复用全站动效令牌 --ease-ed（cubic-bezier），而不是另起一条曲线
+  const easeFromToken = () => {
+    const fallback = (t: number) => 1 - Math.pow(1 - t, 4);
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--ease-ed")
+      .trim();
+    const m = /cubic-bezier\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/.exec(raw);
+    if (!m) return fallback;
+    const [x1, y1, x2, y2] = m.slice(1, 5).map(Number);
+    if ([x1, y1, x2, y2].some((n) => !Number.isFinite(n))) return fallback;
+
+    const cx = 3 * x1;
+    const bx = 3 * (x2 - x1) - cx;
+    const ax = 1 - cx - bx;
+    const cy = 3 * y1;
+    const by = 3 * (y2 - y1) - cy;
+    const ay = 1 - cy - by;
+    const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
+    const sampleY = (t: number) => ((ay * t + by) * t + cy) * t;
+
+    return (t: number) => {
+      // 二分反解 x → t，再取 y
+      let lo = 0;
+      let hi = 1;
+      let mid = t;
+      for (let i = 0; i < 10; i++) {
+        mid = (lo + hi) / 2;
+        if (sampleX(mid) < t) lo = mid;
+        else hi = mid;
+      }
+      return sampleY(mid);
+    };
+  };
+
+  function initHomeStats() {
+    const nums = Array.from(
+      document.querySelectorAll<HTMLElement>(".home-stat__num[data-count-to]")
+    );
+    if (!nums.length) return;
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const run = (el: HTMLElement) => {
+      if (el.dataset.counted === "1") return;
+      el.dataset.counted = "1";
+      const target = Number(el.dataset.countTo);
+      if (!Number.isFinite(target)) return;
+      if (reduce) {
+        el.textContent = String(target);
+        return;
+      }
+      const ease = easeFromToken();
+      const started = performance.now();
+      const dur = 900;
+      el.textContent = "0";
+      const tick = (now: number) => {
+        const p = Math.min((now - started) / dur, 1);
+        el.textContent = String(Math.round(ease(p) * target));
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = String(target);
+      };
+      requestAnimationFrame(tick);
+    };
+
+    if (reduce || !("IntersectionObserver" in window)) {
+      nums.forEach(run);
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          io.unobserve(entry.target);
+          run(entry.target as HTMLElement);
+        }
+      },
+      { threshold: 0.6 }
+    );
+
+    for (const el of nums) {
+      if (el.dataset.counted === "1") continue;
+      const rect = el.getBoundingClientRect();
+      // 已在视口里：立刻跑，避免「先显示终值再跳回 0」的闪动
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        run(el);
+        continue;
+      }
+      // 视口外：先归零（看不见，不会闪），滚到位再计数
+      el.textContent = "0";
+      io.observe(el);
+    }
+  }
+
+  if (!homeWindow.__homeCountBound) {
+    homeWindow.__homeCountBound = true;
+    document.addEventListener("astro:page-load", initHomeStats);
+  }
+  initHomeStats();
+</script>
+
+<style>
+  /* 计数滚动时数字宽度会跳动，等宽数字让三栏不抖 */
+  .home-stat__num {
+    font-variant-numeric: tabular-nums;
+  }
+</style>
 

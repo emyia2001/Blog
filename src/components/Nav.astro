@@ -6,6 +6,7 @@ const navLinks = [
   { href: ROUTES.home, label: "首页" },
   { href: ROUTES.timeline, label: "纪事" },
   { href: ROUTES.archive, label: "归档" },
+  { href: ROUTES.collection, label: "拾集" },
   { href: ROUTES.friends, label: "友链" },
 ];
 
@@ -77,9 +78,9 @@ const isActivePath = (href: string) => {
       aria-expanded="false"
       aria-controls="nav-drawer"
     >
-      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
-      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-opacity duration-300"></span>
-      <span class="block h-px w-5 bg-[var(--color-ed-fg)] transition-transform duration-300"></span>
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)]"></span>
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)]"></span>
+      <span class="block h-px w-5 bg-[var(--color-ed-fg)]"></span>
     </button>
   </div>
 </nav>
@@ -87,15 +88,13 @@ const isActivePath = (href: string) => {
   <!-- Mobile drawer + backdrop, clipped to the viewport so the off-canvas
        drawer never creates horizontal scroll on mobile -->
   <div class="fixed inset-0 z-50 overflow-hidden pointer-events-none md:hidden">
-    <div
-      id="nav-backdrop"
-      class="absolute inset-0 z-40 hidden bg-black/25 pointer-events-auto"
-      aria-hidden="true"
-    ></div>
+    <!-- 遮罩不做 hidden 瞬切：由 CSS 用 opacity 收口（开 180ms / 关 220ms）。
+         两者都从导航下沿开始，汉堡 X 因此不被盖住、始终可点。 -->
+    <div id="nav-backdrop" class="absolute inset-0 z-40 bg-black/25" aria-hidden="true"></div>
 
     <div
       id="nav-drawer"
-      class="absolute inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-rule)] p-8 transition-transform duration-300 pointer-events-auto"
+      class="absolute inset-y-0 right-0 z-50 w-72 translate-x-full border-l border-[var(--color-ed-rule)] p-8 pointer-events-auto"
       style="background: var(--color-ed-bg);"
       aria-hidden="true"
       inert
@@ -110,13 +109,14 @@ const isActivePath = (href: string) => {
         </button>
       </div>
       <ul class="flex flex-col gap-1">
-        {navLinks.map((link) => {
+        {navLinks.map((link, i) => {
           const isActive = isActivePath(link.href);
           return (
             <li>
               <a
                 href={link.href}
                 class={`nav-drawer-link ${isActive ? "is-active" : ""}`}
+                style={`--i:${i}`}
                 aria-current={isActive ? "page" : undefined}
               >
                 {link.label}
@@ -125,10 +125,10 @@ const isActivePath = (href: string) => {
           );
         })}
         <li>
-          <a {...travellingsAttrs} class="nav-drawer-link">开往</a>
+          <a {...travellingsAttrs} class="nav-drawer-link" style="--i:5">开往</a>
         </li>
         <li>
-          <button type="button" data-open-search class="nav-drawer-link">
+          <button type="button" data-open-search class="nav-drawer-link" style="--i:6">
             搜索
           </button>
         </li>
@@ -148,9 +148,78 @@ const isActivePath = (href: string) => {
   #nav-drawer {
     overscroll-behavior: contain;
   }
+
+  /* 抽屉与遮罩都从导航下沿开始：汉堡 X 落在遮罩之上，开着也能再点一次关掉。
+     --nav-h 由脚本按实际导航高度写入，脚本失效时退回 4.875rem。 */
+  #nav-backdrop,
+  #nav-drawer {
+    top: var(--nav-h, 4.875rem);
+  }
+
+  /* 遮罩：不用 hidden 瞬切，纯 opacity 收口（开 180ms / 关 220ms） */
+  #nav-backdrop {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms var(--ease-ed);
+  }
+  #nav-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transition-duration: 180ms;
+  }
+
+  /* 抽屉位移：替换 Tailwind 的 duration-300 默认缓动 */
+  #nav-drawer {
+    transition: transform 260ms var(--ease-ed);
+  }
+
+  /* 打开时抽屉内链接只做透明度交错（不做位移：链接已用 transform 做 hover 位移） */
+  #nav-drawer.is-open .nav-drawer-link {
+    animation: nav-drawer-link-in 180ms var(--ease-ed) both;
+    animation-delay: calc(60ms + var(--i, 0) * 30ms);
+  }
+  @keyframes nav-drawer-link-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* 汉堡 → X：三段线在 240ms 内并成十字，中间一段淡出 */
+  #nav-toggle {
+    transition: transform 120ms var(--ease-ed);
+  }
+  #nav-toggle span {
+    transition:
+      transform 240ms var(--ease-ed),
+      opacity 240ms var(--ease-ed);
+  }
+  /* 三条 1px 线 + 6px 间距，中点到首尾各 7px：位移取 7px 才能正中 */
+  #nav-toggle[aria-expanded="true"] span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+  #nav-toggle[aria-expanded="true"] span:nth-child(2) {
+    opacity: 0;
+  }
+  #nav-toggle[aria-expanded="true"] span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+  #nav-toggle:active {
+    transform: scale(0.94);
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .site-nav {
+    .site-nav,
+    #nav-drawer,
+    #nav-backdrop,
+    #nav-toggle,
+    #nav-toggle span {
       transition: none;
+    }
+    #nav-drawer.is-open .nav-drawer-link {
+      animation: none;
     }
   }
 
@@ -167,7 +236,8 @@ const isActivePath = (href: string) => {
     border-radius: 6px;
     transition:
       color 180ms ease,
-      background-color 220ms ease;
+      background-color 220ms ease,
+      transform 90ms var(--ease-ed);
   }
   .nav-link::after {
     content: '';
@@ -232,6 +302,49 @@ const isActivePath = (href: string) => {
     color: var(--color-ed-accent);
     border-left-color: var(--color-ed-accent);
   }
+  .nav-drawer-link:active {
+    background: rgba(166, 58, 43, 0.1);
+  }
+
+  /* ---- 导航选中线「落定」--------------------------------------------------
+     site-nav 带 view-transition-name，换页时旧/新快照是 animation:none（瞬切），
+     下划线本来会直接跳到新位置。这里在每次 astro:page-load 后给当前项重播一次
+     scaleX(0)→scaleX(1)（左侧 origin，280ms + 40ms 延迟），让线「长」到新位置。
+     armed 态由脚本在首帧前加上，避免首次加载先满格再收起。 */
+  .nav-link.nav-settle-armed::after {
+    transform: scaleX(0);
+  }
+  .nav-link.nav-settle::after {
+    animation: nav-underline-settle 280ms var(--ease-ed) 40ms both;
+  }
+  @keyframes nav-underline-settle {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* 可点元素补一点按压反馈（幅度克制） */
+  .nav-link:active {
+    transform: scale(0.97);
+  }
+
+  /* 放在最后：上面的落定/按压规则定义在后面，reduced-motion 覆盖必须更靠后 */
+  @media (prefers-reduced-motion: reduce) {
+    /* 落定动画整体取消；armed 态也要还原，否则下划线会被藏起来 */
+    .nav-link.nav-settle::after {
+      animation: none;
+    }
+    .nav-link.nav-settle-armed::after {
+      transform: scaleX(1);
+    }
+    .nav-link:active,
+    #nav-toggle:active {
+      transform: none;
+    }
+  }
 </style>
 
 <script>
@@ -248,39 +361,113 @@ const isActivePath = (href: string) => {
     };
   }
 
-  // 关闭态用 inert：仅靠 translate-x-full 隐藏时，抽屉里的 6 个链接仍在 Tab 序列里
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  // 抽屉/遮罩的顶边贴着导航下沿（汉堡 X 因此不被遮罩盖住），高度用实测值写入变量
+  function syncNavHeight() {
+    const nav = document.querySelector<HTMLElement>(".site-nav");
+    if (!nav) return;
+    document.documentElement.style.setProperty("--nav-h", `${nav.offsetHeight}px`);
+  }
+
+  // 关闭态用 inert：仅靠 translate-x-full 隐藏时，抽屉里的 6 个链接仍在 Tab 序列里。
+  // 现在 inert / aria-hidden 等抽屉真正滑出（transitionend）之后再落定。
+  let settleTimer: number | undefined;
+  function settleClosed(drawer: HTMLElement | null) {
+    if (!drawer) return;
+    const finish = () => {
+      window.clearTimeout(settleTimer);
+      // 收口途中又被打开：不要把 inert 落回去
+      if (getRefs().toggle?.getAttribute("aria-expanded") === "true") return;
+      if (!drawer.classList.contains("translate-x-full")) return;
+      drawer.setAttribute("inert", "");
+      drawer.setAttribute("aria-hidden", "true");
+    };
+    if (reduceMotion.matches) {
+      finish();
+      return;
+    }
+    drawer.addEventListener(
+      "transitionend",
+      (e) => {
+        if (e.propertyName !== "transform") return;
+        finish();
+      },
+      { once: true }
+    );
+    // 兜底：transitionend 没来（换页替换节点 / transition 被禁用）也要收口
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(finish, 420);
+  }
+
   function open() {
     const { drawer, backdrop, toggle } = getRefs();
-    drawer?.classList.remove("translate-x-full");
-    drawer?.removeAttribute("inert");
-    backdrop?.classList.remove("hidden");
+    if (!drawer) return;
+    syncNavHeight();
+    drawer.classList.remove("translate-x-full");
+    drawer.classList.add("is-open");
+    drawer.removeAttribute("inert");
+    drawer.setAttribute("aria-hidden", "false");
+    backdrop?.classList.add("is-open");
     toggle?.setAttribute("aria-expanded", "true");
-    drawer?.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
     // 焦点移入抽屉，键盘用户不会「打开后还在原地」
-    drawer?.querySelector<HTMLElement>("a, button")?.focus();
+    drawer.querySelector<HTMLElement>("a, button")?.focus();
   }
 
   function closeDrawer(restoreFocus = false) {
     const { drawer, backdrop, toggle } = getRefs();
     const wasOpen = toggle?.getAttribute("aria-expanded") === "true";
+    // 模板默认就是关闭态（首次加载 / 换页后）：不必再走一遍收口流程
+    if (!wasOpen && drawer?.getAttribute("aria-hidden") === "true") {
+      document.body.style.overflow = "";
+      return;
+    }
     drawer?.classList.add("translate-x-full");
-    drawer?.setAttribute("inert", "");
-    backdrop?.classList.add("hidden");
+    drawer?.classList.remove("is-open");
+    backdrop?.classList.remove("is-open");
     toggle?.setAttribute("aria-expanded", "false");
-    drawer?.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
     if (restoreFocus && wasOpen) toggle?.focus();
+    settleClosed(drawer);
   }
+
+  // 当前选中项的下划线重播一次（换页后新 DOM 也要「长」出来）
+  function replayUnderlineSettle() {
+    document.querySelectorAll<HTMLElement>(".nav-link.is-active").forEach((el) => {
+      el.classList.remove("nav-settle-armed");
+      el.classList.remove("nav-settle");
+      void el.offsetWidth; // 强制 reflow，动画才能重播
+      el.classList.add("nav-settle");
+    });
+  }
+
+  // 首帧前先收掉下划线：避免首次加载「先满格 → 收起 → 再长出」的闪烁
+  if (!reduceMotion.matches) {
+    document
+      .querySelectorAll<HTMLElement>(".nav-link.is-active")
+      .forEach((el) => el.classList.add("nav-settle-armed"));
+  }
+
+  // 换页时 DOM 是 SPA 替换的：after-swap 紧跟替换发生（早于新页面绘制），
+  // 在这里重播才不会被「先满格再收起」闪一下；page-load 只兜底首次加载。
+  let settleReplayed = false;
+  document.addEventListener("astro:after-swap", () => {
+    replayUnderlineSettle();
+    settleReplayed = true;
+  });
 
   // 每次页面加载(VT 换页后也会触发)重新绑定可点击区域的状态,并兜底关闭残留抽屉
   document.addEventListener("astro:page-load", () => {
     closeDrawer();
-    const { drawer } = getRefs();
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches && drawer) {
-      drawer.style.transition = "none";
-    }
+    syncNavHeight();
+    if (!settleReplayed) replayUnderlineSettle();
+    settleReplayed = false;
+  });
+
+  // 抽屉开着时视口变化（转屏 / 地址栏收起）要重算顶边
+  window.addEventListener("resize", () => {
+    if (getRefs().toggle?.getAttribute("aria-expanded") === "true") syncNavHeight();
   });
 
   // 事件委托:hamburger 打开/关闭

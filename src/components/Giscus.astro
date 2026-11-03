@@ -14,9 +14,49 @@ const { class: className = "" } = Astro.props;
 const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
 ---
 
-<div id="giscus" class={className} data-pagefind-ignore>
-  <!-- giscus 自动加载：页面加载后自动初始化评论区 -->
+<div class="giscus-shell" data-pagefind-ignore>
+  <div id="giscus" class={className}>
+    <!-- giscus 自动加载：页面加载后自动初始化评论区 -->
+  </div>
+  <!-- 载入指示：iframe 注入前的一条 1px hairline（不占布局，load 后撤掉） -->
+  <span class="giscus-loadbar" aria-hidden="true"></span>
 </div>
+
+<style>
+  /* 预留评论高度：iframe 注入前先占位，避免把「上下篇 / 页脚」往下推 */
+  .giscus-shell {
+    position: relative;
+    min-height: 12rem;
+  }
+
+  .giscus-loadbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--color-ed-accent);
+    pointer-events: none;
+    animation: giscus-load 1.6s ease-in-out infinite;
+  }
+
+  @keyframes giscus-load {
+    0%,
+    100% {
+      opacity: 0.18;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .giscus-loadbar {
+      animation: none;
+      opacity: 0.4;
+    }
+  }
+</style>
 
 <script define:vars={{ themeUrl, repo: GISCUS_REPO }}>
   const GISCUS_CONFIG = {
@@ -36,9 +76,64 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
     crossorigin: "anonymous",
   };
 
+  const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
+
+  // 评论 iframe 由 giscus 注入：捕捉到节点后先压住（opacity 0 / translateY 4px），
+  // 等它 load 再从 4px 下方淡入，同时撤掉载入条；reduced-motion 直接静态显示。
+  function watchIframe(container) {
+    if (container.dataset.watch === "1") return;
+    container.dataset.watch = "1";
+
+    const prepare = (iframe) => {
+      if (iframe.dataset.revealed === "1") return;
+      iframe.dataset.revealed = "1";
+      const shell = iframe.closest(".giscus-shell");
+      const bar = shell ? shell.querySelector(".giscus-loadbar") : null;
+      const reduced = window.matchMedia(REDUCE_QUERY).matches;
+
+      if (!reduced) {
+        // MutationObserver 回调在渲染前执行，先压住就不会闪一帧
+        iframe.style.opacity = "0";
+        iframe.style.transform = "translateY(4px)";
+      }
+
+      let done = false;
+      const reveal = () => {
+        if (done) return;
+        done = true;
+        bar?.remove();
+        if (reduced) return;
+        iframe.style.transition =
+          "opacity 320ms var(--ease-ed), transform 320ms var(--ease-ed)";
+        iframe.style.opacity = "1";
+        iframe.style.transform = "translateY(0)";
+      };
+
+      iframe.addEventListener("load", reveal, { once: true });
+      // 兜底：load 可能已错过（懒加载 / 跨域异常），2.4s 后无条件显形
+      window.setTimeout(reveal, 2400);
+    };
+
+    const existing = container.querySelector("iframe");
+    if (existing) {
+      prepare(existing);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const iframe = container.querySelector("iframe");
+      if (!iframe) return;
+      observer.disconnect();
+      prepare(iframe);
+    });
+    observer.observe(container, { childList: true, subtree: true });
+  }
+
   function loadGiscus() {
     const container = document.getElementById("giscus");
-    if (!container || container.dataset.loaded === "1") return;
+    if (!container) return;
+    watchIframe(container);
+    if (container.dataset.loaded === "1") return;
 
     // 自定义主题：同源 /giscus-theme.css
     const script = document.createElement("script");
