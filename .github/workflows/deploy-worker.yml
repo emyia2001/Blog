@@ -34,13 +34,18 @@ jobs:
           GITHUB_CONTRIB_TOKEN: ${{ secrets.GITHUB_CONTRIB_TOKEN }}
         run: npm run build
 
+      # 不用 cloudflare/wrangler-action@v3：它内置默认 wrangler 3.90.0（不支持只有 assets、
+      # 没有 main 的纯静态资源 Worker，会报 Missing entry-point 后 exit 1），
+      # 且失败时把 wrangler 的真实报错吞进注解里。直接起 wrangler，报错可见、版本可控。
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # 必须显式指定：wrangler-action@v3 内置默认值是 3.90.0（DEFAULT_WRANGLER_VERSION），
-          # 而该版本无法部署「纯静态资源」Worker（wrangler.jsonc 只有 assets、没有 main），
-          # 会直接报 Missing entry-point 并以 exit code 1 结束。
-          wranglerVersion: "4.156.2"
-          command: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          # 凭证自检：secret 缺失时直接给结论，而不是让 wrangler 抛一句晦涩的 exit 1
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::secrets.CLOUDFLARE_API_TOKEN 未配置或为空"; exit 1; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::secrets.CLOUDFLARE_ACCOUNT_ID 未配置或为空"; exit 1; }
+          echo "API token 已注入（长度 ${#CLOUDFLARE_API_TOKEN}），accountId=${CLOUDFLARE_ACCOUNT_ID}"
+          npx --yes wrangler@4.156.2 --version
+          npx --yes wrangler@4.156.2 deploy
