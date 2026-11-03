@@ -39,4 +39,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # 必须显式指定：wrangler-action@v3 内置默认值是 3.90.0（DEFAULT_WRANGLER_VERSION），
+          # 而该版本无法部署「纯静态资源」Worker（wrangler.jsonc 只有 assets、没有 main），
+          # 会直接报 Missing entry-point 并以 exit code 1 结束。
+          wranglerVersion: "4.156.2"
           command: deploy
