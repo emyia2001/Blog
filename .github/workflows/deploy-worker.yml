@@ -48,4 +48,9 @@ jobs:
           [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::secrets.CLOUDFLARE_ACCOUNT_ID 未配置或为空"; exit 1; }
           echo "API token 已注入（长度 ${#CLOUDFLARE_API_TOKEN}），accountId=${CLOUDFLARE_ACCOUNT_ID}"
           npx --yes wrangler@4.156.2 --version
-          npx --yes wrangler@4.156.2 deploy
+          # 失败时把 wrangler 报错的最后几行写进注解：这样不展开日志也能直接看到原因
+          if ! npx --yes wrangler@4.156.2 deploy 2>&1 | tee /tmp/wrangler.log; then
+            msg=$(tail -n 6 /tmp/wrangler.log | tr '\n' ' ' | tr -s ' ')
+            echo "::error::wrangler deploy 失败：${msg}"
+            exit 1
+          fi
