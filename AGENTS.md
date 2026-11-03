@@ -41,16 +41,17 @@ src/
 ├── layouts/
 │   ├── BaseLayout.astro   HTML 骨架（head/SEO/导航/搜索/页脚/ViewTransitions）
 │   └── Sidebar.astro      文章页布局（正文 + 右侧目录/相关文章/评论/上下篇）
-├── components/            Nav / Footer / GraphView / ContributionHeatmap /
-│                          MiniPlayer / SearchModal / Giscus /
-│                          TagCloud / Toc / PrevNext / BackToTop / MiniGraph
+├── components/            Nav / Footer / MiniGraph（文章页侧栏迷你图谱，复用 GraphView）/
+│                          ContributionHeatmap / MiniPlayer / SearchModal / Giscus /
+│                          TagCloud / Toc / PrevNext / BackToTop / FriendTreeDialog / ImageLightbox
 ├── pages/                 路由实际目录结构：index.astro（报头头条 + 双栏：
 │                          left 近期笔墨 / right 关于·纪事卡）/
 │                          timeline.astro（纪事：person/event/diary 三类混排时间线）/
-│                          graph.astro（关系图谱独立页，只收 person/event）/ archive /
-│                          friends.astro（友链，数据在 src/data/friends.ts）/ tags/[tag].astro /
-│                          blog/[slug].astro / 404.astro / rss.xml.ts /
-│                          robots.txt.ts / giscus-theme.css.ts
+│                          collection.astro（拾集，数据在 src/data/collection.ts）/ tree.astro（链接生成二维码树）/
+│                          archive.astro / friends.astro（友链，数据在 src/data/friends.ts）/
+│                          tags/index.astro + tags/[tag].astro / blog/[slug].astro / 404.astro /
+│                          rss.xml.ts / robots.txt.ts / giscus-theme.css.ts
+│                          注：无 graph.astro —— 独立图谱页已在 8b6d906 删除
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
 ├── types/                 第三方无类型模块的本地声明（d3-force）
 └── utils/                 urls.ts（站内 URL 统一出口）/ readingTime.ts / graphData.ts（图谱聚合）
@@ -83,9 +84,9 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 ### 内容新增/修改后的提交要求
 - `moments` 排序依赖 frontmatter `date`，**新增/编辑后记得提交**。
 
-### 首页/纪事/图谱：个人信息与关系图谱（构建期实现要点）
+### 首页/纪事/文章侧栏：个人信息与迷你关系图谱（构建期实现要点）
 - **个人信息（原 about 页，已并入首页）**：无 `/about` 页。首页 `index.astro` 右栏「关于」卡承载头像/介绍/统计/**GitHub 贡献热力图**/社交链接；热力图数据经 `src/utils/contributions.ts` 构建时拉取，渲染用 `ContributionHeatmap.astro` 组件。
-- **图谱渲染位置**：独立页 `/graph`（`src/pages/graph.astro`）整页宽渲染 `<GraphView>`（导航有「图谱」项）；纪事页 `/timeline` 只保留时间线、不再嵌图谱。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情/放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
+- **图谱渲染位置**：**没有独立图谱页**（`/graph` 与导航「图谱」项已在 8b6d906 删除，`/graph` 现在 404）。图谱只以「相关文章迷你图谱」形式出现在文章页侧栏（`Sidebar.astro` 里的 `<MiniGraph>`，内部复用 `GraphView.astro`），且懒初始化：浏览器空闲时才拉 d3-force chunk 渲染。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情/放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
 - **节点聚合规则**：posts + moments 中「非 draft 且 `graph.enabled !== false`（默认 true）」的内容各成一个节点，另加固定的「我」(self) 节点；**moments 中 `type: diary` 的日记不入图**。节点显示名 = `graph.name ?? title`；post 节点可跳 `/blog/<id去掉.mdx>`，moment 无落地页。
 - **连边来源**：所有内容节点都连向 self；正文里 `[[锚点]]`（对原始 body 做正则匹配）按 `graph.name` 优先、`title` 回退找目标节点（保留旧链接可用），跳过自连与重复边。
 - **改动图谱前必读**：见上方 posts 的「关系图谱」条目——`[[...]]` 目前只产生连线、正文原样显示方括号，**别拿它当正文内链**。
@@ -109,7 +110,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/图谱/归档/友链，无「关于」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；**CORS 头必须由 `public/_headers` 的 `/giscus-theme.css` 规则提供**（`output: static` 会丢掉 endpoint 的 Response 头，缺 ACAO 时 giscus 回退默认 light 主题、评论区整块发白）；评论区默认只渲染「加载评论」按钮，**点击后才拉 giscus**（giscus.app 在国内首屏开销大，不点不请求）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/归档/拾集/友链，无「关于」、也无「图谱」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；**CORS 头必须由 `public/_headers` 的 `/giscus-theme.css` 规则提供**（`output: static` 会丢掉 endpoint 的 Response 头，缺 ACAO 时 giscus 回退默认 light 主题、评论区整块发白）；评论区默认只渲染「加载评论」按钮，**点击后才拉 giscus**（giscus.app 在国内首屏开销大，不点不请求）。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
@@ -120,7 +121,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - [ ] `npm run check` 零错误（内容集合类型 + 组件脚本；`src/env.d.ts` 里那条 reference 不能删，否则内容类型会退化成 any）
 - [ ] `npm run build` 零报错（内容 frontmatter 不合法、Zod 校验失败会直接 fail；Pagefind 索引在 postbuild 生成，失败要看日志尾部）
 - [ ] `npm run preview` 后首页 `/` 正常渲染，无 Astro 报错白屏
-- [ ] 关键静态页可达：`/archive`、`/timeline`（person/event/diary 三类混排）、`/graph`、`/tags`（标签总览）、`/tags/<tag>`、一篇 `/blog/<slug>`、`/404`
+- [ ] 关键静态页可达：`/archive`、`/timeline`（person/event/diary 三类混排）、`/collection`（拾集）、`/tree`、`/friends`、`/tags`（标签总览）、`/tags/<tag>`、一篇 `/blog/<slug>`、`/404`
 - [ ] RSS/robots/sitemap 端点：`/rss.xml`、`/robots.txt`、`/sitemap-index.xml` 返回正常
 
 ### 7.2 按改动范围加查
@@ -134,7 +135,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - [ ] 文案减法（§6.1）：本页新加和既有的标语/说明小字/次要标签是否都试删过；删后仍一眼看懂才算过。若靠说明文字才看懂，别补文案，回去改信息层级
 - [ ] **桌面 + 移动端**都过一遍：菜单抽屉 / 目录 / 搜索弹窗在**站内跳转后**仍可点开（历史回归点）
 - [ ] 搜索：`npm run build` 后（Pagefind 索引存在）在 `/` 上搜到新增内容；**纪事（person/event）正文也要能搜到**（索引来自 `/timeline` 里的隐藏 `data-pagefind-body` 区块，日记按约定不入索引）；dev 下提示「索引尚未生成」属正常
-- [ ] 图谱（/graph）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放/放大全屏正常；改过 `graph.enabled/name` 的条目已复查
+- [ ] 迷你图谱（文章页侧栏「相关文章」）：节点/连线随新增内容变化；拖拽/缩放/放大全屏正常（依赖 d3-force chunk 懒加载，首屏不应被它阻塞）；改过 `graph.enabled/name` 的条目已复查
 - [ ] 评论 Giscus、MiniPlayer BGM、`.reveal`/`.mask-reveal` 动画在目标页面仍工作
 - [ ] 换过 `src/consts.ts` 站点信息后：站名/URL/社交链接在各处一致（无残留旧值）
 - [ ] 站内链接一律带尾斜杠（统一走 `src/utils/urls.ts`；`href="/blog/x"` 会被 Cloudflare 307 到 `/blog/x/`，多一次往返）
