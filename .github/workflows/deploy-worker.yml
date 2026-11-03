@@ -32,7 +32,22 @@ jobs:
       - name: Build
         env:
           GITHUB_CONTRIB_TOKEN: ${{ secrets.GITHUB_CONTRIB_TOKEN }}
-        run: npm run build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee /tmp/build.log
+          # 热力图取数走了哪条路径，写进注解：静默回退公开抓取时（私有仓库贡献不计入）
+          # 在运行摘要里就能看见，不用翻构建日志。
+          if grep -q '\[heatmap\] GraphQL ok' /tmp/build.log; then
+            echo "::notice::$(grep -o '\[heatmap\] GraphQL ok.*' /tmp/build.log | head -1)"
+          elif grep -q '\[heatmap\] 未读到 GITHUB_CONTRIB_TOKEN' /tmp/build.log; then
+            echo "::warning::未配置 GITHUB_CONTRIB_TOKEN：热力图回退公开抓取，私有仓库贡献不会计入"
+          elif grep -q '\[heatmap\] 主路径失败' /tmp/build.log; then
+            echo "::warning::$(grep -o '\[heatmap\] 主路径失败.*' /tmp/build.log | head -1)"
+          elif grep -q '\[heatmap\] 公开抓取 ok' /tmp/build.log; then
+            echo "::warning::$(grep -o '\[heatmap\] 公开抓取 ok.*' /tmp/build.log | head -1)（不含私有仓库贡献）"
+          else
+            echo "::warning::热力图留空：GraphQL 与公开抓取都失败，见构建日志"
+          fi
 
       # 不用 cloudflare/wrangler-action@v3：它内置默认 wrangler 3.90.0（不支持只有 assets、
       # 没有 main 的纯静态资源 Worker，会报 Missing entry-point 后 exit 1），
