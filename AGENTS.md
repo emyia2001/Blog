@@ -5,10 +5,14 @@
 
 ## 1. 项目速览
 
-- **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），纯静态站点，部署于 Cloudflare Pages（`git push` 自动构建）。
+- **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），纯静态站点，产物 `dist/` 以 **Cloudflare Workers 静态资源**（`wrangler.jsonc` 的 `assets`，无 `main`）方式部署到 `snarkm.com`。
 - **线上地址**：`https://snarkm.com`（`astro.config.mjs` 的 `site` 从 `src/consts.ts` 的 `SITE_URL` 导入，唯一真源；不要再硬编码域名）。
 - **技术栈**：Astro 5（`output: static`）+ MDX + Tailwind CSS v4（`@tailwindcss/vite`）+ Pagefind（全文搜索，构建后生成索引）+ astro-icon + d3-force（关系图谱）+ Giscus（评论）。
-- **Git 远程仓库**：`emyia2001/Blog`（GitHub）。**GitHub Actions 每日定时触发 Cloudflare 重建**，用于刷新构建期数据（如提交数）。
+- **Git 远程仓库**：`emyia2001/Blog`（GitHub）。部署由 `.github/workflows/deploy-worker.yml` 负责：
+  `push main` / 每日 UTC 21:30（北京时间 05:30，用于刷新构建期数据如贡献热力图）/ 手动 `workflow_dispatch`
+  → `npm ci` → `npm run build` → `npx wrangler deploy`（wrangler 在 devDependencies，版本随 lockfile 锁定）。
+  需要的仓库 secrets：`CLOUDFLARE_API_TOKEN`（Workers 脚本:编辑 + Workers 路由:编辑 + 区域:读取）与 `CLOUDFLARE_ACCOUNT_ID`。
+
 
 ## 2. 常用命令
 
@@ -52,7 +56,7 @@ src/
 └── utils/                 urls.ts（站内 URL 统一出口）/ readingTime.ts / graphData.ts（图谱聚合）
 │                          / contributions.ts（GitHub 热力图取数）/ editorialShikiTheme.ts
 │                          / rehype-code-block.ts / rehype-image-attrs.ts
-public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（Pages 响应头）
+public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（响应头，Workers 静态资源同样读取）
 scripts/                   materialize-noto-serif-sc.mjs（字体物化）、prune-pagefind.mjs（产物裁剪）
 .pages.yml                 Pages CMS 配置（posts + moments 集合）
 ```
@@ -133,8 +137,9 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - [ ] 图谱（/graph）：节点/连线随新增内容变化；点节点右侧详情可开、拖拽/缩放/放大全屏正常；改过 `graph.enabled/name` 的条目已复查
 - [ ] 评论 Giscus、MiniPlayer BGM、`.reveal`/`.mask-reveal` 动画在目标页面仍工作
 - [ ] 换过 `src/consts.ts` 站点信息后：站名/URL/社交链接在各处一致（无残留旧值）
-- [ ] 站内链接一律带尾斜杠（统一走 `src/utils/urls.ts`；`href="/blog/x"` 会被 Cloudflare Pages 307 到 `/blog/x/`，多一次往返）
+- [ ] 站内链接一律带尾斜杠（统一走 `src/utils/urls.ts`；`href="/blog/x"` 会被 Cloudflare 307 到 `/blog/x/`，多一次往返）
 - [ ] 改过 `public/_headers` 后：线上 `curl -sI` 能看到 HSTS / nosniff / Referrer-Policy，且 `/_astro/*` 为 `immutable` 长缓存
+- [ ] 改过 `.github/workflows/*` 或 `wrangler.jsonc` 后：push 后 *Deploy worker* 跑绿（部署在 Actions 里看，注解会带 wrangler 报错末几行），且线上 `curl -sI https://snarkm.com/` 返回 200
 - [ ] 改过字体加载方式后：首屏渲染不被 Noto 分片 CSS 阻塞（Network 里 `/fonts/noto-serif-sc/*.css` 出现在主 CSS 之后）
 
 **升级依赖 / 重构 / 改构建配置（astro.config、package.json、Vite/Tailwind/Pagefind 版本）**

@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -36,7 +36,8 @@ jobs:
 
       # 不用 cloudflare/wrangler-action@v3：它内置默认 wrangler 3.90.0（不支持只有 assets、
       # 没有 main 的纯静态资源 Worker，会报 Missing entry-point 后 exit 1），
-      # 且失败时把 wrangler 的真实报错吞进注解里。直接起 wrangler，报错可见、版本可控。
+      # 且失败时把 wrangler 的真实报错吞进注解里。直接起 wrangler，报错可见。
+      # wrangler 由 devDependencies 提供（版本随 package-lock 锁定），无需每次联网现装。
       - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -47,9 +48,9 @@ jobs:
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::secrets.CLOUDFLARE_API_TOKEN 未配置或为空"; exit 1; }
           [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::secrets.CLOUDFLARE_ACCOUNT_ID 未配置或为空"; exit 1; }
           echo "API token 已注入（长度 ${#CLOUDFLARE_API_TOKEN}），accountId=${CLOUDFLARE_ACCOUNT_ID}"
-          npx --yes wrangler@4.156.2 --version
+          npx --no-install wrangler --version
           # 失败时把 wrangler 报错的最后几行写进注解：这样不展开日志也能直接看到原因
-          if ! npx --yes wrangler@4.156.2 deploy 2>&1 | tee /tmp/wrangler.log; then
+          if ! npx --no-install wrangler deploy 2>&1 | tee /tmp/wrangler.log; then
             msg=$(tail -n 6 /tmp/wrangler.log | tr '\n' ' ' | tr -s ' ')
             echo "::error::wrangler deploy 失败：${msg}"
             exit 1
