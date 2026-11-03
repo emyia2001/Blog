@@ -11,7 +11,9 @@
 - **Git 远程仓库**：`emyia2001/Blog`（GitHub）。部署由 `.github/workflows/deploy-worker.yml` 负责：
   `push main` / 每日 UTC 21:30（北京时间 05:30，用于刷新构建期数据如贡献热力图）/ 手动 `workflow_dispatch`
   → `npm ci` → `npm run build` → `npx wrangler deploy`（wrangler 在 devDependencies，版本随 lockfile 锁定）。
-  需要的仓库 secrets：`CLOUDFLARE_API_TOKEN`（Workers 脚本:编辑 + Workers 路由:编辑 + 区域:读取）与 `CLOUDFLARE_ACCOUNT_ID`。
+  需要的仓库 secrets：`CLOUDFLARE_API_TOKEN`（Workers 脚本:编辑 + Workers 路由:编辑 + 区域:读取）、`CLOUDFLARE_ACCOUNT_ID`，
+  以及 `CONTRIB_TOKEN`（GitHub classic PAT，`read:user`；构建时注入为环境变量 `GITHUB_CONTRIB_TOKEN`。
+  **secret 名不能以 `GITHUB_` 开头**——GitHub 保留前缀，所以仓库里叫 `CONTRIB_TOKEN`，代码里读的是 `GITHUB_CONTRIB_TOKEN`）。
 
 
 ## 2. 常用命令

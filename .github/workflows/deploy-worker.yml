@@ -31,7 +31,9 @@ jobs:
 
       - name: Build
         env:
-          GITHUB_CONTRIB_TOKEN: ${{ secrets.GITHUB_CONTRIB_TOKEN }}
+          # GitHub 不允许 secret 名以 GITHUB_ 开头（保留前缀），所以仓库里存的是 CONTRIB_TOKEN；
+          # 注进构建进程时仍用 GITHUB_CONTRIB_TOKEN —— contributions.ts 读的是这个名字。
+          GITHUB_CONTRIB_TOKEN: ${{ secrets.CONTRIB_TOKEN }}
         run: |
           set -o pipefail
           npm run build 2>&1 | tee /tmp/build.log
