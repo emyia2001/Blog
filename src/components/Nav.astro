@@ -227,10 +227,12 @@ const isActivePath = (href: string) => {
   .nav-link {
     position: relative;
     display: inline-block;
-    padding: 0.4rem 0.7rem;
-    font-size: 0.75rem;
+    padding: 0.45rem 0.75rem;
+    /* 字号随视口 clamp：2K/4K 全屏不缩放时 12px 小字会糊，高分屏自动放大到 ~1rem */
+    font-size: clamp(0.8125rem, 0.7rem + 0.4vw, 1rem);
     letter-spacing: 0.05em;
-    color: var(--color-ed-muted);
+    /* 从 fg 派生 80%：比 muted(68%) 更扛住雅黑小字渲染 */
+    color: color-mix(in srgb, var(--color-ed-fg) 80%, transparent);
     text-decoration: none;
     white-space: nowrap;
     border-radius: 6px;
@@ -242,9 +244,9 @@ const isActivePath = (href: string) => {
   .nav-link::after {
     content: '';
     position: absolute;
-    left: 0.7rem;
-    right: 0.7rem;
-    bottom: 0.35rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.4rem;
     height: 1px;
     background: var(--color-ed-accent);
     transform: scaleX(0);
