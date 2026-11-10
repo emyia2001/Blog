@@ -1,10 +1,11 @@
 import type { CollectionEntry } from "astro:content";
 import { SITE_AVATAR } from "../consts";
+import type { FriendFeed } from "./friendFeeds";
 import { postPath } from "./urls";
 
 export interface GraphNode {
   id: string;
-  kind: "post" | "person" | "event" | "year" | "self";
+  kind: "post" | "person" | "event" | "year" | "self" | "friend" | "friendPost";
   title: string;
   url: string;
   contentIndex: number;
@@ -32,10 +33,13 @@ type MomentEntry = CollectionEntry<"moments">;
  * - 层级连线：self → 年 → 内容节点；没有内容的年份不生成节点
  * - 正文 [[锚点]] 额外产生内容节点间连线（跳过自连与重复）
  * - 节点显示名 = graph.name ?? title
+ * - friendFeeds（构建期抓的友链 RSS）：友链站点挂在 self 上、其最新文章挂在站点下，
+ *   层级与「年 → 内容」同构；feed 没抓到的站点不入图
  */
 export function buildGraphData(
   posts: PostEntry[],
-  moments: MomentEntry[]
+  moments: MomentEntry[],
+  friendFeeds: FriendFeed[] = []
 ): GraphData {
   const publishedPosts = posts.filter((p) => !p.data.draft);
   // 图谱只收「回顾型节点」person / event；diary（日记流水）不入图
@@ -108,6 +112,34 @@ export function buildGraphData(
 
   const nodes: GraphNode[] = [selfNode, ...timeNodes, ...contentNodes];
 
+  // 友链子图：站点节点（伪年节点，与年份同环）+ 其最新文章（与内容同环扇区）。
+  // 放在 timeNodes / contentNodes 之后，径向布局里友链角度排在年份扇区之后。
+  const friendNodes: GraphNode[] = [];
+  const friendLinks: GraphLink[] = [];
+  for (const f of friendFeeds) {
+    friendNodes.push({
+      id: f.id,
+      kind: "friend",
+      title: f.name,
+      url: f.url,
+      contentIndex: -1,
+      avatar: f.avatar,
+    });
+    f.posts.forEach((p, i) => {
+      const pid = `${f.id}--p${i}`;
+      friendNodes.push({
+        id: pid,
+        kind: "friendPost",
+        title: p.title,
+        url: p.url,
+        contentIndex: -1,
+        excerpt: p.excerpt,
+      });
+      friendLinks.push({ source: f.id, target: pid });
+    });
+  }
+  nodes.push(...friendNodes);
+
   // 反查索引：slug / 标题 / id（去扩展名）都能定位到节点。
   // slug 是权威（URL 即它，稳定）；id 兜底文件名引用。
   // Astro 5：frontmatter slug 被提升为条目级 entry.slug，data.slug 恒为 undefined
@@ -150,6 +182,10 @@ export function buildGraphData(
     const yearId = yearOfContent.get(c.id);
     if (yearId) addLink(yearId, c.id);
   }
+
+  // 友链连线：self → 友链站点 → 友链文章（走同一套去重）
+  for (const f of friendFeeds) addLink("self", f.id);
+  for (const l of friendLinks) addLink(l.source, l.target);
 
   // 关联边来源（按优先级）：
   //   A. frontmatter graph.links —— slug 列表，权威来源；解析不到的 slug 构建期警告

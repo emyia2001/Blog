@@ -3,6 +3,8 @@ import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import GraphView from "../components/GraphView.astro";
 import { buildGraphData } from "../utils/graphData";
+import { fetchFriendFeeds } from "../utils/friendFeeds";
+import { FRIENDS } from "../data/friends";
 import { postPath } from "../utils/urls";
 
 const allPosts = await getCollection("posts");
@@ -58,7 +60,11 @@ for (const year of years) {
 
 // 关系图谱（原独立 /graph 页并入此处）。
 // 注意：self 节点必须保留——所有连线都以它为 source，forceLink 按 id 找不到会直接抛错
-const graphData = buildGraphData(allPosts, allMoments);
+// 友链 feed 构建期抓取（contributions.ts 同款纪律：超时回退，失败只 warn 不挂构建），
+// 每日定时构建会自动刷新友链最新文章
+const friendFeeds = await fetchFriendFeeds(FRIENDS);
+const friendPostCount = friendFeeds.reduce((n, f) => n + f.posts.length, 0);
+const graphData = buildGraphData(allPosts, allMoments, friendFeeds);
 const graphNodes = graphData.nodes;
 const graphLinks = graphData.links;
 
@@ -81,6 +87,7 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
       </div>
       <p class="page-head__meta">
         {publishedPosts.length} 篇文章{momentsCount > 0 && <> · {momentsCount} 条人物 / 事件</>}
+        {friendFeeds.length > 0 && <> · {friendFeeds.length} 个友链站 {friendPostCount} 篇友链文章</>}
       </p>
     </header>
 

@@ -57,7 +57,8 @@ src/
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
 ├── types/                 第三方无类型模块的本地声明（d3-force）
 └── utils/                 urls.ts（站内 URL 统一出口）/ readingTime.ts / graphData.ts（图谱聚合）
-│                          / contributions.ts（GitHub 热力图取数）/ editorialShikiTheme.ts
+│                          / contributions.ts（GitHub 热力图取数）/ friendFeeds.ts（友链 RSS 构建期取数）
+│                          / editorialShikiTheme.ts
 │                          / rehype-code-block.ts / rehype-image-attrs.ts
 public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（响应头，Workers 静态资源同样读取）
 scripts/                   materialize-noto-serif-sc.mjs（字体物化）、prune-pagefind.mjs（产物裁剪）
@@ -88,11 +89,12 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 ### 首页/纪事/文章侧栏：个人信息与迷你关系图谱（构建期实现要点）
 - **个人信息（原 about 页，已并入首页）**：无 `/about` 页。首页 `index.astro` 右栏「关于」卡承载头像/介绍/统计/**GitHub 贡献热力图**/社交链接；热力图数据经 `src/utils/contributions.ts` 构建时拉取，渲染用 `ContributionHeatmap.astro` 组件。
-- **图谱渲染位置**：**没有独立图谱页**（`/graph` 与导航「图谱」项已在 8b6d906 删除，`/graph` 现在 404）。图谱只以「相关文章迷你图谱」形式出现在文章页侧栏（`Sidebar.astro` 里的 `<MiniGraph>`，内部复用 `GraphView.astro`），且懒初始化：浏览器空闲时才拉 d3-force chunk 渲染。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情/放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
+- **图谱渲染位置**：**没有独立图谱页**（`/graph` 与导航「图谱」项已在 8b6d906 删除，`/graph` 现在 404）。完整图谱在**归档页顶部**（`archive.astro`，立即初始化）；文章页侧栏是「相关文章迷你图谱」（`Sidebar.astro` 里的 `<MiniGraph>`，内部复用 `GraphView.astro`，懒初始化：浏览器空闲时才拉 d3-force chunk 渲染）。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments, friendFeeds?)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情/放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
 - **节点聚合规则**：posts + moments 中「非 draft 且 `graph.enabled !== false`（默认 true）」的内容各成一个节点，另加固定的「我」(self) 节点；**moments 中 `type: diary` 的日记不入图**。节点显示名 = `graph.name ?? title`；post 节点可跳 `/blog/<id去掉.mdx>`，moment 无落地页。
 - **连边来源**：所有内容节点都连向 self；正文里 `[[锚点]]`（对原始 body 做正则匹配）按 `graph.name` 优先、`title` 回退找目标节点（保留旧链接可用），跳过自连与重复边。
 - **改动图谱前必读**：见上方 posts 的「关系图谱」条目——`[[...]]` 目前只产生连线、正文原样显示方括号，**别拿它当正文内链**。
 - **贡献热力图**：首页关于卡在构建期请求 GitHub 贡献数据并烤进 HTML（`contributions.ts`）。有 `GITHUB_CONTRIB_TOKEN` 时走 GraphQL（含「公开显示的私有仓库」贡献），否则或失败时回退公开抓取，再失败则热力图留空（构建日志 console.warn 可见）。令牌读取：`import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN`（Astro 构建与 Vite dev 都会读 `.env.local`）。这正是 §1 里 GitHub Actions 每日重建要刷新的「构建期数据」。
+- **友链 RSS 图谱**：`friends.ts` 里填了 `rss` 的友链，构建期经 `friendFeeds.ts` 抓 feed（RSS 2.0 + Atom，未填 rss 时先抓主页读 `<link rel=alternate>` 再探测常见路径；带 5s 超时、失败只 warn 不挂构建），每站最新 5 篇以 `friend`/`friendPost` 节点进归档页图谱（站点节点与年份同环、文章节点在站点扇区内环，外链新窗口打开）。feed 不可达的友链只显示在 `/friends/` 页、不入图。同样靠每日定时构建刷新。
 
 ## 5. Git 提交规范（本仓库有强制钩子）
 

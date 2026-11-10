@@ -15,6 +15,8 @@ const { nodes, links, lazy = false, bare = false } = Astro.props;
 const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 const nodeCount = nodes.length;
 const linkCount = links.length;
+// 有友链站点节点才渲染对应图例项（MiniGraph 等场景没有友链，图例不放空项）
+const hasFriends = nodes.some((n) => n.kind === "friend");
 ---
 
 <figure id="graph-view" class="graph-view" data-lazy={lazy ? "1" : undefined} data-bare={bare ? "1" : undefined}>
@@ -154,6 +156,26 @@ const linkCount = links.length;
           </span>
           事件
         </li>
+        {hasFriends && (
+          <li>
+            <span class="graph-legend-glyph" aria-hidden="true">
+              <svg viewBox="0 0 16 16">
+                <circle cx="8" cy="8" r="4.6" fill="none" stroke="var(--color-ed-accent)" stroke-width="1.4" stroke-dasharray="2.6 1.8"></circle>
+              </svg>
+            </span>
+            友链站点
+          </li>
+        )}
+        {hasFriends && (
+          <li>
+            <span class="graph-legend-glyph" aria-hidden="true">
+              <svg viewBox="0 0 16 16">
+                <circle cx="8" cy="8" r="2.8" fill="none" stroke="var(--color-ed-fg)" stroke-width="1.2"></circle>
+              </svg>
+            </span>
+            友链文章
+          </li>
+        )}
       </ul>
 
       <aside
@@ -513,6 +535,11 @@ const linkCount = links.length;
     stroke: rgba(28, 28, 28, 0.24);
     stroke-width: 1;
   }
+  :global(.graph-link--friend) {
+    stroke: rgba(166, 58, 43, 0.38);
+    stroke-width: 1;
+    stroke-dasharray: 3 2.4;
+  }
   :global(.graph-link--peer) {
     stroke: rgba(28, 28, 28, 0.44);
     stroke-width: 1.4;
@@ -758,7 +785,6 @@ const linkCount = links.length;
     forceManyBody,
     forceCenter,
     forceCollide,
-    forceRadial,
     forceX,
     forceY,
   } = await import("d3-force");
@@ -773,6 +799,8 @@ const linkCount = links.length;
   type SimNode = GraphNode & {
     x: number;
     y: number;
+    vx?: number;
+    vy?: number;
     fx?: number | null;
     fy?: number | null;
   };
@@ -790,23 +818,24 @@ const linkCount = links.length;
     if (hintText) hintText.textContent = "拖拽节点 · 缩放 · 悬停查看名称";
   }
 
-  // 节点尺寸随节点总数缓慢收敛：6 个以内保持满尺寸，之后每多 1 个缩 1.4%，
-  // 下限 0.72（原先按 1.25/n^0.35 缩放，10 个节点时半径只剩 4px，标签反而比点还大）
+  // 节点尺寸随节点总数缓慢收敛：6 个以内保持满尺寸，之后每多 1 个缩 1.2%，
+  // 下限 0.8（缩太狠节点小到看不清图标）
   const nodeScale = Math.max(
-    0.72,
-    Math.min(1, 1 - (nodes.length - 6) * 0.014)
+    0.8,
+    Math.min(1, 1 - (nodes.length - 6) * 0.012)
   );
   // 半径（事件的菱形按 L1 半径计）
   const R = {
-    self: 4 * nodeScale, // 与文章点等大（相关文章图谱里中心与环绕一致）
-    avatarSelf: 8 * nodeScale,
-    avatar: 6.5 * nodeScale,
-    year: 6.5 * nodeScale, // 年
-    node: 4 * nodeScale, // 文章
-    person: 4.5 * nodeScale,
-    event: 5 * nodeScale,
-    hit: 16 * nodeScale,
-    collide: 26 * nodeScale,
+    self: 6 * nodeScale, // 与文章点等大（相关文章图谱里中心与环绕一致）
+    avatarSelf: 12 * nodeScale,
+    avatar: 9.5 * nodeScale,
+    year: 9.5 * nodeScale, // 年
+    node: 6 * nodeScale, // 文章
+    person: 7 * nodeScale,
+    event: 8 * nodeScale,
+    friendPost: 5 * nodeScale, // 友链文章：小一号的空心点，视觉弱于自家内容
+    hit: 20 * nodeScale,
+    collide: 34 * nodeScale,
   };
 
   const radiusOf = (n: GraphNode): number => {
@@ -814,20 +843,22 @@ const linkCount = links.length;
     if (n.kind === "self") return R.self;
     if (n.kind === "event") return R.event;
     if (n.kind === "year") return R.year;
+    if (n.kind === "friend") return R.year; // 友链站点与年份同环同级，半径一致
+    if (n.kind === "friendPost") return R.friendPost;
     if (n.kind === "person") return R.person;
     return R.node;
   };
 
+  // 中枢槽位（layoutRadial 里随画布重算）：年份/友链站点的角度锚定点
+  const hubSlots = new Map<string, { x: number; y: number }>();
+
   // 极坐标分层布局（确定性，不靠力导收敛出形态）：
-  // self 居中；年份在半径 R1 的内环按角度均分；同年内容在 R2 外环、
-  // 均匀铺在以年份角度为中心的扇区内。跨年锚点关联边因此基本不穿插。
+  // self 居中；年份与友链站点在内椭圆带按角度均分；内容/友链文章在外椭圆带、
+  // 均匀铺在各自中枢角度为中心的扇区内。跨年锚点关联边因此基本不穿插。
+  // 环带是椭圆（x/y 半径独立）：宽画布横向铺满、纵向留出标签空间不裁边
   function layoutRadial(w: number, h: number) {
     const cx = w / 2;
     const cy = h / 2;
-    const short = Math.min(w, h);
-    // 年份贴中心的内环带，内容在外环带；带内位置由力导自由排布
-    const R1 = Math.max(70, Math.min(short * 0.18, w * 0.15));
-    const R2 = Math.max(150, Math.min(short * 0.44, w * 0.4));
 
     const parentOf = new Map<string, string>();
     for (const l of links) {
@@ -835,14 +866,18 @@ const linkCount = links.length;
       if (dst !== "self") parentOf.set(dst, String(l.source));
     }
 
-    const yearNodes = nodes.filter((n) => n.kind === "year");
+    // 中枢节点：年份 + 友链站点（友链文章以站点为父，同构于内容以年份为父）
+    const yearNodes = nodes.filter(
+      (n) => n.kind === "year" || n.kind === "friend"
+    );
     const yearAngle = new Map<string, number>();
     yearNodes.forEach((n, i) => {
       const a =
         (i / Math.max(yearNodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
       yearAngle.set(n.id, a);
-      n.x = cx + Math.cos(a) * R1;
-      n.y = cy + Math.sin(a) * R1;
+      n.x = cx + Math.cos(a) * bandR.ix;
+      n.y = cy + Math.sin(a) * bandR.iy;
+      hubSlots.set(n.id, { x: n.x, y: n.y });
     });
 
     const selfN = nodes.find((n) => n.kind === "self");
@@ -862,38 +897,139 @@ const linkCount = links.length;
       });
     for (const [yid, group] of groups) {
       const base = yearAngle.get(yid);
-      const span = Math.min(0.9, 0.28 + group.length * 0.12);
+      // 扇区张角随组内节点数放宽上限：外椭圆横向更长，铺开些左右不空
+      const span = Math.min(1.1, 0.3 + group.length * 0.14);
       group.forEach((n, i) => {
         const a =
           group.length === 1
             ? (base ?? 0)
             : (base ?? 0) - span / 2 + (i / (group.length - 1)) * span;
-        n.x = cx + Math.cos(a) * R2;
-        n.y = cy + Math.sin(a) * R2;
+        n.x = cx + Math.cos(a) * bandR.ox;
+        n.y = cy + Math.sin(a) * bandR.oy;
       });
     }
   }
 
-  layoutRadial(svg.clientWidth || W, svg.clientHeight || H);
-  // 环带半径跟随画布（fitViewBox 里 resize 时更新）
-  let bandR = { inner: 70, outer: 150 };
+  // 环带半径跟随画布（fitViewBox 里 resize 时更新）。
+  // 椭圆双半径：横向尽量铺满宽画布（x 只留小边距），纵向给节点+标签留足空间；
+  // 上下不再贴边裁字，左右不再大片留白
+  let bandR = { ix: 70, iy: 70, ox: 150, oy: 150 };
+  const bandCenter = { x: W / 2, y: H / 2 };
   const syncBands = (w: number, h: number) => {
-    const short = Math.min(w, h);
     bandR = {
-      inner: Math.max(70, Math.min(short * 0.18, w * 0.15)),
-      outer: Math.max(150, Math.min(short * 0.44, w * 0.4)),
+      ix: Math.max(48, Math.min(w * 0.12, w * 0.17)),
+      iy: Math.max(34, Math.min(h * 0.15, h / 2 - 72)),
+      ox: Math.max(80, Math.min(w * 0.34, w / 2 - 76)),
+      oy: Math.max(78, Math.min(h * 0.36, h / 2 - 36)),
     };
+    bandCenter.x = w / 2;
+    bandCenter.y = h / 2;
   };
   syncBands(svg.clientWidth || W, svg.clientHeight || H);
+
+  // 椭圆环带力：等价 forceRadial，但 x/y 半径独立。沿径向把节点拉回自己的椭圆带：
+  // self 居中不拉；年份与友链站点在内带；内容/友链文章在外带。
+  // 半径与中心读闭包里的 bandR/bandCenter，resize 时自动生效
+  function forceBandEllipse(alpha: number) {
+    for (const n of nodes) {
+      if (n.kind === "self") continue;
+      const dx = n.x - bandCenter.x;
+      const dy = n.y - bandCenter.y;
+      const d = Math.hypot(dx, dy);
+      if (d === 0) continue;
+      const ux = dx / d;
+      const uy = dy / d;
+      const hub = n.kind === "year" || n.kind === "friend";
+      const rx = hub ? bandR.ix : bandR.ox;
+      const ry = hub ? bandR.iy : bandR.oy;
+      // 当前方向上椭圆应到的距离：1 / hypot(ux/rx, uy/ry)
+      const target = 1 / Math.hypot(ux / rx, uy / ry);
+      const pull = (target - d) * 0.55 * alpha;
+      n.vx = (n.vx ?? 0) + ux * pull;
+      n.vy = (n.vy ?? 0) + uy * pull;
+    }
+  }
+
+  // 连线目标距离（与椭圆带同源，让连线力与环带力同向而不是互相打架）：
+  //   self—中枢（年/友链站点）：该方向的内带半径
+  //   中枢—内容（含友链站点—友链文章）：该方向的带间距（外带 − 内带）
+  //   内容—内容（锚点关联）：固定短边，表达「强关联」
+  const bandRadiusAt = (
+    ux: number,
+    uy: number,
+    band: "inner" | "outer"
+  ): number => {
+    const rx = band === "inner" ? bandR.ix : bandR.ox;
+    const ry = band === "inner" ? bandR.iy : bandR.oy;
+    const h = Math.hypot(ux / rx, uy / ry);
+    // 方向为零向量时 hypot=0 会除出 Infinity，回退到纵半径
+    return h > 0 ? 1 / h : ry;
+  };
+  const bandLinkDistance = (l: { source: unknown; target: unknown }) => {
+    const s = l.source as SimNode | string;
+    const t = l.target as SimNode | string;
+    const sid = typeof s === "string" ? s : s.id;
+    const tid = typeof t === "string" ? t : t.id;
+    let ret: number;
+    if (sid === "self" || tid === "self") {
+      // 取「非 self」的一端为中枢（按 id 判断，不能按是否为字符串判断——
+      // d3 已把端点解析成节点对象）
+      const hub = (sid === "self" ? t : s) as SimNode;
+      const dx = hub.x - bandCenter.x;
+      const dy = hub.y - bandCenter.y;
+      const d = Math.hypot(dx, dy) || 1;
+      ret = bandRadiusAt(dx / d, dy / d, "inner");
+    } else {
+      const sHub = sid.startsWith("year-") || sid.startsWith("friend-");
+      const tHub = tid.startsWith("year-") || tid.startsWith("friend-");
+      if (sHub || tHub) {
+        const so = s as SimNode;
+        const to = t as SimNode;
+        const dx = to.x - so.x;
+        const dy = to.y - so.y;
+        const d = Math.hypot(dx, dy) || 1;
+        ret =
+          bandRadiusAt(dx / d, dy / d, "outer") -
+          bandRadiusAt(dx / d, dy / d, "inner");
+      } else {
+        ret = 90; // 内容之间的锚点关联边：短，表达「强关联」
+      }
+    }
+    // 兜底：任何非有限值都会被 d3 link 力直接写进节点速度（NaN 污染全图）
+    return Number.isFinite(ret) ? ret : 120;
+  };
+
+  // 中枢角度锚定：把年份/友链站点往各自槽位拉（弹簧式，拖拽后回位）。
+  // 环带力只约束半径、不约束角度，没有它中枢会在力导里整体漂移聚堆，
+  // 椭圆布局被挤到一角、另一侧大片留白
+  function forceHubSlots(alpha: number) {
+    for (const n of nodes) {
+      if (n.kind !== "year" && n.kind !== "friend") continue;
+      const slot = hubSlots.get(n.id);
+      if (!slot) continue;
+      n.vx = (n.vx ?? 0) + (slot.x - n.x) * 0.5 * alpha;
+      n.vy = (n.vy ?? 0) + (slot.y - n.y) * 0.5 * alpha;
+    }
+  }
+
+  layoutRadial(svg.clientWidth || W, svg.clientHeight || H);
 
   const NS = "http://www.w3.org/2000/svg";
 
   const linkEls = links.map((l, i) => {
     const line = document.createElementNS(NS, "line");
-    const isSelfLink = l.source === "self" || l.target === "self";
+    const sid = String(l.source);
+    const tid = String(l.target);
+    const isSelfLink = sid === "self" || tid === "self";
+    // 友链子图的连线（friend- 前缀同时覆盖站点与文章节点）
+    const isFriendLink = sid.startsWith("friend-") || tid.startsWith("friend-");
     line.setAttribute(
       "class",
-      isSelfLink ? "graph-link graph-link--self" : "graph-link graph-link--peer"
+      isSelfLink
+        ? "graph-link graph-link--self"
+        : isFriendLink
+          ? "graph-link graph-link--friend"
+          : "graph-link graph-link--peer"
     );
     line.style.animationDelay = `${i * 24}ms`;
     linksG.appendChild(line);
@@ -1007,6 +1143,25 @@ const linkCount = links.length;
       shape.setAttribute("stroke", "var(--color-ed-accent)");
       shape.setAttribute("stroke-width", "2.2");
       g.appendChild(shape);
+    } else if (n.kind === "friend") {
+      // 友链站点：砖红虚线空心环——同环但与年份实线环区分（有头像走上面的头像分支）
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.year));
+      shape.setAttribute("fill", "var(--color-ed-bg)");
+      shape.setAttribute("stroke", "var(--color-ed-accent)");
+      shape.setAttribute("stroke-width", "2");
+      shape.setAttribute("stroke-dasharray", "3.4 2.2");
+      g.appendChild(shape);
+    } else if (n.kind === "friendPost") {
+      // 友链文章：小空心点，与自家实心文章点区分
+      const shape = document.createElementNS(NS, "circle");
+      shape.setAttribute("class", "graph-node-shape");
+      shape.setAttribute("r", String(R.friendPost));
+      shape.setAttribute("fill", "var(--color-ed-bg)");
+      shape.setAttribute("stroke", "var(--color-ed-fg)");
+      shape.setAttribute("stroke-width", "1.2");
+      g.appendChild(shape);
     } else if (n.kind === "post") {
       const shape = document.createElementNS(NS, "circle");
       shape.setAttribute("class", "graph-node-shape");
@@ -1048,7 +1203,15 @@ const linkCount = links.length;
 
   function kindLabel(kind: GraphNode["kind"]): string {
     return (
-      { post: "文章", person: "人物", event: "事件", year: "年份", self: "我" }[kind] ?? "节点"
+      {
+        post: "文章",
+        person: "人物",
+        event: "事件",
+        year: "年份",
+        self: "我",
+        friend: "友链站点",
+        friendPost: "友链文章",
+      }[kind] ?? "节点"
     );
   }
 
@@ -1073,27 +1236,15 @@ const linkCount = links.length;
       "link",
       forceLink(links as never)
         .id((d: GraphNode) => d.id)
-        // 分层边长：我—年 短、年—内容 长，层级自然内聚不穿插
-        .distance((l: { source: unknown; target: unknown }) => {
-          const sid = String((l.source as GraphNode)?.id ?? l.source);
-          const tid = String((l.target as GraphNode)?.id ?? l.target);
-          if (sid === "self" || tid === "self") return 70;
-          if (sid.startsWith("year-") || tid.startsWith("year-")) return 90;
-          return 60; // 内容之间的锚点关联边：短，表达「强关联」
-        })
+        // 分层边长与椭圆带同源（见 bandLinkDistance）：层级内聚不穿插，
+        // 连线力把内容推到外带上而不是往里收
+        .distance(bandLinkDistance)
     )
     .force("charge", forceManyBody().strength(-160))
-    // 径向环带约束：self 固定圆心；年份被拉到内环带；内容拉到外环带。
+    // 椭圆环带约束：self 固定圆心；年份与友链站点拉到内椭圆带；内容/友链文章拉到外椭圆带。
     // 力导在带内自由排布，形态自然但层级分明（对比静态定格的僵硬感）
-    .force(
-      "radial",
-      forceRadial(
-        (d: GraphNode) =>
-          d.kind === "self" ? 0 : d.kind === "year" ? bandR.inner : bandR.outer,
-        W / 2,
-        H / 2
-      ).strength(0.55)
-    )
+    .force("band", forceBandEllipse)
+    .force("hubSlots", forceHubSlots)
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
     // "self" is pinned to the center
@@ -1191,6 +1342,10 @@ const linkCount = links.length;
     const h = viewH || H;
     nodeEls.forEach((g, i) => {
       const n = nodes[i];
+        // 兜底 clamp：节点本体压进画布内边距，上下不再顶边
+        // （下边距更大，给下侧标签留位；标签另有独立 clamp）
+        n.x = Math.min(Math.max(n.x, 26), Math.max(w - 26, 26));
+        n.y = Math.min(Math.max(n.y, 38), Math.max(h - 42, 38));
       g.setAttribute("transform", `translate(${n.x},${n.y})`);
 
       // 标签贴着节点但在画布内：越界的部分向内收，避免被裁掉
@@ -1241,31 +1396,15 @@ const linkCount = links.length;
         "y",
         forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
       );
-    // 画布尺寸变化时：用同一套极坐标分层布局重摆（比例随画布缩放），
-    // 力导只负责微调重叠，不再决定整体形态
-    layoutRadial(w, h);
-    const linkForce = simulation.force("link") as {
-      distance: (v: unknown) => unknown;
-    } | null;
-    const short = Math.min(w, h);
-    const scale = Math.max(90, Math.min(short * 0.4, w * 0.33)) / 110;
-    linkForce?.distance((l: { source: unknown; target: unknown }) => {
-      const sid = String((l.source as GraphNode)?.id ?? l.source);
-      const tid = String((l.target as GraphNode)?.id ?? l.target);
-      if (sid === "self" || tid === "self") return 70 * scale;
-      if (sid.startsWith("year-") || tid.startsWith("year-")) return 90 * scale;
-      return 60 * scale;
-    });
-    // 画布变化：更新环带半径并让力导在新画布上重新收敛
+    // 画布变化：syncBands 更新椭圆半径与中心（bandLinkDistance 随之生效），
+    // layoutRadial 重摆初始位，再让力导在新画布上重新收敛
     syncBands(w, h);
     layoutRadial(w, h);
     simulation.force("center", forceCenter(w / 2, h / 2));
-    const radialForce = simulation.force("radial") as unknown as {
-      x: (v: number) => unknown;
-      y: (v: number) => unknown;
+    const linkForce = simulation.force("link") as {
+      distance: (v: unknown) => unknown;
     } | null;
-    radialForce?.x(w / 2);
-    radialForce?.y(h / 2);
+    linkForce?.distance(bandLinkDistance);
     simulation.alpha(0.5).restart();
   }
   resizeObserver = new ResizeObserver(fitViewBox);
@@ -1441,6 +1580,14 @@ const linkCount = links.length;
 
   // 双指捏合缩放（移动端没有滚轮）
   const pointers = new Map<number, { x: number; y: number }>();
+  // 空白处按下后的画布平移状态：按住拖动 = 平移视图（grab 光标对应的真实行为）
+  let panState: {
+    id: number;
+    x: number;
+    y: number;
+    tx: number;
+    ty: number;
+  } | null = null;
   let pinch: {
     dist: number;
     k: number;
@@ -1517,10 +1664,18 @@ const linkCount = links.length;
       downX = e.clientX;
       downY = e.clientY;
       if (!target) {
-        // 点空白处清空选中，并把焦点从节点上移开（否则悬停高亮会残留）
+        // 点空白处清空选中，并把焦点从节点上移开（否则悬停高亮会残留）；
+        // 同时进入画布平移状态——移动超阈值即拖动画布
         const el = document.activeElement as HTMLElement | null;
         if (el && el.closest?.(".graph-node")) el.blur();
         clearActive();
+        panState = {
+          id: e.pointerId,
+          x: e.clientX,
+          y: e.clientY,
+          tx: zoom.tx,
+          ty: zoom.ty,
+        };
         return;
       }
       pointerId = target.dataset.id ?? null;
@@ -1552,6 +1707,13 @@ const linkCount = links.length;
         applyZoom();
         return;
       }
+      // 空白处平移：按住拖动 = 移动视图
+      if (panState && e.pointerId === panState.id) {
+        zoom.tx = panState.tx + (e.clientX - panState.x);
+        zoom.ty = panState.ty + (e.clientY - panState.y);
+        applyZoom();
+        return;
+      }
       if (!pointerId) return;
       if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
         dragged = true;
@@ -1575,6 +1737,7 @@ const linkCount = links.length;
   function endPointer(e: PointerEvent | undefined, cancelled = false) {
     if (e) pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
+    panState = null;
     if (pointerId) {
       const n = nodeById.get(pointerId);
       if (n) {
@@ -1803,11 +1966,21 @@ const linkCount = links.length;
       wrap.appendChild(rel);
     }
 
-    if (n.kind === "post" && n.url) {
+    if (n.url && (n.kind === "post" || n.kind === "friend" || n.kind === "friendPost")) {
       const a = document.createElement("a");
       a.href = n.url;
       a.className = "graph-preview-link hover-underline";
-      a.textContent = "阅读全文 →";
+      a.textContent =
+        n.kind === "post"
+          ? "阅读全文 →"
+          : n.kind === "friend"
+            ? "前往 TA 的站点 ↗"
+            : "前往原文 ↗";
+      // 友链两类都是外站，新窗口打开别把浏览上下文带跑
+      if (n.kind !== "post") {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
       wrap.appendChild(a);
     }
     return wrap;
