@@ -10,3 +10,6 @@ public/fonts/noto-serif-sc/
 
 # Wrangler 本地状态（workers/online-counter）
 .wrangler/
+# 封面 WebP 派生图（scripts/gen-cover-variants.mjs 生成，不进 git）
+public/images/covers/gen/
+public/images/covers/*/gen/

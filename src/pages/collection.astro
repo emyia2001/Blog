@@ -2,6 +2,20 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { COLLECTION, COLLECTION_TOTAL } from "../data/collection";
 
+// 本地封面（/images/covers/ 下）→ 构建期派生 WebP（scripts/gen-cover-variants.mjs
+// 生成 480w/960w，见 .gitignore）。1080px 原图直接缩到 ~150px 卡片时，Chrome 对
+// lazy 大图走低分辨率解码路径，分数缩放屏上发糊；贴近显示尺寸的派生图解码接近
+// 1:1，任何 DSF 都清晰。外链图（网易云封面等）原样返回。
+// 注意：这里刻意用字符串拼接而不是模板字面量——正则字面量（$/i 结尾）+ 带 ${}
+// 插值的模板字面量同现于 frontmatter 时，astro 编译器的栅栏扫描会失效（泄漏 ---）。
+const isLocalCover = (p: string) => p.startsWith("/images/covers/") && /\.(jpe?g|png)$/i.test(p);
+const coverSrc = (path: string, width: number) => {
+  if (!isLocalCover(path)) return path;
+  return path.replace(/^(.*\/)([^/]+)\.(jpe?g|png)$/i, "$1gen/$2-" + width + "w.webp");
+};
+const coverSrcSet = (path: string) =>
+  isLocalCover(path) ? coverSrc(path, 480) + " 480w, " + coverSrc(path, 960) + " 960w" : undefined;
+
 // 与 Wenku8_Flutter 一致：奶白档案色 + 等距投影
 const PAPER = [
   { cover: "#FEFDF8", ink: "#2A2620" }, // 奶白
@@ -22,14 +36,14 @@ const FILTERS = [
   description="拾集：书籍与漫画摆在立体书架，音乐、电影与电视剧铺成封面墙。"
 >
   <div class="page-shell">
-    <header class="page-head">
+    <header class="page-head reveal">
       <div class="page-head__row">
         <h1 class="page-head__title">拾集</h1>
         <span class="page-head__aside">{COLLECTION_TOTAL} 件收藏</span>
       </div>
     </header>
 
-    <div class="col-filter" role="tablist" aria-label="筛选收藏">
+    <div class="col-filter reveal" style="--reveal-delay: 60ms" role="tablist" aria-label="筛选收藏">
       {FILTERS.map((f) => (
         <button type="button" class={`col-chip ${f.id === "all" ? "is-active" : ""}`} data-filter={f.id} role="tab" aria-selected={f.id === "all" ? "true" : "false"}>
           {f.label}
@@ -94,7 +108,7 @@ const FILTERS = [
                         )}
                         <span class="vol__cover" aria-hidden="true">
                           {item.cover ? (
-                            <img class="vol__img" src={item.cover} alt="" loading="lazy" />
+                            <img class="vol__img" src={coverSrc(item.cover, 480)} alt="" loading="lazy" />
                           ) : (
                             <span class="vol__text">
                               <span class="vol__ctitle">{item.title}</span>
@@ -141,7 +155,7 @@ const FILTERS = [
                       data-ink={paper.ink} data-code={fileNo} data-image={item.cover ?? ""} aria-label={`${item.title}，${item.creator}，${item.year}`}>
                       <span class="album__cover">
                         {item.cover ? (
-                          <img class="album__img" src={item.cover} alt="" loading="lazy" />
+                            <img class="album__img" src={coverSrc(item.cover, 480)} srcset={coverSrcSet(item.cover)} sizes="(min-width: 768px) 150px, 40vw" alt="" loading="lazy" />
                         ) : (
                           <span class="album__fallback">{item.title}</span>
                         )}
@@ -180,7 +194,7 @@ const FILTERS = [
                       data-image={item.cover ?? ""}
                       aria-label={`${item.title}，${item.creator}，${item.year}`}>
                       <span class={`col-wallcard__cover${item.cover ? " has-img" : ""}`}>
-                        {item.cover ? <img class="col-wallcard__img" src={item.cover} alt="" loading="lazy" /> : null}
+                        {item.cover ? <img class="col-wallcard__img" src={coverSrc(item.cover, 480)} srcset={coverSrcSet(item.cover)} sizes="(min-width: 768px) 150px, 40vw" alt="" loading="lazy" /> : null}
                         <span class="col-wallcard__code">{fileNo}</span>
                         <span class="col-wallcard__title">{item.title}</span>
                         <span class="col-wallcard__by">{item.creator}</span>
@@ -826,6 +840,7 @@ const FILTERS = [
     let S = 18, C = 128, H = 206, FOOT = S + C * DEPTH_X, BASEY = -C * DEPTH_Y + H * 0.6 + 12, PITCH = 30;
     let focus = Math.floor((n - 1) / 2);
     let dragging = false, lastX = 0, lastT = 0, vel = 0;
+    let wheelAccum = 0; // 垂直滚轮累积量 → 攒够一格横移一档
 
     function measure() {
       const W = stage.clientWidth || 520;
@@ -947,10 +962,23 @@ const FILTERS = [
     stage.addEventListener("pointerup", (e) => endDrag(e));
     stage.addEventListener("pointercancel", () => endDrag());
     stage.addEventListener("wheel", (e) => {
+      // 垂直滚轮 → 横向滑动（像手机上横着拖一样）：deltaY 累积，攒够一格翻一档；
+      // deltaX（触控板横扫）维持原有逐档翻页。
+      // 已到边界时放行默认滚动，页面继续纵滚、不把用户卡死在架子上。
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         step(Math.sign(e.deltaX));
+        return;
       }
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      const atStart = focus <= 0 && e.deltaY < 0;
+      const atEnd = focus >= n - 1 && e.deltaY > 0;
+      if (atStart || atEnd) return; // 不 preventDefault，交给页面滚动
+      wheelAccum += e.deltaY;
+      const stepWidth = 53; // 一格档位的滚轮行程（约 3~4 行 standard notches）
+      while (wheelAccum >= stepWidth) { step(1); wheelAccum -= stepWidth; }
+      while (wheelAccum <= -stepWidth) { step(-1); wheelAccum += stepWidth; }
     }, { passive: false });
     root.querySelectorAll<HTMLElement>("[data-banknav]").forEach((btn) => {
       btn.addEventListener("click", () => step(Number(btn.dataset.banknav || "0")));
@@ -995,6 +1023,19 @@ const FILTERS = [
       if (pending) return; pending = true;
       requestAnimationFrame(() => { pending = false; update(); });
     }, { passive: true });
+    // 垂直滚轮 → 横向滑动（原生横滚容器）：平滑滚动一格；
+    // 到边界时放行默认滚动，页面继续纵滚。触控板 deltaX 走浏览器原生横滚，不抢。
+    track.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY) || e.deltaY === 0) return;
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      if (maxScroll <= 0) return;
+      const goingRight = e.deltaY > 0;
+      const atStart = track.scrollLeft <= 0 && !goingRight;
+      const atEnd = track.scrollLeft >= maxScroll - 1 && goingRight;
+      if (atStart || atEnd) return;
+      e.preventDefault();
+      track.scrollBy({ left: goingRight ? 190 : -190, behavior: "smooth" });
+    }, { passive: false });
     root.querySelectorAll<HTMLElement>("[data-albumnav]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const first = track.querySelector<HTMLElement>(".album");
@@ -1258,7 +1299,11 @@ const FILTERS = [
 
     if (cover) {
       if (d.image) {
-        cover.style.backgroundImage = `url("${d.image}")`;
+        // 本地封面用 960w 派生图（弹层大图）；外链图原样
+        const imgSrc = d.image.startsWith("/images/covers/") && /\.(jpe?g|png)$/i.test(d.image)
+          ? d.image.replace(/^(.*\/)([^/]+)\.(jpe?g|png)$/i, "$1gen/$2-960w.webp")
+          : d.image;
+        cover.style.backgroundImage = `url("${imgSrc}")`;
         cover.style.backgroundSize = "cover";
         cover.style.backgroundPosition = "center";
       } else {
