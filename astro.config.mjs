@@ -25,6 +25,11 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      // d3-force 只被 GraphView 的动态 import 引用，扫描器发现得晚；
+      // 不预构建的话，中途重新优化会让已打开的页面拿到 504 Outdated Optimize Dep
+      include: ["d3-force"],
+    },
     build: {
       rollupOptions: {
         // pagefind.js 是构建后生成在 dist/pagefind/ 的运行时文件，
