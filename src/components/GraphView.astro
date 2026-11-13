@@ -116,7 +116,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       </div>
 
       <p class="graph-hint" id="graph-hint">
-        <span aria-hidden="true">拖拽节点 · 缩放 · 点击查看详情</span>
+        <span aria-hidden="true">缩放 · 点击查看详情</span>
         <span class="sr-only">
           在图上可用 Tab 键切换节点，按回车查看节点详情，方向键不移动视图，请使用「放大地图」「缩小地图」「复位视图」按钮缩放。
         </span>
@@ -322,6 +322,13 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     cursor: default;
     background: transparent;
   }
+  /* 展开/还原图标：d 值仍是硬切，但叠加 200ms 旋转过渡，读作形变而非跳变 */
+  #graph-expand svg {
+    transition: transform 200ms var(--ease-ed);
+  }
+  #graph-expand.is-expanded svg {
+    transform: rotate(90deg);
+  }
 
   .graph-ctrl-sep {
     width: 1.1rem;
@@ -427,18 +434,45 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     align-items: stretch;
     padding: 1rem;
     border-radius: 0.5rem;
+  }
+  /* 遮罩独立到 ::before：画布本体走 FLIP 位移动画，遮罩只负责压暗，
+     两者不再共享整层透明度动画。z-index: 0 落在画布（relative）与
+     工具条/图例/提示（z-index 3-4）、详情抽屉（z-index 6）之下 */
+  .graph-layout.is-expanded::before,
+  .graph-layout.is-closing::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: 0.5rem;
     background: rgba(28, 28, 28, 0.55);
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(3px);
-    /* 展开不再瞬跳：整层（遮罩 + 画布）240ms 淡入，画布自身的 box-shadow 走 .graph-canvas 的 300ms */
-    animation: graph-expand-in 240ms var(--ease-ed) both;
+    pointer-events: none;
   }
-  @keyframes graph-expand-in {
+  .graph-layout.is-expanded::before {
+    animation: graph-scrim-in 320ms var(--ease-ed) both;
+  }
+  /* 还原时 is-expanded 必须先摘掉（fixed 定位下量不到内联矩形），
+     所以遮罩淡出要在没有展开态时独立成立：is-closing 自己持有
+     上面那一份视觉属性，否则遮罩会随类移除瞬间消失 */
+  .graph-layout.is-closing::before {
+    animation: graph-scrim-out 200ms var(--ease-ed) both;
+  }
+  @keyframes graph-scrim-in {
     from {
       opacity: 0;
     }
     to {
       opacity: 1;
+    }
+  }
+  @keyframes graph-scrim-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
     }
   }
   .graph-layout.is-expanded .graph-canvas {
@@ -492,6 +526,11 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   :global(.graph-node.is-hover .graph-node-shape),
   :global(.graph-node.is-active .graph-node-shape) {
     stroke: var(--color-ed-accent);
+  }
+  /* 主模式节点按压反馈：与 .is-hover 的放大同权级，:active 规则必须排在其后，按住时才能胜出 */
+  :global(.graph-node:active .graph-node-shape),
+  :global(.graph-node:active .graph-node-halo) {
+    transform: scale(0.96);
   }
 
   :global(.graph-label) {
@@ -604,11 +643,16 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     cursor: pointer;
     transition:
       color 0.18s ease,
-      border-color 0.18s ease;
+      border-color 0.18s ease,
+      transform 120ms var(--ease-ed);
   }
   :global(.graph-detail-close:hover) {
     color: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
+  }
+  /* 按压反馈：圆形小钮，缩到 0.94 */
+  :global(.graph-detail-close:active) {
+    transform: scale(0.94);
   }
   :global(.graph-preview-img) {
     width: 100%;
@@ -682,11 +726,16 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     cursor: pointer;
     transition:
       color 0.18s ease,
-      border-color 0.18s ease;
+      border-color 0.18s ease,
+      transform 120ms var(--ease-ed);
   }
   :global(.graph-rel-chip:hover) {
     color: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
+  }
+  /* 按压反馈：小型 chip 类，用 0.97 的轻缩 */
+  :global(.graph-rel-chip:active) {
+    transform: scale(0.97);
   }
   :global(.graph-preview-link) {
     display: inline-block;
@@ -739,8 +788,32 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .graph-detail,
+    /* 详情抽屉不再滑入滑出：位移归零，隐藏由 opacity+visibility 承担，只留 150ms 淡入淡出
+       （visibility 时序保留：关=淡出结束后再隐藏，开=立即可见） */
+    .graph-detail {
+      transform: none;
+      transition:
+        opacity 150ms linear,
+        visibility 0s linear 150ms;
+    }
+    .graph-detail.is-open {
+      transition:
+        opacity 150ms linear,
+        visibility 0s;
+    }
+    /* 节点形状/光晕：缩放过渡取消，悬停/按压位移归零（位移动画 reduce 覆盖补漏） */
+    :global(.graph-node-shape),
+    :global(.graph-node-halo) {
+      transition: none;
+    }
+    :global(.graph-node.is-hover .graph-node-shape),
+    :global(.graph-node.is-hover .graph-node-halo),
+    :global(.graph-node:active .graph-node-shape),
+    :global(.graph-node:active .graph-node-halo) {
+      transform: none;
+    }
     .graph-ctrl,
+    #graph-expand svg,
     .graph-hint,
     :global(.graph-node),
     :global(.graph-link),
@@ -751,8 +824,13 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     :global(.graph-link) {
       animation: none;
     }
-    /* 展开 / 换篇：直接落位（缩放补间在脚本里也走 instant 分支） */
-    .graph-layout.is-expanded,
+    /* 展开 / 换篇：直接落位（缩放补间与展开/还原 FLIP 在脚本里也走 instant
+       分支），遮罩保留极短的 linear 淡入淡出 */
+    .graph-layout.is-expanded::before,
+    .graph-layout.is-closing::before {
+      animation-duration: 150ms;
+      animation-timing-function: linear;
+    }
     :global(.graph-detail-inner.is-swapping) {
       animation: none;
     }
@@ -815,7 +893,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     const hintText = document.querySelector<HTMLElement>(
       ".graph-hint [aria-hidden]"
     );
-    if (hintText) hintText.textContent = "拖拽节点 · 缩放 · 悬停查看名称";
+    if (hintText) hintText.textContent = "缩放 · 悬停查看名称";
   }
 
   // 节点尺寸随节点总数缓慢收敛：6 个以内保持满尺寸，之后每多 1 个缩 1.2%，
@@ -828,7 +906,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   const R = {
     self: 6 * nodeScale, // 与文章点等大（相关文章图谱里中心与环绕一致）
     avatarSelf: 12 * nodeScale,
-    avatar: 9.5 * nodeScale,
+    avatar: 12 * nodeScale, // 友链头像：与自我头像同大（用户要求）
     year: 9.5 * nodeScale, // 年
     node: 6 * nodeScale, // 文章
     person: 7 * nodeScale,
@@ -852,15 +930,19 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   // 中枢槽位（layoutRadial 里随画布重算）：年份/友链站点的角度锚定点
   const hubSlots = new Map<string, { x: number; y: number }>();
 
+  // 节点父映射：友链文章 → 友链站点（layoutRadial 填充；环绕力按父查）
+  const parentOf = new Map<string, string>();
+  const friendRingByHub = new Map<string, number>();
+
   // 极坐标分层布局（确定性，不靠力导收敛出形态）：
-  // self 居中；年份与友链站点在内椭圆带按角度均分；内容/友链文章在外椭圆带、
-  // 均匀铺在各自中枢角度为中心的扇区内。跨年锚点关联边因此基本不穿插。
+  // self 居中；年份与友链站点在内椭圆带按角度均分；内容在外椭圆带、
+  // 均匀铺在各自中枢角度为中心的扇区内；友链文章不上外带，环绕各自的
+  // 友链站点节点呈小圆环均分。跨年锚点关联边因此基本不穿插。
   // 环带是椭圆（x/y 半径独立）：宽画布横向铺满、纵向留出标签空间不裁边
   function layoutRadial(w: number, h: number) {
     const cx = w / 2;
     const cy = h / 2;
 
-    const parentOf = new Map<string, string>();
     for (const l of links) {
       const dst = String(l.target);
       if (dst !== "self") parentOf.set(dst, String(l.source));
@@ -889,7 +971,9 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     // 内容按年份分组，同组在年份角度 ±0.5rad 的扇区内均分
     const groups = new Map<string, typeof nodes>();
     nodes
-      .filter((n) => n.kind !== "self" && n.kind !== "year")
+      .filter(
+        (n) => n.kind !== "self" && n.kind !== "year" && n.kind !== "friendPost"
+      )
       .forEach((n) => {
         const yid = parentOf.get(n.id) ?? "";
         if (!groups.has(yid)) groups.set(yid, []);
@@ -908,6 +992,29 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         n.y = cy + Math.sin(a) * bandR.oy;
       });
     }
+
+    // 友链文章：环绕各自的友链站点节点（小圆环均分，起始角随中枢角度），
+    // 不再上外带扇形——虚线子图「围着自己的站点转」；环半径按子节点数写入
+    // friendRingByHub 供环绕力与连线距离使用
+    const friendChildren = new Map<string, typeof nodes>();
+    nodes
+      .filter((n) => n.kind === "friendPost")
+      .forEach((n) => {
+        const fid = parentOf.get(n.id) ?? "";
+        if (!friendChildren.has(fid)) friendChildren.set(fid, []);
+        friendChildren.get(fid)!.push(n);
+      });
+    for (const [fid, group] of friendChildren) {
+      const slot = hubSlots.get(fid);
+      if (!slot) continue;
+      const ringR = friendRingR(group.length);
+      friendRingByHub.set(fid, ringR);
+      group.forEach((n, i) => {
+        const a = (yearAngle.get(fid) ?? 0) + (i / group.length) * Math.PI * 2;
+        n.x = slot.x + Math.cos(a) * ringR;
+        n.y = slot.y + Math.sin(a) * ringR;
+      });
+    }
   }
 
   // 环带半径跟随画布（fitViewBox 里 resize 时更新）。
@@ -917,22 +1024,28 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   const bandCenter = { x: W / 2, y: H / 2 };
   const syncBands = (w: number, h: number) => {
     bandR = {
-      ix: Math.max(48, Math.min(w * 0.12, w * 0.17)),
-      iy: Math.max(34, Math.min(h * 0.15, h / 2 - 72)),
-      ox: Math.max(80, Math.min(w * 0.34, w / 2 - 76)),
-      oy: Math.max(78, Math.min(h * 0.36, h / 2 - 36)),
+      ix: Math.max(48, Math.min(w * 0.14, w * 0.22)),
+      iy: Math.max(34, Math.min(h * 0.18, h / 2 - 64)),
+      ox: Math.max(80, Math.min(w * 0.4, w / 2 - 60)),
+      oy: Math.max(78, Math.min(h * 0.42, h / 2 - 30)),
     };
     bandCenter.x = w / 2;
     bandCenter.y = h / 2;
   };
   syncBands(svg.clientWidth || W, svg.clientHeight || H);
 
+  // 友链文章环绕半径：随内带缩放（画布越大环越大），节点多时环稍大
+  const friendRingR = (count: number) =>
+    Math.max(52, Math.min(44 + count * 14, bandR.ix * 0.6));
+
   // 椭圆环带力：等价 forceRadial，但 x/y 半径独立。沿径向把节点拉回自己的椭圆带：
-  // self 居中不拉；年份与友链站点在内带；内容/友链文章在外带。
+  // 只拉年份/友链站点（内带）与内容（外带）；self 居中不拉；友链文章由
+  // forceFriendRing 接管（环绕各自站点节点的圆环），不参与本力。
   // 半径与中心读闭包里的 bandR/bandCenter，resize 时自动生效
   function forceBandEllipse(alpha: number) {
     for (const n of nodes) {
-      if (n.kind === "self") continue;
+      // self 居中不拉；友链文章由环绕力接管（forceFriendRing），不上外带
+      if (n.kind === "self" || n.kind === "friendPost") continue;
       const dx = n.x - bandCenter.x;
       const dy = n.y - bandCenter.y;
       const d = Math.hypot(dx, dy);
@@ -945,6 +1058,27 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       // 当前方向上椭圆应到的距离：1 / hypot(ux/rx, uy/ry)
       const target = 1 / Math.hypot(ux / rx, uy / ry);
       const pull = (target - d) * 0.55 * alpha;
+      n.vx = (n.vx ?? 0) + ux * pull;
+      n.vy = (n.vy ?? 0) + uy * pull;
+    }
+  }
+
+  // 友链文章环绕力：沿「站点→文章」方向把友链文章拉到各自站点节点的圆环上
+  // （半径由 layoutRadial 按子节点数写入 friendRingByHub，resize 随画布重算）。
+  // 只约束半径不约束角度，角度由 collide/charge 自然均分
+  function forceFriendRing(alpha: number) {
+    for (const n of nodes) {
+      if (n.kind !== "friendPost") continue;
+      const hub = nodeById.get(parentOf.get(n.id) ?? "");
+      if (!hub) continue;
+      const ringR = friendRingByHub.get(hub.id);
+      if (!ringR) continue;
+      const dx = n.x - hub.x;
+      const dy = n.y - hub.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const ux = dx / d;
+      const uy = dy / d;
+      const pull = (ringR - d) * 0.5 * alpha;
       n.vx = (n.vx ?? 0) + ux * pull;
       n.vy = (n.vy ?? 0) + uy * pull;
     }
@@ -985,12 +1119,20 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       if (sHub || tHub) {
         const so = s as SimNode;
         const to = t as SimNode;
-        const dx = to.x - so.x;
-        const dy = to.y - so.y;
-        const d = Math.hypot(dx, dy) || 1;
-        ret =
-          bandRadiusAt(dx / d, dy / d, "outer") -
-          bandRadiusAt(dx / d, dy / d, "inner");
+        // 友链站点→其文章：环绕半径（其余中枢→内容仍是外带间距）
+        const hubN =
+          so.kind === "friend" ? so : to.kind === "friend" ? to : null;
+        const childN = hubN ? (hubN === so ? to : so) : null;
+        if (hubN && childN && childN.kind === "friendPost") {
+          ret = friendRingByHub.get(hubN.id) ?? 100;
+        } else {
+          const dx = to.x - so.x;
+          const dy = to.y - so.y;
+          const d = Math.hypot(dx, dy) || 1;
+          ret =
+            bandRadiusAt(dx / d, dy / d, "outer") -
+            bandRadiusAt(dx / d, dy / d, "inner");
+        }
       } else {
         ret = 90; // 内容之间的锚点关联边：短，表达「强关联」
       }
@@ -999,7 +1141,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     return Number.isFinite(ret) ? ret : 120;
   };
 
-  // 中枢角度锚定：把年份/友链站点往各自槽位拉（弹簧式，拖拽后回位）。
+  // 中枢角度锚定：把年份/友链站点往各自槽位拉（弹簧式，resize 重排后回位）。
   // 环带力只约束半径、不约束角度，没有它中枢会在力导里整体漂移聚堆，
   // 椭圆布局被挤到一角、另一侧大片留白
   function forceHubSlots(alpha: number) {
@@ -1244,6 +1386,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     // 椭圆环带约束：self 固定圆心；年份与友链站点拉到内椭圆带；内容/友链文章拉到外椭圆带。
     // 力导在带内自由排布，形态自然但层级分明（对比静态定格的僵硬感）
     .force("band", forceBandEllipse)
+    .force("friendRing", forceFriendRing)
     .force("hubSlots", forceHubSlots)
     .force("center", forceCenter(W / 2, H / 2))
     .force("collide", forceCollide().radius(R.collide))
@@ -1277,7 +1420,14 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         parent.appendChild(layoutEl);
       }
       layoutEl.classList.remove("is-expanded");
+      layoutEl.classList.remove("is-closing");
+      // 若动画中途离页（pagehide 后可能从 bfcache 回存），
+      // FLIP 的内联 transition/transform 不能残留
+      layoutEl.style.transition = "";
+      layoutEl.style.transform = "";
+      layoutEl.style.transformOrigin = "";
       layoutOrigin = null;
+      expanding = false;
     }
   }
 
@@ -1405,7 +1555,12 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       distance: (v: unknown) => unknown;
     } | null;
     linkForce?.distance(bandLinkDistance);
-    simulation.alpha(0.5).restart();
+    // 确定性静态布局：离线松弛 90 tick 后即定格——默认初始化位置就是最终位置，
+    // 不再有力导定时器/漂移；resize/展开时走同一条重排路径
+    simulation.alpha(1);
+    for (let i = 0; i < 90; i++) simulation.tick();
+    ticked();
+    simulation.stop();
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);
@@ -1436,6 +1591,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   }
   applyZoom();
 
+  // 系数为全站令牌 --ease-ed 的四个分量（editorial.css），用于 rAF 采样
   // cubic-bezier(0.16, 1, 0.3, 1) 求值：与 CSS 的 var(--ease-ed) 同一条曲线，
   // 这样按钮缩放和站点其它动效的节奏一致。
   const EASE_ED = (() => {
@@ -1569,14 +1725,9 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     layoutEl?.classList.add("has-interacted");
   }
 
-  // --- Drag nodes (click vs drag distinguished by movement threshold) ---
+  // --- Node click & canvas pan ---
   let pointerId: string | null = null;
-  let dragged = false;
-  let dragActive = false;
   let downOnNode = false;
-  let downX = 0;
-  let downY = 0;
-  const dragOffset = { x: 0, y: 0 };
 
   // 双指捏合缩放（移动端没有滚轮）
   const pointers = new Map<number, { x: number; y: number }>();
@@ -1639,20 +1790,8 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
           px: mid.x,
           py: mid.y,
         };
-        if (pointerId) {
-          const n = nodeById.get(pointerId);
-          if (n) {
-            n.fx = null;
-            n.fy = null;
-          }
-        }
         pointerId = null;
         downOnNode = false;
-        dragged = false;
-        if (dragActive) {
-          dragActive = false;
-          simulation.alphaTarget(0);
-        }
         return;
       }
 
@@ -1660,9 +1799,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         ".graph-node"
       ) as SVGGElement | null;
       downOnNode = !!target;
-      dragged = false;
-      downX = e.clientX;
-      downY = e.clientY;
       if (!target) {
         // 点空白处清空选中，并把焦点从节点上移开（否则悬停高亮会残留）；
         // 同时进入画布平移状态——移动超阈值即拖动画布
@@ -1680,10 +1816,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       }
       pointerId = target.dataset.id ?? null;
       if (pointerId) {
-        const n = nodeById.get(pointerId)!;
-        const p = svgPoint(e);
-        dragOffset.x = (p.x - zoom.tx) / zoom.k - (n.x ?? 0);
-        dragOffset.y = (p.y - zoom.ty) / zoom.k - (n.y ?? 0);
         target.focus();
       }
     },
@@ -1714,22 +1846,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         applyZoom();
         return;
       }
-      if (!pointerId) return;
-      if (!dragged && Math.hypot(e.clientX - downX, e.clientY - downY) > 5) {
-        dragged = true;
-        // Keep the simulation warm but steady while dragging (official d3 pattern:
-        // alphaTarget holds alpha at 0.3 instead of re-heating on every move)
-        if (!dragActive) {
-          dragActive = true;
-          simulation.alphaTarget(0.3).restart();
-        }
-      }
-      if (!dragged) return;
-      const n = nodeById.get(pointerId);
-      if (!n) return;
-      const p = svgPoint(e);
-      n.fx = (p.x - zoom.tx) / zoom.k - dragOffset.x;
-      n.fy = (p.y - zoom.ty) / zoom.k - dragOffset.y;
     },
     { signal: cleanupController.signal }
   );
@@ -1738,23 +1854,11 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     if (e) pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     panState = null;
-    if (pointerId) {
-      const n = nodeById.get(pointerId);
-      if (n) {
-        n.fx = null;
-        n.fy = null;
-      }
-    }
-    if (dragActive) {
-      dragActive = false;
-      simulation.alphaTarget(0);
-    }
-    if (!cancelled && downOnNode && !dragged && pointerId) {
+    if (!cancelled && downOnNode && pointerId) {
       activateNode(pointerId);
     }
     pointerId = null;
     downOnNode = false;
-    dragged = false;
   }
 
   window.addEventListener(
@@ -1778,32 +1882,21 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   // 导致全屏层被限制在右栏内、被顶部 nav 盖住（层叠上下文困住）。
   // 记录原位置以便还原时移回。
   let layoutOrigin: { parent: Node; next: Node | null } | null = null;
-  function setExpanded(on: boolean) {
-    if (!layoutEl) return;
-    if (on && layoutEl.parentElement !== document.body) {
-      layoutOrigin = {
-        parent: layoutEl.parentNode as Node,
-        next: layoutEl.nextSibling,
-      };
-      document.body.appendChild(layoutEl);
-    } else if (!on && layoutOrigin) {
-      const { parent, next } = layoutOrigin;
-      if (next && next.parentNode === parent) {
-        parent.insertBefore(layoutEl, next);
-      } else {
-        parent.appendChild(layoutEl);
-      }
-      layoutOrigin = null;
-    }
-    layoutEl.classList.toggle("is-expanded", on);
+  // 展开动画进行中的重入保护：快速连点按钮 / 连按 Esc 不会打断半程的 FLIP
+  let expanding = false;
+  // 原函数尾部的状态收尾：aria-label / title / 按钮展开态类 / 图标 d 值 /
+  // body overflow。展开分支在 FLIP 起跳前调用；还原分支延迟到飞回结束的
+  // 定时器里调用——overflow 在整个还原动画期间保持 hidden，落地才解冻。
+  function finishExpandToggle(on: boolean) {
     if (expandBtn) {
       expandBtn.setAttribute(
         "aria-label",
         on ? "还原关系图谱" : "放大关系图谱"
       );
       expandBtn.title = on ? "还原 (Esc)" : "放大";
+      expandBtn.classList.toggle("is-expanded", on);
     }
-    // 图标切换：⤢ 放大 ⇄ ✕ 还原
+    // 图标切换：⤢ 放大 ⇄ ✕ 还原（d 值硬切，配合 svg 的 200ms 旋转过渡读作形变）
     const icon = document.getElementById("graph-expand-icon");
     if (icon) {
       const p = icon.querySelector("path");
@@ -1814,19 +1907,115 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         );
       }
     }
-    if (on) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    // 容器尺寸变化后：viewBox 跟随新尺寸，并让 d3 在新画布上重算布局
-    // （保持 zoom 不动，不做自动铺满）
+    document.body.style.overflow = on ? "hidden" : "";
+  }
+  // 容器尺寸变化后：viewBox 跟随新尺寸，并按新画布重排（离线松弛后定格，
+  // 保持 zoom 不动，不做自动铺满）
+  function scheduleGraphResize() {
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         fitViewBox();
-        simulation.alpha(0.5).restart();
       })
     );
+  }
+  function setExpanded(on: boolean) {
+    if (!layoutEl || expanding) return;
+    expanding = true;
+    const reduced = prefersReducedMotion;
+    if (on) {
+      if (layoutEl.parentElement === document.body) {
+        expanding = false;
+        return;
+      }
+      layoutOrigin = {
+        parent: layoutEl.parentNode as Node,
+        next: layoutEl.nextSibling,
+      };
+      if (reduced) {
+        document.body.appendChild(layoutEl);
+        layoutEl.classList.add("is-expanded");
+        finishExpandToggle(on);
+        scheduleGraphResize();
+        expanding = false;
+        return;
+      }
+      // FLIP 展开：记录内联矩形 → reparent + 展开态 → 记录全屏矩形 →
+      // 反向 transform 起跳 → 过渡回 none（finishExpandToggle 先清滚动条，
+      // 全屏矩形才能按无滚动条的视口量准）
+      const first = layoutEl.getBoundingClientRect();
+      document.body.appendChild(layoutEl);
+      layoutEl.classList.add("is-expanded");
+      finishExpandToggle(on);
+      scheduleGraphResize();
+      const last = layoutEl.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      const sx = first.width / Math.max(1, last.width);
+      const sy = first.height / Math.max(1, last.height);
+      layoutEl.style.transformOrigin = "top left";
+      layoutEl.style.transition = "none";
+      layoutEl.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+      void layoutEl.getBoundingClientRect(); // 强制回流，起始值先生效
+      layoutEl.style.transition = "transform 320ms var(--ease-ed)";
+      layoutEl.style.transform = "";
+      window.setTimeout(() => {
+        layoutEl.style.transition = "";
+        layoutEl.style.transformOrigin = "";
+        expanding = false;
+      }, 340);
+    } else {
+      if (!layoutOrigin) {
+        expanding = false;
+        return;
+      }
+      if (reduced) {
+        const { parent, next } = layoutOrigin;
+        if (next && next.parentNode === parent) {
+          parent.insertBefore(layoutEl, next);
+        } else {
+          parent.appendChild(layoutEl);
+        }
+        layoutOrigin = null;
+        layoutEl.classList.remove("is-expanded");
+        finishExpandToggle(on);
+        scheduleGraphResize();
+        expanding = false;
+        return;
+      }
+      // FLIP 还原：记录全屏矩形 → reparent 回原位 + 摘掉展开态 → 记录
+      // 内联矩形 → 反向 transform 起跳飞回；is-closing 让遮罩同步淡出
+      const first = layoutEl.getBoundingClientRect(); // 全屏矩形
+      layoutEl.classList.add("is-closing");
+      const { parent, next } = layoutOrigin;
+      if (next && next.parentNode === parent) {
+        parent.insertBefore(layoutEl, next);
+      } else {
+        parent.appendChild(layoutEl);
+      }
+      layoutOrigin = null;
+      layoutEl.classList.remove("is-expanded");
+      scheduleGraphResize();
+      const last = layoutEl.getBoundingClientRect(); // 内联矩形
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      const sx = first.width / Math.max(1, last.width);
+      const sy = first.height / Math.max(1, last.height);
+      layoutEl.style.transformOrigin = "top left";
+      layoutEl.style.transition = "none";
+      layoutEl.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+      void layoutEl.getBoundingClientRect();
+      layoutEl.style.transition = "transform 260ms var(--ease-ed)";
+      layoutEl.style.transform = "";
+      window.setTimeout(() => {
+        layoutEl.style.transition = "";
+        layoutEl.style.transformOrigin = "";
+        layoutEl.classList.remove("is-closing");
+        // aria / 图标 / body overflow 到飞回落地才还原，
+        // overflow 保持 hidden 直到还原结束
+        finishExpandToggle(on);
+        expanding = false;
+      }, 280);
+    }
   }
   expandBtn?.addEventListener(
     "click",
@@ -2096,21 +2285,26 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   });
   }
 
-  // lazy 模式：等首屏空闲（或最长 2s 兜底）再初始化，d3-force 的动态
-  // import 也随之推迟；非 lazy 保持原来的立即执行。
-  const LAZY_INIT =
-    document.getElementById("graph-view")?.dataset.lazy === "1";
-  if (LAZY_INIT) {
+  // 模块每次会话只求值一次，但 VT 客户端换页会替换 DOM——旧实例由
+  // astro:before-swap 的 cleanup 回收。这里在每次 astro:page-load（含首访）
+  // 检查当前 DOM 是否有图谱挂载点：有则按 lazy 策略初始化新实例。
+  // mount.dataset.inited 防止同一 DOM 实例被重复初始化（bfcache 恢复/重复事件）。
+  const armGraph = () => {
     const mount = document.getElementById("graph-view");
-    if (mount && mount.dataset.inited !== "1") {
-      mount.dataset.inited = "1";
+    if (!mount || mount.dataset.inited === "1") return;
+    mount.dataset.inited = "1";
+    if (mount.dataset.lazy === "1") {
+      // lazy 模式：等首屏空闲（或最长 2s 兜底）再初始化，d3-force 的动态
+      // import 也随之推迟
       if (typeof requestIdleCallback === "function") {
         requestIdleCallback(() => void initGraph(), { timeout: 2000 });
       } else {
         window.setTimeout(() => void initGraph(), 1200);
       }
+    } else {
+      void initGraph();
     }
-  } else {
-    void initGraph();
-  }
+  };
+  document.addEventListener("astro:page-load", armGraph);
+  armGraph();
 </script>
