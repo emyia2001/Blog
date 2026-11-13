@@ -165,6 +165,10 @@ if (article) {
   <body data-pagefind-ignore class="flex min-h-screen flex-col">
     <!-- 阅读进度条：砖红细线，页面里有 .ed-progress 容器时显示 -->
     <span class="ed-progress" aria-hidden="true"></span>
+    <!-- 全局换页磨砂层：点击即失焦，swap 后对焦呈现（见 editorial.css .ed-veil） -->
+    <div class="ed-veil" aria-hidden="true"></div>
+    <!-- 换页等待指示：取页超过 300ms 才出现（CSS 延迟门），慢网/dev 冷编译时的全局反馈 -->
+    <div class="ed-loading" aria-hidden="true"><span class="ed-loading__bar"></span></div>
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--color-ed-fg)] focus:text-[var(--color-ed-bg)] focus:text-sm">
       跳至主内容
     </a>
@@ -209,13 +213,9 @@ if (article) {
           document.execCommand("copy");
           ta.remove();
         }
-        const label = btn.querySelector(".code-block__copy-label");
-        const original = label?.textContent ?? "复制";
         btn.classList.add("is-copied");
-        if (label) label.textContent = "已复制";
         window.setTimeout(() => {
           btn.classList.remove("is-copied");
-          if (label) label.textContent = original;
         }, 1600);
       });
 
@@ -300,20 +300,47 @@ if (article) {
           bar.style.transform = "scaleX(0)";
           return;
         }
-        // 停在导航栏下沿（导航自带 2px 砖红顶线，放顶部会与之重叠不可见）
+        // 停在导航栏下沿（导航自带 2px 砖红顶线，放顶部会与之重叠不可见）：
+        // 高度写入 --ed-progress-offset，.ed-progress 用 translate 消费（top 恒为 0）
         const nav = document.querySelector("nav[aria-label='站点导航']");
-        if (nav)
+        if (nav) {
           document.documentElement.style.setProperty(
-            "--nav-h",
+            "--ed-progress-offset",
             `${nav.getBoundingClientRect().height}px`
           );
+          // 首帧写入后再启用过渡（html.ed-ready）：初始化不播「从视口顶滑下」的动画
+          document.documentElement.classList.add("ed-ready");
+        }
         const rect = prose.getBoundingClientRect();
         const total = rect.height - innerHeight;
         const read = Math.min(Math.max(-rect.top, 0), Math.max(total, 0));
         bar.style.transform = `scaleX(${total > 0 ? read / total : 1})`;
       }
 
+      // 换页等待指示：取页阶段挂 nav-loading，300ms 内完成的换页（预取命中）不会闪条
+      document.addEventListener("astro:before-preparation", () => {
+        document.documentElement.classList.add("nav-loading");
+      });
+
+      // 全局换页磨砂层：点击（路由拦截取页）即挂 nav-frost——当帧开始失焦；
+      // swap 后移除，260ms 对焦呈现。慢网时磨砂态持续=明确加载状态。
+      document.addEventListener("astro:before-preparation", () => {
+        document.documentElement.classList.add("nav-frost");
+      });
+
+      // 极速换页：首访保留完整入场编排；此后每次导航换页（astro:after-swap）
+      // 给 <html> 打 nav-fast——swap 后、绘制前生效，内容首帧即终态
+      let firstPageLoaded = false;
+      document.addEventListener("astro:after-swap", () => {
+        document.documentElement.classList.remove("nav-loading");
+        document.documentElement.classList.remove("nav-frost");
+        if (firstPageLoaded) document.documentElement.classList.add("nav-fast");
+      });
+
       document.addEventListener("astro:page-load", () => {
+        document.documentElement.classList.remove("nav-frost"); // 兜底复位
+        document.documentElement.classList.remove("nav-loading"); // 兜底复位
+        firstPageLoaded = true;
         splitTitleChars();
         updateProgress();
       });

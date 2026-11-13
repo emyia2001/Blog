@@ -2,6 +2,7 @@
 import { SITE_NAME } from "../consts";
 import { ROUTES } from "../utils/urls";
 
+// 导航 5 个目标页是换页最常去的页面：桌面与抽屉链接统一加 viewport 级预取（每次页面加载后即预取，点击时必然命中缓存）
 const navLinks = [
   { href: ROUTES.home, label: "首页" },
   { href: ROUTES.timeline, label: "纪事" },
@@ -52,6 +53,7 @@ const isActivePath = (href: string) => {
           <li>
             <a
               href={link.href}
+              data-astro-prefetch="viewport"
               class={`nav-link ${isActive ? "is-active" : ""}`}
               aria-current={isActive ? "page" : undefined}
             >
@@ -115,6 +117,7 @@ const isActivePath = (href: string) => {
             <li>
               <a
                 href={link.href}
+                data-astro-prefetch="viewport"
                 class={`nav-drawer-link ${isActive ? "is-active" : ""}`}
                 style={`--i:${i}`}
                 aria-current={isActive ? "page" : undefined}
@@ -212,11 +215,24 @@ const isActivePath = (href: string) => {
 
   @media (prefers-reduced-motion: reduce) {
     .site-nav,
-    #nav-drawer,
-    #nav-backdrop,
     #nav-toggle,
     #nav-toggle span {
       transition: none;
+    }
+    /* 抽屉不再滑入滑出（位移归零，隐藏改由透明度承担），开关保留 150ms 快速淡入淡出 */
+    #nav-drawer {
+      translate: none;
+      transform: none;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms linear;
+    }
+    #nav-drawer.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #nav-backdrop {
+      transition: opacity 150ms linear;
     }
     #nav-drawer.is-open .nav-drawer-link {
       animation: none;
@@ -298,7 +314,6 @@ const isActivePath = (href: string) => {
   .nav-drawer-link:hover {
     color: var(--color-ed-accent);
     background: rgba(166, 58, 43, 0.06);
-    transform: translateX(3px);
   }
   .nav-drawer-link.is-active {
     color: var(--color-ed-accent);
@@ -308,23 +323,10 @@ const isActivePath = (href: string) => {
     background: rgba(166, 58, 43, 0.1);
   }
 
-  /* ---- 导航选中线「落定」--------------------------------------------------
-     site-nav 带 view-transition-name，换页时旧/新快照是 animation:none（瞬切），
-     下划线本来会直接跳到新位置。这里在每次 astro:page-load 后给当前项重播一次
-     scaleX(0)→scaleX(1)（左侧 origin，280ms + 40ms 延迟），让线「长」到新位置。
-     armed 态由脚本在首帧前加上，避免首次加载先满格再收起。 */
-  .nav-link.nav-settle-armed::after {
-    transform: scaleX(0);
-  }
-  .nav-link.nav-settle::after {
-    animation: nav-underline-settle 280ms var(--ease-ed) 40ms both;
-  }
-  @keyframes nav-underline-settle {
-    from {
-      transform: scaleX(0);
-    }
-    to {
-      transform: scaleX(1);
+  /* 悬停位移收进 hover-gate：抽屉是纯触屏面，触屏上该位移直接消失，颜色反馈保持在门外 */
+  @media (hover: hover) and (pointer: fine) {
+    .nav-drawer-link:hover {
+      transform: translateX(3px);
     }
   }
 
@@ -333,17 +335,14 @@ const isActivePath = (href: string) => {
     transform: scale(0.97);
   }
 
-  /* 放在最后：上面的落定/按压规则定义在后面，reduced-motion 覆盖必须更靠后 */
+  /* 放在最后：上面的按压规则定义在后面，reduced-motion 覆盖必须更靠后 */
   @media (prefers-reduced-motion: reduce) {
-    /* 落定动画整体取消；armed 态也要还原，否则下划线会被藏起来 */
-    .nav-link.nav-settle::after {
-      animation: none;
-    }
-    .nav-link.nav-settle-armed::after {
-      transform: scaleX(1);
-    }
     .nav-link:active,
     #nav-toggle:active {
+      transform: none;
+    }
+    /* 抽屉链接悬停位移归零（此块在 hover-gate 之后，覆盖必须更靠后） */
+    .nav-drawer-link:hover {
       transform: none;
     }
   }
@@ -434,37 +433,10 @@ const isActivePath = (href: string) => {
     settleClosed(drawer);
   }
 
-  // 当前选中项的下划线重播一次（换页后新 DOM 也要「长」出来）
-  function replayUnderlineSettle() {
-    document.querySelectorAll<HTMLElement>(".nav-link.is-active").forEach((el) => {
-      el.classList.remove("nav-settle-armed");
-      el.classList.remove("nav-settle");
-      void el.offsetWidth; // 强制 reflow，动画才能重播
-      el.classList.add("nav-settle");
-    });
-  }
-
-  // 首帧前先收掉下划线：避免首次加载「先满格 → 收起 → 再长出」的闪烁
-  if (!reduceMotion.matches) {
-    document
-      .querySelectorAll<HTMLElement>(".nav-link.is-active")
-      .forEach((el) => el.classList.add("nav-settle-armed"));
-  }
-
-  // 换页时 DOM 是 SPA 替换的：after-swap 紧跟替换发生（早于新页面绘制），
-  // 在这里重播才不会被「先满格再收起」闪一下；page-load 只兜底首次加载。
-  let settleReplayed = false;
-  document.addEventListener("astro:after-swap", () => {
-    replayUnderlineSettle();
-    settleReplayed = true;
-  });
-
   // 每次页面加载(VT 换页后也会触发)重新绑定可点击区域的状态,并兜底关闭残留抽屉
   document.addEventListener("astro:page-load", () => {
     closeDrawer();
     syncNavHeight();
-    if (!settleReplayed) replayUnderlineSettle();
-    settleReplayed = false;
   });
 
   // 抽屉开着时视口变化（转屏 / 地址栏收起）要重算顶边
@@ -495,28 +467,39 @@ const isActivePath = (href: string) => {
     }
   });
 
-  // 向下滚动时收起导航、向上滚动时露出：按累计滚动量判断，慢速滚动也能触发
+  // 向下滚动时收起导航、向上滚动时露出：按累计滚动量判断，慢速滚动也能触发。
+  // scroll 事件只记下最新 y，读 y 和累计判断放进 rAF 帧回调合帧（同 BaseLayout/BackToTop 范式）
   let lastScrollY = window.scrollY;
   let scrollAcc = 0;
+  let pendingY: number | null = null;
+  let navTick = false;
   function setNavHidden(hidden: boolean) {
     document.querySelector(".site-nav")?.classList.toggle("is-hidden", hidden);
     document.documentElement.classList.toggle("nav-hidden", hidden);
   }
+  function applyScroll() {
+    navTick = false;
+    const y = pendingY ?? window.scrollY;
+    const dy = y - lastScrollY;
+    lastScrollY = y;
+    if (y < 80) {
+      scrollAcc = 0;
+      setNavHidden(false);
+      return;
+    }
+    if (dy * scrollAcc < 0) scrollAcc = 0;
+    scrollAcc += dy;
+    if (scrollAcc > 24 && document.body.style.overflow !== "hidden") setNavHidden(true);
+    else if (scrollAcc < -12) setNavHidden(false);
+  }
   window.addEventListener(
     "scroll",
     () => {
-      const y = window.scrollY;
-      const dy = y - lastScrollY;
-      lastScrollY = y;
-      if (y < 80) {
-        scrollAcc = 0;
-        setNavHidden(false);
-        return;
+      pendingY = window.scrollY;
+      if (!navTick) {
+        navTick = true;
+        requestAnimationFrame(applyScroll);
       }
-      if (dy * scrollAcc < 0) scrollAcc = 0;
-      scrollAcc += dy;
-      if (scrollAcc > 24 && document.body.style.overflow !== "hidden") setNavHidden(true);
-      else if (scrollAcc < -12) setNavHidden(false);
     },
     { passive: true }
   );

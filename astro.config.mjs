@@ -12,6 +12,8 @@ import { SITE_URL } from "./src/consts";
 export default defineConfig({
   site: SITE_URL,
   output: "static",
+  // 静态站点全量预取：hover 时拉取目标页，导航点击近乎即时换页（配合 <ClientRouter />）
+  prefetch: { prefetchAll: true, defaultStrategy: "hover" },
   server: {
     // 固定监听所有网卡:局域网内可直接通过本机 IP 访问开发服务器
     host: true,
