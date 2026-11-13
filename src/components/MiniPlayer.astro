@@ -44,38 +44,24 @@ const { src, title, gated = false } = Astro.props;
       <div
         id="mp-progress"
         class="h-px"
-        style="background: var(--color-ed-fg); width: 0%;"
+        style="background: var(--color-ed-fg); width: 100%; transform: scaleX(0); transform-origin: 0 50%;"
       ></div>
     </div>
   </div>
 </mini-player>
 
 <style>
-  /* 点击反馈：按下缩放 + 松手回弹脉冲 */
+  /* 点击反馈：按下缩放，交给 :active + transition（可中断） */
   #mp-btn,
   #mp-play {
     -webkit-tap-highlight-color: transparent;
     transition:
-      transform 0.12s ease,
+      transform 120ms var(--ease-ed),
       opacity 120ms var(--ease-ed);
   }
   #mp-btn:active,
   #mp-play:active {
-    transform: scale(0.85);
-  }
-  .mp-pulse {
-    animation: mp-pulse 0.28s ease;
-  }
-  @keyframes mp-pulse {
-    0% {
-      transform: scale(1);
-    }
-    40% {
-      transform: scale(0.78);
-    }
-    100% {
-      transform: scale(1);
-    }
+    transform: scale(0.96);
   }
 
   /* 播放条入场：display 切换不再瞬现，从 8px 下方淡入（同 BackToTop 的入场语言） */
@@ -131,24 +117,23 @@ const { src, title, gated = false } = Astro.props;
     }
   }
 
-  /* 暂停时进度线退到 55%，播放时恢复 */
+  /* 暂停时进度线退到 55%，播放时恢复；
+     transform 用 250ms linear，让 4Hz timeupdate 的 scaleX 跳变之间平滑滑行 */
   #mp-progress {
-    transition: opacity 200ms var(--ease-ed);
+    transition:
+      opacity 200ms var(--ease-ed),
+      transform 250ms linear;
   }
   #mp-bar:not(.is-playing) #mp-progress {
     opacity: 0.55;
   }
 
-  /* 图标切换（▶/■）：120ms opacity 过渡，避免字形硬切。
-     用 transition 而非 animation，避免和 .mp-pulse 抢同一个 animation 简写。 */
+  /* 图标切换（▶/■）：120ms opacity 过渡，避免字形硬切。 */
   #mp-icon {
     transition: opacity 120ms var(--ease-ed);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .mp-pulse {
-      animation: none;
-    }
     /* 入场只留 opacity，不做位移 */
     #mp-bar {
       transform: none;
@@ -305,8 +290,9 @@ const { src, title, gated = false } = Astro.props;
         if (!this.audio) return;
         const { audio, progress } = this;
         if (audio.duration && progress) {
-          const pct = (audio.currentTime / audio.duration) * 100;
-          progress.style.width = `${pct}%`;
+          // scaleX 合成属性代替 width 布局属性，4Hz 的 timeupdate 不再反复触发布局
+          const pct = audio.currentTime / audio.duration;
+          progress.style.transform = `scaleX(${pct})`;
         }
       });
 
@@ -342,7 +328,6 @@ const { src, title, gated = false } = Astro.props;
       this.btn?.addEventListener("click", () => {
         this.showBar();
         if (this.btn) this.btn.style.display = "none";
-        this.pulse();
         this.play(true); // 用户主动点击：立即出声
       });
 
@@ -425,7 +410,6 @@ const { src, title, gated = false } = Astro.props;
     }
 
     // 图标字形是直接替换的，补一次 120ms opacity 过渡，避免硬切
-    // （用 transition 而非 animation：.mp-pulse 已占用 animation 简写）
     swapGlyphs(): void {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       for (const el of [this.playBtn, this.icon]) {
@@ -461,21 +445,6 @@ const { src, title, gated = false } = Astro.props;
         audio.volume = Math.max(0, Math.min(1, v));
       }, FADE_INTERVAL);
       this.fadeTimer = timer;
-    }
-
-    // 点击脉冲反馈：重新触发 CSS 动画
-    pulse() {
-      const el = this.playBtn || this.btn;
-      if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      el.classList.remove("mp-pulse");
-      void el.offsetWidth; // 强制 reflow，重启动画
-      el.classList.add("mp-pulse");
-      // 动画结束后移除 class，保持 DOM 整洁
-      el.addEventListener(
-        "animationend",
-        () => el.classList.remove("mp-pulse"),
-        { once: true }
-      );
     }
 
     // instant=true 用于按钮手动操作：立即出声/立即暂停，不做淡入淡出
@@ -538,7 +507,6 @@ const { src, title, gated = false } = Astro.props;
     }
 
     toggle(): void {
-      this.pulse();
       if (this.playing) {
         this.userPaused = true;
         this.autoResume = false; // 手动暂停：禁止聚焦时自动恢复

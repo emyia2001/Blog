@@ -64,8 +64,14 @@ export function rehypeCodeBlock() {
                   {
                     type: "element",
                     tagName: "span",
-                    properties: { className: ["code-block__copy-label"] },
+                    properties: { className: ["code-block__copy-label", "code-block__copy-label--default"] },
                     children: [{ type: "text", value: "复制" }],
+                  },
+                  {
+                    type: "element",
+                    tagName: "span",
+                    properties: { className: ["code-block__copy-label", "code-block__copy-label--done"], "aria-hidden": "true" },
+                    children: [{ type: "text", value: "已复制" }],
                   },
                 ],
               },

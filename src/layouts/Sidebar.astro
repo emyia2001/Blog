@@ -510,14 +510,29 @@ const related = published
   }
 
   @media (prefers-reduced-motion: reduce) {
-    #toc-panel,
-    #toc-backdrop,
+    #toc-backdrop {
+      transition: opacity 150ms linear;
+    }
     #toc-toggle,
     .view-count {
       transition: none;
     }
     #toc-toggle:active {
       transform: none;
+    }
+  }
+  /* 移动端目录抽屉不再横滑：隐藏改由透明度承担，开关保留 150ms 快速淡入淡出
+     （桌面端目录是常驻栏卡，透明度隐藏只限移动端） */
+  @media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
+    #toc-panel {
+      transform: none;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms linear;
+    }
+    #toc-panel.toc-open {
+      opacity: 1;
+      pointer-events: auto;
     }
   }
 </style>

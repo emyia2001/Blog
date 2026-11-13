@@ -225,9 +225,12 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     color: var(--color-ed-fg);
   }
 
-  .qrtree__seasons button:hover::after,
-  .qrtree__actions button:hover::after {
-    transform: scaleX(1);
+  /* 悬停位移动画收进 hover-gate：触屏不再粘滞，颜色反馈保持在门外 */
+  @media (hover: hover) and (pointer: fine) {
+    .qrtree__seasons button:hover::after,
+    .qrtree__actions button:hover::after {
+      transform: scaleX(1);
+    }
   }
 
   .qrtree__seasons button[aria-pressed='true'] {

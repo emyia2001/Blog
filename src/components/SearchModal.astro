@@ -125,7 +125,7 @@
     height: 100%;
     background: var(--color-ed-accent);
     transform-origin: left center;
-    animation: search-loading-sweep 1100ms var(--ease-ed) infinite;
+    animation: search-loading-sweep 1100ms linear infinite;
   }
   @keyframes search-loading-sweep {
     0% {
@@ -145,11 +145,25 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .search-modal,
-    .search-modal[data-open="true"],
-    .search-panel,
+    /* 开关只留 150ms 透明度过渡；面板位移终态归零。
+       visibility 时序保留：关=淡出结束后再隐藏，开=立即可见（否则淡入淡出会被 visibility 瞬切打断） */
+    .search-modal {
+      transition:
+        opacity 150ms linear,
+        visibility 0s linear 150ms;
+    }
+    .search-modal[data-open="true"] {
+      transition:
+        opacity 150ms linear,
+        visibility 0s;
+    }
+    .search-panel {
+      transition: opacity 150ms linear;
+    }
     .search-modal[data-open="false"] .search-panel {
-      transition: none;
+      opacity: 0;
+      transform: none;
+      transition: opacity 150ms linear;
     }
     #search-results.is-entering {
       animation: none;

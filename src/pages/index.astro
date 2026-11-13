@@ -92,7 +92,7 @@ const fmtYearMonth = (d: Date) =>
             <a
               href={postPath(post)}
               class="home-post-row reveal"
-              style={`--reveal-delay: ${i * 60}ms`}
+              style={`--reveal-delay: ${Math.min(i * 60, 300)}ms`}
             >
               <span class="home-post-body">
                 <span class="home-post-title">{post.data.title}</span>

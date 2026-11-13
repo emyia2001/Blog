@@ -48,7 +48,7 @@ const friendItems = FRIENDS.map((f) => ({
 
         <ul class="friend-grid" data-friend-grid>
           {FRIENDS.map((friend, i) => (
-            <li class="friend-item">
+            <li class="friend-item reveal" style={`--reveal-delay: ${Math.min(i * 60, 300)}ms`}>
               <button
                 type="button"
                 class="friend-card"

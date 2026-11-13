@@ -49,22 +49,16 @@ const { prev, next } = Astro.props;
 <style>
   /* 按下反馈：整块轻微内收，松手回位 */
   .pn-link {
-    transition: transform 160ms var(--ease-ed);
+    transition: transform 120ms var(--ease-ed);
   }
   .pn-link:active {
-    transform: scale(0.99);
+    transform: scale(0.98);
   }
 
   /* 箭头顺着方向滑出：上一篇向左、下一篇向右 */
   .pn-arrow {
     display: inline-block;
     transition: transform 240ms var(--ease-ed);
-  }
-  .group:hover .pn-arrow-prev {
-    transform: translateX(-3px);
-  }
-  .group:hover .pn-arrow-next {
-    transform: translateX(3px);
   }
 
   /* 标题下划线按方向生长：上一篇从左、下一篇从右 */
@@ -89,6 +83,16 @@ const { prev, next } = Astro.props;
   }
   .group:hover .pn-title::after {
     transform: scaleX(1);
+  }
+
+  /* 悬停位移收进 hover-gate：触屏（hover:none）不再粘滞位移 */
+  @media (hover: hover) and (pointer: fine) {
+    .group:hover .pn-arrow-prev {
+      transform: translateX(-3px);
+    }
+    .group:hover .pn-arrow-next {
+      transform: translateX(3px);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

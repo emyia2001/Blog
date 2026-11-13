@@ -182,15 +182,28 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
     transform: scaleX(1);
   }
 
-  /* 「全部标签 →」箭头：hover 时右移 2px，与全站微交互同一条缓动 */
+  /* 极速换页（html.nav-fast，见 BaseLayout）：年份线不做生长编排，
+     直接全长呈现（置终态 + 杀过渡；权重须压过上面 .js .reveal 的初始态） */
+  :global(html.nav-fast) .reveal .year-label::after {
+    transform: none;
+    transition: none;
+  }
+
+  /* 「全部标签 →」箭头：hover 时右移 2px，与全站微交互同一条缓动（位移收进 hover-gate，
+     :focus-visible 的键盘反馈留在门外） */
   .aside-arrow {
     display: inline-block;
     transition: transform 200ms var(--ease-ed);
   }
 
-  .page-head__aside:hover .aside-arrow,
   .page-head__aside:focus-visible .aside-arrow {
     transform: translateX(2px);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .page-head__aside:hover .aside-arrow {
+      transform: translateX(2px);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

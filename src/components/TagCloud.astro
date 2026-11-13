@@ -22,9 +22,9 @@ const sortedTags = [...allTags.entries()].sort((a, b) => {
 {
   sortedTags.length > 0 ? (
     <ul class="m-0 flex list-none flex-wrap gap-2.5 p-0">
-      {sortedTags.map(([tag, count]) => (
+      {sortedTags.map(([tag, count], i) => (
         <li>
-          <a href={tagPath(tag)} class="tag-chip">
+          <a href={tagPath(tag)} class="tag-chip reveal" style={`--reveal-delay: ${Math.min(i * 40, 300)}ms`}>
             {tag}
             <b aria-hidden="true">{count}</b>
             <span class="sr-only">{count} 篇</span>

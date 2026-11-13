@@ -27,9 +27,7 @@
 :root {
   --ease-ed: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-enter: 560ms;
-  /* 换页过渡：退出利落、进入从容（非对称节奏） */
-  --dur-page-out: 160ms;
-  --dur-page-in: 320ms;
+  /* 换页在遮罩下 swap，root 快照零动画 */
 }
 
 /* 站内锚点（目录、跳至主内容）平滑滚动；View Transitions 换页用的是
@@ -50,21 +48,6 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   font-optical-sizing: auto;
-}
-
-@media (min-width: 1024px) {
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0.875rem;
-    z-index: 35;
-    pointer-events: none;
-    border: 1px solid var(--color-ed-rule);
-    border-top-color: rgba(166, 58, 43, 0.6);
-    border-bottom: none;
-    /* 换页时单独命名，避免这圈固定装饰边框随正文一起位移 */
-    view-transition-name: ed-frame;
-  }
 }
 
 @media (min-width: 1280px) {
@@ -281,13 +264,9 @@ a.page-head__aside:hover {
   transform-origin: left center;
   transition: transform 280ms var(--ease-ed);
 }
-.entry-row:hover,
 .entry-row:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
-}
-.entry-row:active {
-  transform: translateY(0) scale(0.995);
 }
 .entry-row:hover::after,
 .entry-row:focus-visible::after {
@@ -385,7 +364,6 @@ a.page-head__aside:hover {
   color: var(--color-ed-accent);
   background: rgba(166, 58, 43, 0.1);
   border-color: rgba(166, 58, 43, 0.25);
-  transform: translateY(-1px) rotate(-1deg);
 }
 .tag-chip b {
   font-size: 0.6875rem;
@@ -394,8 +372,22 @@ a.page-head__aside:hover {
   font-variant-numeric: tabular-nums;
   transition: transform 240ms var(--ease-ed);
 }
-.tag-chip:hover b {
-  transform: scale(1.08);
+
+/* 悬停位移收进 hover-gate：触屏（hover:none）不再粘滞位移，颜色反馈保持在门外 */
+@media (hover: hover) and (pointer: fine) {
+  .entry-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+  }
+  .tag-chip:hover {
+    transform: translateY(-1px);
+  }
+  .tag-chip:hover b {
+    transform: scale(1.08);
+  }
+}
+.entry-row:active {
+  transform: translateY(0) scale(0.995);
 }
 .tag-chip:active {
   transform: translateY(0) scale(0.97);
@@ -410,75 +402,20 @@ a.page-head__aside:hover {
   text-align: center;
 }
 
-/* Page transitions (View Transitions API, applied by <ClientRouter />).
-   换页像「翻过一页纸」：旧页轻快上浮淡出，新页从下方托入并轻微收焦。
-   工艺约束（据 improve-animations 动效审计）：
-   - 只动 transform / opacity，外加收尾 ≤2px 的轻模糊遮住交叉叠影，不触发布局；
-   - 缓动沿用全站 expo-out 令牌；退出快、进入慢（非对称节奏）；
-   - 导航栏与四周装饰边框不参与位移，保持稳定。 */
-::view-transition-old(root) {
-  animation: page-out var(--dur-page-out) var(--ease-ed) both;
-}
-
+/* 换页过渡：磨砂对焦（见 .ed-veil / html.nav-frost）——swap 在磨砂之下进行，
+   VT 快照零动画（不播默认交叉淡化），呈现交给磨砂层的对焦过渡。 */
+::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: page-in var(--dur-page-in) var(--ease-ed) both;
+  animation: none;
 }
 
-/* 导航栏与四周装饰边框在换页时保持静止（不参与 root 位移），只有内容过渡。
-   同名元素会做快照交叉淡化：选中态下划线的位置变化也借此平滑切换。 */
+/* 导航快照同样不做默认交叉淡化（换页零动画）。 */
 ::view-transition-group(site-nav),
 ::view-transition-image-pair(site-nav),
 ::view-transition-old(site-nav),
-::view-transition-new(site-nav),
-::view-transition-group(ed-frame),
-::view-transition-image-pair(ed-frame),
-::view-transition-old(ed-frame),
-::view-transition-new(ed-frame) {
+::view-transition-new(site-nav) {
   animation: none;
   mix-blend-mode: normal;
-}
-
-@keyframes page-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-    filter: blur(2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-/* reduced-motion 版本：纯淡入淡出，保留换页感知，去掉位移与模糊 */
-@keyframes page-out-fade {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes page-in-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Article prose styles */
@@ -658,11 +595,6 @@ a.page-head__aside:hover {
 .code-block__copy:hover {
   color: var(--color-ed-fg);
   border-color: var(--color-ed-fg);
-  transform: translateY(-1px);
-}
-
-.code-block__copy:active {
-  transform: translateY(0) scale(0.97);
 }
 
 .code-block__copy.is-copied {
@@ -681,11 +613,61 @@ a.page-head__aside:hover {
   }
 }
 
+/* 复制标签交叉淡化：默认字上浮退出，「已复制」从下方 3px 升入（跟随按钮 420ms 成功脉冲） */
+.code-block__copy { position: relative; }
+.code-block__copy-label {
+  display: inline-block;
+  transition:
+    opacity 120ms var(--ease-ed),
+    transform 120ms var(--ease-ed),
+    visibility 0s linear 120ms;
+}
+.code-block__copy-label--done {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(3px);
+  visibility: hidden;
+  transition:
+    opacity 120ms var(--ease-ed),
+    transform 120ms var(--ease-ed);
+}
+.code-block__copy.is-copied .code-block__copy-label--default {
+  opacity: 0;
+  transform: translateY(-3px);
+  visibility: hidden;
+}
+.code-block__copy.is-copied .code-block__copy-label--done {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .code-block__copy-label,
+  .code-block__copy-label--done {
+    transform: none;
+    transition: opacity 120ms linear;
+  }
+}
+
 /* When wrapped, the pre loses its own outer margin/radius (bar owns the top) */
 .code-block pre.astro-code {
   margin: 0;
   border-radius: 0 0 0.5rem 0.5rem;
   border-top: none;
+}
+
+/* 悬停位移收进 hover-gate：触屏（hover:none）不再粘滞位移，颜色反馈保持在门外 */
+@media (hover: hover) and (pointer: fine) {
+  .code-block__copy:hover {
+    transform: translateY(-1px);
+  }
+}
+.code-block__copy:active {
+  transform: translateY(0) scale(0.97);
 }
 
 /* Inline code: subtle chip that matches the paper palette */
@@ -757,25 +739,109 @@ a.page-head__aside:hover {
   position: fixed;
   left: 0;
   right: 0;
-  top: var(--nav-h, 66px); /* JS 会按实际导航高度更新 --nav-h */
+  top: 0;
   height: 2px;
   z-index: 90;
   background: var(--color-ed-accent);
   transform-origin: 0 50%;
   transform: scaleX(0);
+  /* 正常态整体下移到导航下沿（JS 把导航高度写入 --ed-progress-offset）。
+     用独立 translate 属性而非 transform：transform 由 JS 逐帧写 scaleX
+     表达进度，两者互不覆盖 */
+  translate: 0 var(--ed-progress-offset, 0px);
   visibility: hidden;
   will-change: transform;
+}
+/* 过渡在首帧 JS 写入 offset 之后才启用（html.ed-ready，见 BaseLayout）：
+   初始化不播「从视口顶滑到导航下沿」的动画 */
+html.ed-ready .ed-progress {
+  transition:
+    translate 320ms var(--ease-ed),
+    opacity 200ms var(--ease-ed);
 }
 /* 有正文（文章页）时显示；由 JS 在首帧计算后可见 */
 body:has(.prose) .ed-progress {
   visibility: visible;
 }
-/* 导航收起后进度条贴到视口顶部 */
-.ed-progress {
-  transition: top 320ms var(--ease-ed);
-}
+/* 导航收起：进度条随导航一起淡出（200ms），不再滑到视口顶停留 */
 html.nav-hidden .ed-progress {
+  opacity: 0;
+}
+
+/* --- 全局换页磨砂层：点击当帧整页失焦（120ms ease-out 快起），
+   swap 后 260ms 对焦呈现新页。磨砂量随透明度渐增，非色块遮盖。
+   非对称：失焦快（反馈即时）、对焦从容（呈现清晰） --- */
+.ed-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  background: color-mix(in srgb, var(--color-ed-bg) 45%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  /* 对焦：移除 nav-frost 后走这段（260ms 从容变清晰） */
+  transition:
+    opacity 260ms var(--ease-ed),
+    visibility 0s linear 260ms;
+}
+html.nav-frost .ed-veil {
+  visibility: visible;
+  opacity: 1;
+  /* 失焦：100ms 快起，点击当帧即有变化 */
+  transition:
+    opacity 100ms ease-out,
+    visibility 0s;
+}
+
+/* --- 换页等待指示：仅当取页超过 300ms 才出现（慢网/dev 冷编译的全局反馈） --- */
+.ed-loading {
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 999;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 120ms linear,
+    visibility 0s linear 120ms;
+}
+.ed-loading__bar {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--color-ed-accent);
+  opacity: 0.85;
+}
+html.nav-loading .ed-loading {
+  opacity: 1;
+  visibility: visible;
+  /* 300ms 显示延迟门：预取命中的快速换页不闪条 */
+  transition:
+    opacity 120ms linear 300ms,
+    visibility 0s linear 300ms;
+}
+html.nav-loading .ed-loading__bar {
+  animation: ed-loading-sweep 900ms linear infinite;
+}
+@keyframes ed-loading-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.nav-loading .ed-loading__bar {
+    width: 100%;
+    animation: ed-loading-pulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes ed-loading-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
 }
 
 /* --- Drop cap --- */
@@ -876,6 +942,35 @@ html.nav-hidden .ed-progress {
   transform: none;
 }
 
+/* --- 极速换页：导航触发的换页（html.nav-fast，见 BaseLayout）跳过入场编排，
+   内容首帧即终态；首访（无此类）保留完整编排 --- */
+html.nav-fast .js .reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+html.nav-fast .js .char-reveal {
+  animation: none;
+  transform: none;
+}
+html.nav-fast .ed-in {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+html.nav-fast .home-masthead__topline {
+  animation: none;
+}
+html.nav-fast .js .mask-reveal::after {
+  transition: none;
+  transform: scaleX(1);
+}
+html.nav-fast .js .mask-reveal > * {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
 /* --- Reduce motion --- */
 @media (prefers-reduced-motion: reduce) {
   .js .reveal {
@@ -924,7 +1019,7 @@ html.nav-hidden .ed-progress {
     transition: none;
   }
   .ed-progress {
-    transition: none;
+    transition: opacity 150ms linear;
   }
   .code-block__copy.is-copied {
     animation: none;
@@ -940,15 +1035,6 @@ html.nav-hidden .ed-progress {
   }
   .js .toc-item:not(.is-collapsed) > .toc-list {
     animation: none;
-  }
-
-  /* 尊重「减少动态效果」：不位移、不模糊，只保留一段轻淡入淡出 */
-  ::view-transition-old(root) {
-    animation: page-out-fade 120ms linear both;
-  }
-
-  ::view-transition-new(root) {
-    animation: page-in-fade 200ms linear both;
   }
 
   /* 微交互动效也要尊重 reduced-motion */
@@ -1189,13 +1275,9 @@ a:hover .home-masthead__title {
   transform-origin: left center;
   transition: transform 280ms var(--ease-ed);
 }
-.home-post-row:hover,
 .home-post-row:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
-}
-.home-post-row:active {
-  transform: translateY(0) scale(0.997);
 }
 .home-post-row:hover::after,
 .home-post-row:focus-visible::after {
@@ -1285,9 +1367,6 @@ a:hover .home-masthead__title {
   object-fit: cover;
   transition: transform 300ms ease-in-out;
 }
-.home-about-avatar:hover {
-  transform: scale(1.05);
-}
 .home-about-name {
   font-family: var(--font-serif);
   font-size: 1.1875rem;
@@ -1345,10 +1424,6 @@ a:hover .home-masthead__title {
 .home-soc:hover {
   background: rgba(28, 28, 28, 0.06);
   color: var(--color-ed-accent);
-  transform: translateY(-2px) scale(1.08);
-}
-.home-soc:active {
-  transform: translateY(0) scale(1);
 }
 
 /* 纪事行 */
@@ -1398,6 +1473,26 @@ a:hover .home-masthead__title {
   .home-side-card {
     flex: 1 1 15rem;
   }
+}
+
+/* 悬停位移收进 hover-gate：触屏（hover:none）不再粘滞位移，颜色反馈保持在门外 */
+@media (hover: hover) and (pointer: fine) {
+  .home-post-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(28, 28, 28, 0.08);
+  }
+  .home-about-avatar:hover {
+    transform: scale(1.05);
+  }
+  .home-soc:hover {
+    transform: translateY(-2px) scale(1.08);
+  }
+}
+.home-post-row:active {
+  transform: translateY(0) scale(0.997);
+}
+.home-soc:active {
+  transform: translateY(0) scale(1);
 }
 
 /* 分栏不再立竖线：4.5rem 栏距 + 右侧浅底卡已经足够分隔两栏 */
@@ -1490,6 +1585,8 @@ a:hover .home-masthead__title {
 .search-result:hover,
 .search-result:focus-visible {
   background: rgba(28, 28, 28, 0.04);
+}
+.search-result:focus-visible {
   transform: translateX(3px);
 }
 .search-result__title {
@@ -1536,11 +1633,22 @@ a:hover .home-masthead__title {
   }
 }
 
+/* 悬停位移收进 hover-gate：触屏（hover:none）不再粘滞位移，着色保持在门外 */
+@media (hover: hover) and (pointer: fine) {
+  .search-result:hover {
+    transform: translateX(3px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .search-field,
   .search-result,
   .search-result__title {
     transition: none;
+  }
+  /* 悬停位移在 reduce 下直接归零（只杀过渡不够，位移会瞬跳生效） */
+  .search-result:hover {
+    transform: none;
   }
 }
 

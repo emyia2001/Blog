@@ -56,7 +56,7 @@ const FILTERS = [
       const isAlbum = cat.id === "music";
       const ar = cat.id === "movies" || cat.id === "tv" ? "2 / 3" : "3 / 4";
       return (
-        <section class="col-shelf reveal" data-section data-cat={cat.id} style={`--reveal-delay:${ci * 60}ms`}>
+        <section class="col-shelf reveal" data-section data-cat={cat.id} style={`--reveal-delay:${Math.min(ci * 60, 300)}ms`}>
           <div class="col-shelf__head">
             <span class="col-shelf__code">WK-{String(ci + 1).padStart(2, "0")}</span>
             <h2 class="col-shelf__label">{cat.label}</h2>
@@ -384,7 +384,10 @@ const FILTERS = [
       linear-gradient(var(--tick), var(--tick)) right bottom / 1px 7px no-repeat;
   }
   .vol:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 4px; }
-  .vol, .vshadow { transition: transform 520ms var(--ease-ed); }
+  .vol, .vshadow { transition: transform 520ms var(--ease-ed), filter 120ms ease; }
+  /* 按压反馈：书架模式用亮度（书脊/封面带 matrix 基础 transform，不叠加 scale）；
+     拖拽态由下方 is-drag 规则兜底 */
+  .vol:active { filter: brightness(0.94); }
   /* 焦点高亮只跟「抬起」绑定：小屏中间那本是抬起的，所以给小屏；
      桌面端不默认抬起，也就不画环（悬停只做原有的放大/浮起）。 */
   @media (max-width: 1023px) {
@@ -396,6 +399,8 @@ const FILTERS = [
     }
   }
   .col-bank.is-drag .vol, .col-bank.is-drag .vshadow { transition: none; }
+  /* 拖拽中 :active 必然成立（按下即拖拽起点）：亮度按压不得在拖拽时闪动 */
+  .col-bank.is-drag .vol:active { filter: none; }
 
   .col-bank__foot {
     min-height: 1.5rem; padding: 0 2.6rem;
@@ -411,9 +416,11 @@ const FILTERS = [
     background: rgba(254, 253, 248, 0.72);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     color: var(--color-ed-fg); cursor: pointer;
-    transition: background-color 180ms ease, border-color 180ms ease;
+    transition: background-color 180ms ease, border-color 180ms ease, transform 120ms var(--ease-ed);
   }
   .col-bank__nav:hover { border-color: rgba(28, 28, 28, 0.35); }
+  /* 按压反馈：按钮类，缩到 0.94 */
+  .col-bank__nav:active { transform: scale(0.94); }
   .col-bank__nav svg { width: 0.95rem; height: 0.95rem; }
   .col-bank__nav--prev { left: -2px; }
   .col-bank__nav--next { right: -2px; }
@@ -429,11 +436,23 @@ const FILTERS = [
   .col-bank[data-mode="album"] .vol:hover { z-index: 420 !important; }
   .col-bank[data-mode="album"] .vol:hover .vol__cover,
   .col-bank[data-mode="album"] .vol:focus-visible .vol__cover {
-    transform: scale(1.14);
     z-index: 80;
+  }
+  .col-bank[data-mode="album"] .vol:focus-visible .vol__cover {
+    transform: scale(1.14);
     box-shadow: 0 24px 42px -22px rgba(30, 20, 10, 0.5), inset 0 0 0 1px rgba(28, 28, 28, 0.14);
     filter: brightness(1.03);
   }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞缩放/阴影；置于 :active 按压规则之前保持原优先级 */
+  @media (hover: hover) and (pointer: fine) {
+    .col-bank[data-mode="album"] .vol:hover .vol__cover {
+      transform: scale(1.14);
+      box-shadow: 0 24px 42px -22px rgba(30, 20, 10, 0.5), inset 0 0 0 1px rgba(28, 28, 28, 0.14);
+      filter: brightness(1.03);
+    }
+  }
+  /* 专辑模式按压：封面从悬停的 1.14 缩回 0.98；与 :hover 同权级，必须排在其后才能按住时胜出 */
+  .col-bank[data-mode="album"] .vol:active .vol__cover { transform: scale(0.98); }
 
   /* ===== 音乐专辑横向轮播（只借滚动动画，保留专辑封面样式） ===== */
   .col-albums { position: relative; }
@@ -500,7 +519,11 @@ const FILTERS = [
     overflow: hidden; transition: transform 260ms var(--ease-ed), box-shadow 260ms var(--ease-ed);
   }
   .col-wallcard__cover::before { content: ""; position: absolute; inset: 8px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 1px; pointer-events: none; }
-  .col-wallcard:hover .col-wallcard__cover, .col-wallcard:focus-visible .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  .col-wallcard:focus-visible .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞浮起，:focus-visible 反馈留在门外 */
+  @media (hover: hover) and (pointer: fine) {
+    .col-wallcard:hover .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  }
   .col-wallcard__code { position: relative; z-index: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.5rem; letter-spacing: 0.1em; opacity: 0.5; }
   .col-wallcard__title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.02rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .col-wallcard__by { position: relative; z-index: 1; font-size: 0.625rem; letter-spacing: 0.04em; opacity: 0.6; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -549,6 +572,13 @@ const FILTERS = [
     outline: 1px solid var(--color-ed-hairline);
     outline-offset: -12px;
     overscroll-behavior: contain;
+    /* 开合是 transition 型状态切换：基础态即隐藏态，中途关闭可从当前位置平滑重定向 */
+    opacity: 0;
+    transform: translateY(18px) scale(0.962);
+    transition:
+      opacity 340ms var(--ease-ed),
+      transform 340ms var(--ease-ed);
+    will-change: opacity, transform;
   }
   .col-dialog::backdrop {
     background: radial-gradient(120% 120% at 50% 0%, rgba(28, 28, 28, 0.42), rgba(28, 28, 28, 0.66));
@@ -560,29 +590,33 @@ const FILTERS = [
   .col-dialog[open]::backdrop { animation: col-dialog-backdrop-in 260ms ease-out both; }
   @keyframes col-dialog-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
   .col-dialog[open] .col-dialog__panel {
-    animation: col-dialog-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: opacity, transform;
+    opacity: 1;
+    transform: none;
   }
-  @keyframes col-dialog-in {
-    from { opacity: 0; transform: translateY(18px) scale(0.962); }
-    to { opacity: 1; transform: none; }
+  /* 从 display:none 打开时 transition 没有起点，用 @starting-style 补上起始帧
+    （不支持的环境降级为打开时瞬现，可接受） */
+  @starting-style {
+    .col-dialog[open] .col-dialog__panel {
+      opacity: 0;
+      transform: translateY(18px) scale(0.962);
+    }
   }
   .col-dialog[open] .col-dialog__cover {
-    animation: col-dialog-cover-in 460ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+    animation: col-dialog-cover-in 460ms var(--ease-ed) 60ms both;
   }
   @keyframes col-dialog-cover-in {
     from { opacity: 0; translate: 0 10px; scale: 1.035; }
     to { opacity: 1; translate: 0 0; scale: 1; }
   }
-  /* 退场：220ms 收回（比入场快一档，不拖沓），动画结束再真正 close()（见 closeDetail） */
-  .col-dialog.is-closing::backdrop { animation: col-dialog-backdrop-out 220ms ease-in both; }
+  /* 退场：220ms 收回（transition 型，Esc 中途关闭可平滑重定向） */
+  .col-dialog.is-closing::backdrop { animation: col-dialog-backdrop-out 220ms var(--ease-ed) both; }
   @keyframes col-dialog-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
   .col-dialog.is-closing .col-dialog__panel {
-    animation: col-dialog-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
-  }
-  @keyframes col-dialog-out {
-    from { opacity: 1; transform: none; }
-    to { opacity: 0; transform: translateY(12px) scale(0.978); }
+    opacity: 0;
+    transform: translateY(12px) scale(0.978);
+    transition:
+      opacity 220ms var(--ease-ed),
+      transform 220ms var(--ease-ed);
   }
   .col-dialog.is-closing .col-dialog__cover { animation: none; }
 
@@ -605,12 +639,14 @@ const FILTERS = [
     width: 2.4rem; height: 2.4rem; padding: 0;
     border: 1px solid var(--color-ed-hairline); border-radius: 999px;
     background: transparent; color: var(--color-ed-muted); cursor: pointer;
-    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 120ms var(--ease-ed);
   }
   .col-dialog__close:hover, .col-dialog__close:focus-visible {
     color: var(--color-ed-fg); border-color: var(--color-ed-rule);
     background: rgba(28, 28, 28, 0.04);
   }
+  /* 按压反馈：按钮类，缩到 0.94 */
+  .col-dialog__close:active { transform: scale(0.94); }
   .col-dialog__close svg { width: 1rem; height: 1rem; }
 
   /* 主体：左侧封面 + 出版信息，右侧文字档案 */
@@ -720,7 +756,7 @@ const FILTERS = [
     color: var(--color-ed-subtle);
   }
   .col-dialog__score-bar { grid-area: bar; position: relative; height: 2px; background: var(--color-ed-hairline); overflow: hidden; }
-  .col-dialog__score-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--color-ed-accent); transition: width 480ms var(--ease-ed); }
+  .col-dialog__score-fill { position: absolute; inset: 0; width: 100%; background: var(--color-ed-accent); transform: scaleX(0); transform-origin: 0 50%; transition: transform 480ms var(--ease-ed); }
 
   /* 分节：小标签 + 细线 */
   .col-dialog__section { margin: 0 0 1.6rem; }
@@ -812,13 +848,24 @@ const FILTERS = [
   }
   @media (prefers-reduced-motion: reduce) {
     .vol, .vshadow { transition: none; }
+    /* 专辑封面：过渡与悬停缩放归零（位移动画 reduce 覆盖补漏） */
+    .col-bank[data-mode="album"] .vol__cover { transition: none; }
+    .col-bank[data-mode="album"] .vol:hover .vol__cover { transform: none; }
     .col-wallcard__cover { transition: none; }
+    .col-wallcard:hover .col-wallcard__cover { transform: none; }
     .col-dialog__cover { transition: none; }
+    /* 减少动态：评分条属状态指示，瞬时到位即可 */
+    .col-dialog__score-fill { transition: none; }
     /* 减少动态：直接不倾斜，保留平面封面 */
     .col-dialog[data-kind="album"] .col-dialog__pad:hover ~ .col-dialog__cover { transform: none; }
+    /* 减少动态：面板只留快速淡入淡出，位移全部去掉；背板动画直接禁用 */
+    .col-dialog__panel,
     .col-dialog[open] .col-dialog__panel,
+    .col-dialog.is-closing .col-dialog__panel {
+      transform: none;
+      transition: opacity 150ms linear;
+    }
     .col-dialog[open]::backdrop,
-    .col-dialog.is-closing .col-dialog__panel,
     .col-dialog.is-closing::backdrop { animation: none; }
   }
 </style>
@@ -1141,31 +1188,21 @@ const FILTERS = [
 
   const dialog = () => document.getElementById("col-dialog") as HTMLDialogElement | null;
   let closeTimer = 0;
-  // 关闭：先播 220ms 退场（.is-closing），动画结束再真正 close()。
-  // 连点关闭 / 动画未触发（后台标签页）都有兜底，不会卡住打不开。
+  // 关闭：先播 220ms 退场（.is-closing，transition 型），过渡结束再真正 close()。
+  // transitionend 在中途被打断时不触发、子元素事件还会冒泡，改用与退场时长对齐的定时器收尾；
+  // 连点关闭 / 后台标签页也都有兜底，不会卡住打不开。
   function closeDetail() {
     const dlg = dialog();
     if (!dlg || !dlg.open) return;
     if (colReduced()) { dlg.classList.remove("is-closing"); dlg.close(); return; }
     if (dlg.classList.contains("is-closing")) return;
     dlg.classList.add("is-closing");
-    let done = false;
-    const onEnd = (e: AnimationEvent) => {
-      // 退场动画挂在 .col-dialog__panel 上；backdrop 的动画事件 target 是 dialog
-      const panel = dlg.querySelector(".col-dialog__panel");
-      if (e.target !== dlg && e.target !== panel) return;
-      finish();
-    };
     const finish = () => {
-      if (done) return;
-      done = true;
       window.clearTimeout(closeTimer);
-      dlg.removeEventListener("animationend", onEnd);
       dlg.classList.remove("is-closing");
       if (dlg.open) dlg.close();
     };
-    dlg.addEventListener("animationend", onEnd);
-    closeTimer = window.setTimeout(finish, 300);
+    closeTimer = window.setTimeout(finish, 220);
   }
 
   function openDetail(btn: HTMLElement) {
@@ -1191,7 +1228,7 @@ const FILTERS = [
       by.textContent = `${d.creator ?? ""}${yr}`;
     }
 
-    // 评分：大号数字 + 来源/人数 + 进度条（宽度 = 分值 × 10%）
+    // 评分：大号数字 + 来源/人数 + 进度条（scaleX = 分值 × 10%）
     const score = $("cd-score");
     const scoreValue = $("cd-score-value");
     const scoreMeta = $("cd-score-meta");
@@ -1202,7 +1239,7 @@ const FILTERS = [
       score.hidden = !hasRating;
       if (hasRating) {
         if (scoreValue) scoreValue.textContent = rating.toFixed(1);
-        if (scoreFill) scoreFill.style.width = `${Math.max(4, Math.min(100, rating * 10))}%`;
+        if (scoreFill) scoreFill.style.transform = `scaleX(${Math.max(0.04, Math.min(1, rating * 10 / 100))})`;
         const source = (d.ratingSource ?? "").trim();
         const count = Number(d.ratingCount ?? 0);
         const countText = count >= 10000

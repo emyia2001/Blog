@@ -197,7 +197,7 @@ const payload = JSON.stringify({
         dialog!.focus();
       }
       // 已有实例：下一帧换树即可。
-      // 首次挂载则等面板入场动画结束——动画期间 getBoundingClientRect 带着 transform，
+      // 首次挂载则等面板入场过渡（transform）结束——过渡期间 getBoundingClientRect 带着 transform，
       // 这时候建画布会按缩小后的尺寸分配缓冲。
       if (instance) {
         requestAnimationFrame(() =>
@@ -207,21 +207,27 @@ const payload = JSON.stringify({
         );
         return;
       }
+      // 只认面板自己的 transform 过渡：opacity 和子元素（画布/链接）的过渡事件都会冒泡上来
+      const onPanelSettled = (e: TransitionEvent) => {
+        if (e.target !== panel || e.propertyName !== "transform") return;
+        start();
+      };
       let mountTimer = 0;
       const start = () => {
         window.clearTimeout(mountTimer);
-        panel?.removeEventListener("animationend", start);
-        if (!dialog!.open || instance) return;
+        panel?.removeEventListener("transitionend", onPanelSettled);
+        // 退场中（is-closing）不再挂树，等下次打开走已有实例的快路径
+        if (!dialog!.open || dialog!.classList.contains("is-closing") || instance) return;
         paintTree();
       };
       if (reduced()) {
         start();
         return;
       }
-      // 动画事件偶尔会丢（标签页切后台、主线程被渲染占满），用定时器兜底；
+      // transitionend 偶尔会丢（标签页切后台、主线程被渲染占满），用定时器兜底；
       // 两个入口都先自我摘除，免得留下一个到下个弹窗才触发的孤儿监听。
       mountTimer = window.setTimeout(start, 460);
-      panel?.addEventListener("animationend", start);
+      panel?.addEventListener("transitionend", onPanelSettled);
     }
 
     function close() {
@@ -231,19 +237,16 @@ const payload = JSON.stringify({
         return;
       }
       if (dialog!.classList.contains("is-closing")) return;
-      // 先把渲染循环停掉，退场动画才不会被每秒五帧的渲染拖慢
+      // 先把渲染循环停掉，退场过渡才不会被每秒五帧的渲染拖慢
       instance?.pause();
       dialog!.classList.add("is-closing");
-      let closeTimer = 0;
-      const finish = () => {
-        window.clearTimeout(closeTimer);
-        panel?.removeEventListener("animationend", finish);
+      // 退场是 200ms 的 transition：transitionend 在中途被打断时不触发（子元素事件还会冒泡），
+      // 直接用与退场时长对齐的定时器收尾，连点 Esc / 后台标签页都不会卡住
+      window.setTimeout(() => {
         if (!dialog!.open || !dialog!.classList.contains("is-closing")) return;
         dialog!.classList.remove("is-closing");
         dialog!.close();
-      };
-      closeTimer = window.setTimeout(finish, 460);
-      panel?.addEventListener("animationend", finish);
+      }, 200);
     }
 
     const onGridClick = (e: MouseEvent) => {
@@ -338,6 +341,12 @@ const payload = JSON.stringify({
     border-radius: 2px;
     box-shadow: 0 70px 140px -70px rgba(20, 14, 9, 0.7);
     overscroll-behavior: contain;
+    /* 开合是 transition 型状态切换：基础态即隐藏态，中途关闭可从当前位置平滑重定向 */
+    opacity: 0;
+    transform: translateY(14px) scale(0.978);
+    transition:
+      opacity 320ms var(--ease-ed),
+      transform 320ms var(--ease-ed);
   }
 
   .fta::backdrop {
@@ -355,25 +364,30 @@ const payload = JSON.stringify({
     to { opacity: 1; }
   }
   .fta[open] .fta__panel {
-    animation: fta-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    opacity: 1;
+    transform: none;
   }
-  @keyframes fta-in {
-    from { opacity: 0; transform: translateY(14px) scale(0.978); }
-    to { opacity: 1; transform: none; }
+  /* 从 display:none 打开时 transition 没有起点，用 @starting-style 补上起始帧
+    （不支持的环境降级为打开时瞬现，可接受） */
+  @starting-style {
+    .fta[open] .fta__panel {
+      opacity: 0;
+      transform: translateY(14px) scale(0.978);
+    }
   }
   .fta.is-closing::backdrop {
-    animation: fta-backdrop-out 200ms ease-in both;
+    animation: fta-backdrop-out 200ms var(--ease-ed) both;
   }
   @keyframes fta-backdrop-out {
     from { opacity: 1; }
     to { opacity: 0; }
   }
   .fta.is-closing .fta__panel {
-    animation: fta-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
-  }
-  @keyframes fta-out {
-    from { opacity: 1; transform: none; }
-    to { opacity: 0; transform: translateY(8px) scale(0.99); }
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+    transition:
+      opacity 200ms var(--ease-ed),
+      transform 200ms var(--ease-ed);
   }
 
   .fta__head {
@@ -523,10 +537,15 @@ const payload = JSON.stringify({
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .fta[open]::backdrop,
+    /* 减少动态：面板只留快速淡入淡出，位移全部去掉；背板动画直接禁用 */
+    .fta__panel,
     .fta[open] .fta__panel,
-    .fta.is-closing::backdrop,
     .fta.is-closing .fta__panel {
+      transform: none;
+      transition: opacity 150ms linear;
+    }
+    .fta[open]::backdrop,
+    .fta.is-closing::backdrop {
       animation: none;
     }
     .fta__stage canvas {

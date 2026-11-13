@@ -104,12 +104,18 @@ const label = "回到顶部";
     height: 1rem;
     transition: transform 220ms var(--ease-ed);
   }
-  /* 悬停时箭头往上提 2px：指向「顶部」，比整颗按钮位移更轻 */
-  .back-to-top:hover svg {
-    transform: translateY(-2px);
+  /* 悬停时箭头往上提 2px：指向「顶部」，比整颗按钮位移更轻（位移收进 hover-gate） */
+  @media (hover: hover) and (pointer: fine) {
+    .back-to-top:hover svg {
+      transform: translateY(-2px);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .back-to-top,
+    /* 出现/隐藏只留 150ms 透明度过渡；位移终态归零（隐藏交给 opacity） */
+    .back-to-top {
+      transform: none;
+      transition: opacity 150ms linear;
+    }
     .back-to-top svg {
       transition: none;
     }

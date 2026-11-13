@@ -23,15 +23,21 @@ import TagCloud from "../../components/TagCloud.astro";
 </BaseLayout>
 
 <style>
-  /* 「归档 →」箭头：hover 时右移 2px，与归档 / 标签页同一条微交互 */
+  /* 「归档 →」箭头：hover 时右移 2px，与归档 / 标签页同一条微交互（位移收进 hover-gate，
+     :focus-visible 的键盘反馈留在门外） */
   .aside-arrow {
     display: inline-block;
     transition: transform 200ms var(--ease-ed);
   }
 
-  .page-head__aside:hover .aside-arrow,
   .page-head__aside:focus-visible .aside-arrow {
     transform: translateX(2px);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .page-head__aside:hover .aside-arrow {
+      transform: translateX(2px);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

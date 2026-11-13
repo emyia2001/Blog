@@ -166,7 +166,12 @@ export function mountTree(root, opts = {}) {
     renderer.resize(rect.width, rect.height);
   }
 
-  const ro = new ResizeObserver(resize);
+  const ro = new ResizeObserver(() => {
+    resize();
+    // 画布尺寸变化后要重绘一帧（reduced-motion 下循环可能已停）；
+    // 不挂在 resize() 里：初始化时 resize() 先于主循环的 raf 声明执行
+    kickFrame();
+  });
   ro.observe(canvas);
   resize();
   rebuild();
@@ -177,6 +182,12 @@ export function mountTree(root, opts = {}) {
   let paused = false;
   let burst = -1;
   let rainCur = 0;
+
+  // reduced-motion 下场景落定后帧循环会停，任何状态变更后用它重新拉起；
+  // 正常模式下循环常驻，此时调用是无害的空操作
+  function kickFrame() {
+    if (raf === 0 && !paused) raf = requestAnimationFrame(frame);
+  }
 
   function frame(ts) {
     if (paused) { raf = 0; return; }
@@ -204,7 +215,16 @@ export function mountTree(root, opts = {}) {
     state.rain = rainCur;
 
     renderer.render(state);
-    raf = requestAnimationFrame(frame);
+    if (!reduced) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      // reduced-motion：压平、落雨过渡与点击抖动全部落定后停帧，不再空转
+      const settled =
+        Math.abs(state.flatCur - (state.isFlat ? 1 : 0)) < 0.001 &&
+        Math.abs(rainCur - (state.season === 2 ? 1 : 0)) < 0.001 &&
+        (burst < 0 || reduced || state.time - burst > 1.2);
+      raf = settled ? 0 : requestAnimationFrame(frame);
+    }
   }
   raf = requestAnimationFrame(frame);
 
@@ -228,6 +248,7 @@ export function mountTree(root, opts = {}) {
     state.trunkSeed = hashSeed(state.url + ':' + state.season);
     rebuildCrossfade();
     syncUI();
+    kickFrame(); // 换季有落雨淡入淡出，停帧时重新拉起
   }
 
   function setUrl(url) {
@@ -236,12 +257,14 @@ export function mountTree(root, opts = {}) {
     if (input) input.value = url;
     rebuildCrossfade();
     syncUI();
+    kickFrame(); // 重建后的新几何体至少要画一帧
   }
 
   function toggleFlat() {
     state.isFlat = !state.isFlat;
     burst = state.time;
     syncUI();
+    kickFrame(); // 压平/立起是渐进动画，停帧时重新拉起
   }
 
   // 非法链接：先摘掉标记再重挂，连续出错也能重播一次轻抖（color 过渡见 tree.astro）
@@ -272,6 +295,7 @@ export function mountTree(root, opts = {}) {
     }
     state.url = t;
     rebuildCrossfade();
+    kickFrame(); // 换树后至少重绘一帧（reduced-motion 下立即重建、循环可能已停）
   }
 
   const onCanvasClick = () => toggleFlat();

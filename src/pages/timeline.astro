@@ -410,8 +410,8 @@ const defaultRendered =
     transition: background-color 160ms ease, border-color 160ms ease;
     /* 入场动画：整体淡入上移（delay 由 --tl-i 逐条错开） */
     opacity: 0;
-    animation: tl-point-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: calc(0.15s + min(var(--tl-i, 0), 12) * 0.04s);
+    animation: tl-point-in 0.5s var(--ease-ed) forwards;
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 7) * 0.04s);
   }
   @keyframes tl-point-in {
     from {
@@ -437,8 +437,8 @@ const defaultRendered =
     background: var(--color-ed-rule);
     transform: scaleY(0);
     transform-origin: top;
-    animation: tl-seg-grow 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: calc(0.15s + min(var(--tl-i, 0), 12) * 0.04s);
+    animation: tl-seg-grow 0.5s var(--ease-ed) forwards;
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 7) * 0.04s);
   }
   @keyframes tl-seg-grow {
     from {
@@ -446,6 +446,27 @@ const defaultRendered =
     }
     to {
       transform: scaleY(1);
+    }
+  }
+
+  /* 极速换页：导航进入时点/线直接呈现，不做生长编排 */
+  :global(html.nav-fast) .timeline-point {
+    opacity: 1;
+    animation: none;
+    animation-delay: 0s;
+  }
+  :global(html.nav-fast) .tl-seg {
+    animation: none;
+    transform: none;
+  }
+
+  /* reduced-motion 下的时间轴入场：只淡不移（与上面 tl-point-in 配对） */
+  @keyframes tl-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
   .timeline-point:hover .tl-seg {
@@ -476,7 +497,15 @@ const defaultRendered =
   }
   .timeline-point:hover .tl-simple__dot {
     border-color: var(--color-ed-accent);
-    transform: scale(1.25);
+  }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞缩放/位移；置于 .is-active 状态规则之前保持原优先级 */
+  @media (hover: hover) and (pointer: fine) {
+    .timeline-point:hover .tl-simple__dot {
+      transform: scale(1.25);
+    }
+    .timeline-point:hover .tl-simple__body {
+      transform: translateX(4px);
+    }
   }
   .timeline-point.is-active .tl-simple__dot {
     background: var(--color-ed-accent);
@@ -490,10 +519,8 @@ const defaultRendered =
     min-width: 0;
     padding-bottom: 0.25rem;
     transform-origin: left center;
-    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: transform;
+    transition: transform 160ms var(--ease-ed);
   }
-  .timeline-point:hover .tl-simple__body,
   .timeline-point.is-active .tl-simple__body {
     transform: translateX(4px);
   }
@@ -672,6 +699,23 @@ const defaultRendered =
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    /* 时间轴入场：点/线不位移、不 stagger，快速淡入 */
+    .timeline-point {
+      opacity: 1;
+      animation: tl-fade 160ms linear both;
+      animation-delay: 0s;
+    }
+    .tl-seg {
+      animation: none;
+      transform: none;
+    }
+    .timeline-point:hover .tl-simple__dot {
+      transform: none;
+    }
+    .timeline-point:hover .tl-simple__body,
+    .timeline-point.is-active .tl-simple__body {
+      transform: none;
+    }
     .lock-box::after,
     .lock-box.is-unlocked::after {
       animation: none;
@@ -944,6 +988,7 @@ const defaultRendered =
           { opacity: 0, transform: "translateY(4px)" },
           { opacity: 1, transform: "none" },
         ],
+        // easing 与全站令牌 --ease-ed 一致
         { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
       );
     }
