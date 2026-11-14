@@ -324,7 +324,21 @@ const friendItems = FRIENDS.map((f) => ({
 <script>
   // Bark 推送：点击 → POST /api/bark（Worker 限每人每天一次 + 转发到站长 Bark）。
   // 推送成功/当日已提醒则禁用按钮；失败（502/503）可重试。
-  // 模块级 document 委托，VT 换页安全
+  // KV 是最终一致（跨边缘读不到刚写的记录），秒级双击会在服务端漏过——
+  // 浏览器侧再用 localStorage 记当日已提醒，双保险。模块级委托，VT 换页安全
+  const BARK_LS = "friend-bark:last-day";
+  const barkDay = () =>
+    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+  document.addEventListener("astro:page-load", () => {
+    // 当日已提醒过：进页面就禁用按钮（KV 传播延迟时的客户端兜底）
+    if (localStorage.getItem(BARK_LS) === barkDay()) {
+      const btn = document.getElementById("bark-push") as HTMLButtonElement | null;
+      if (btn) {
+        btn.textContent = "今日已提醒过啦";
+        btn.setAttribute("aria-disabled", "true");
+      }
+    }
+  });
   document.addEventListener("click", async (e) => {
     const btn = (e.target as Element).closest?.(
       "#bark-push"
@@ -340,14 +354,17 @@ const friendItems = FRIENDS.map((f) => ({
       const res = await fetch("/api/bark", { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (res.ok) {
+        localStorage.setItem(BARK_LS, barkDay());
         btn.textContent = "今日已提醒 ✓";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "提醒已送达站长手机；记得到 GitHub 提交申请。";
       } else if (data.error === "daily_cap") {
+        localStorage.setItem(BARK_LS, barkDay());
         btn.textContent = "今日名额已满";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "今天的提醒额度已被领完，明天再来吧。";
       } else if (res.status === 429 || data.error === "already_sent") {
+        localStorage.setItem(BARK_LS, barkDay());
         btn.textContent = "今日已提醒过啦";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "每人每天一次，明天再来提醒我吧。";
