@@ -13,3 +13,6 @@ public/fonts/noto-serif-sc/
 # 封面 WebP 派生图（scripts/gen-cover-variants.mjs 生成，不进 git）
 public/images/covers/gen/
 public/images/covers/*/gen/
+
+# wrangler 本地变量（含密钥，勿提交）
+.dev.vars

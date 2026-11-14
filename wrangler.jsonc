@@ -1,14 +1,22 @@
 {
-  // 站点以 Workers 静态资源方式部署（不是 Pages）：
-  // `npm run build` 产物 dist/ 整体上传，运行时由 env.ASSETS 直接服务。
+  // 站点以 Workers 部署（main Worker + 静态资源 assets）：
+  // `npm run build` 产物 dist/ 整体上传；有匹配资源时由 assets 直接服务
+  // （不计 Worker 请求），未匹配路径（如 /api/bark）进 Worker 处理。
   "name": "blog",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["global_fetch_strictly_public"],
 
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "404-page"
   },
+
+  // 友链申请推送的每人每天限次：需要 KV 跨实例生效。创建并填入 id 后取消注释：
+  //   npx wrangler kv namespace create BARK_LIMIT
+  // 未绑定 KV 时 Worker 退化为单实例内存限次（isolate 重启即清零）。
+  // "kv_namespaces": [{ "binding": "BARK_LIMIT", "id": "<填入 namespace id>" }],
 
   // 主域直接给博客。旧域名 snark.casa 已弃用（2026-10-30 到期，不再续费）；
   // 若还想让旧域名多撑几天，临时加回一条：
