@@ -397,7 +397,8 @@ const friendItems = FRIENDS.map((f) => ({
   const barkDay = () =>
     new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
 
-  // 风铃 top 跟随导航底边（导航向下滑隐时风铃随之上收，像真的挂在导航上）
+  // 风铃 top 跟随导航底边（导航向下滑隐时风铃随之上收，像真的挂在导航上）。
+  // ResizeObserver 盯住导航尺寸：字体加载等导致导航变高时立即重新贴线
   const siteNav = document.querySelector(".site-nav");
   const chimeBtn = document.getElementById("bark-push");
   let chimeRaf = 0;
@@ -410,8 +411,12 @@ const friendItems = FRIENDS.map((f) => ({
     });
   };
   placeChime();
+  if (siteNav && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(placeChime).observe(siteNav);
+  }
   window.addEventListener("resize", placeChime, { passive: true });
   window.addEventListener("scroll", placeChime, { passive: true });
+  window.addEventListener("load", placeChime);
 
   const prefersReducedMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
@@ -465,7 +470,7 @@ const friendItems = FRIENDS.map((f) => ({
   const SPRING_C = 4.2; // 阻尼 /s
   const G_LAT = 900; // 横向单摆重力 /s²（等效摆长约 100px）
   const DAMP_LAT = 0.8; // 横向阻尼 /s
-  const MAX_SWING = 1.1; // 横向最大摆角（rad ≈ 63°）
+  const MAX_SWING = 0.7; // 横向最大摆角（rad ≈ 40°，右缘不出屏）
   let offset = 0; // 挂绳伸长量（正 = 下拉）
   let vel = 0; // px/s
   let swing = 0; // 横向摆角（rad，0 = 铅直）
@@ -550,7 +555,10 @@ const friendItems = FRIENDS.map((f) => ({
       if (!dragging) return;
       const dx = e.clientX - grabX;
       const dy = e.clientY - grabY;
-      swing = Math.max(-MAX_SWING, Math.min(MAX_SWING, grabSwing + dx / 55));
+      // 横向用 asin 反解：铃体横移严格等于鼠标横移（贴合鼠标不脱手），
+      // 悬挂长度 = 挂绳 + 铃体中心偏移；纵向 1:1 跟随
+      const HANG_LEN = STRING_BASE + 14;
+      swing = Math.asin(Math.max(-0.99, Math.min(0.99, dx / HANG_LEN)));
       offset = Math.max(
         MIN_PULL,
         Math.min(MAX_PULL, grabOffset + (e.clientY - grabBase))
