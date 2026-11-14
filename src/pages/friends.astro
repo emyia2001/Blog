@@ -9,6 +9,7 @@ import {
 } from "../consts";
 import { FRIENDS } from "../data/friends";
 import FriendTreeDialog from "../components/FriendTreeDialog.astro";
+import Giscus from "../components/Giscus.astro";
 
 const avatarUrl = new URL(SITE_AVATAR, SITE_URL).href;
 const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -176,6 +177,16 @@ const oneWayFriends = FRIENDS.filter((f) => !f.mutual);
       ) : (
         <p class="empty-note">暂无。</p>
       )}
+    </section>
+
+    <section class="mb-14" aria-labelledby="friends-comments-label">
+      <h2 class="section-label section-label--plain" id="friends-comments-label">
+        友链留言
+      </h2>
+      <p class="comments-note">
+        想交换友链？在这里留下你的站点名称、地址与一句话简介即可（需 GitHub 登录，天然免垃圾评论）。
+      </p>
+      <Giscus />
     </section>
   </div>
 
@@ -400,6 +411,14 @@ const oneWayFriends = FRIENDS.filter((f) => !f.mutual);
     .friend-apply-btn:hover svg {
       animation: none;
     }
+  }
+
+  /* 友链留言（Giscus）：说明行 + 评论区 */
+  .comments-note {
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--muted);
   }
 </style>
 
