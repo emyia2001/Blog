@@ -6,12 +6,10 @@ import {
   SITE_URL,
   SITE_AVATAR,
   SITE_DESCRIPTION,
-  SITE_SOCIAL,
 } from "../consts";
 import { FRIENDS } from "../data/friends";
 import FriendTreeDialog from "../components/FriendTreeDialog.astro";
 
-const github = SITE_SOCIAL.find((s) => s.icon === "mdi:github");
 const avatarUrl = new URL(SITE_AVATAR, SITE_URL).href;
 const bare = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 const friendItems = FRIENDS.map((f) => ({
@@ -28,17 +26,6 @@ const friendItems = FRIENDS.map((f) => ({
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">友链</h1>
-        <div class="page-head__asides">
-          <button type="button" class="page-head__aside" data-friend-site-tree>
-            本站二维码
-          </button>
-          <a
-            href="https://www.travellings.cn/go.html"
-            class="page-head__aside"
-            target="_blank"
-            rel="noopener noreferrer">开往 →</a
-          >
-        </div>
       </div>
     </header>
 
@@ -65,14 +52,36 @@ const friendItems = FRIENDS.map((f) => ({
       </dl>
 
       <div class="friend-bark">
-        <button type="button" id="bark-push" class="friend-bark-btn">
-          申请友链 · 推送提醒给站长
-        </button>
-        <p class="friend-bark-hint" aria-live="polite">
-          点击推送到站长手机，每天限一次；然后到
-          {github && <a href={github.href} target="_blank" rel="noopener noreferrer">GitHub</a>}
-          提交申请即可。
-        </p>
+        <div class="bark-widget">
+          <span class="bark-widget__hook" aria-hidden="true"></span>
+          <span class="bark-widget__string" aria-hidden="true"></span>
+          <button
+            type="button"
+            id="bark-push"
+            class="bark-widget__btn"
+            aria-label="申请友链 · 摇铃推送提醒给站长"
+          >
+            <svg
+              class="bark-widget__bell"
+              viewBox="0 0 24 24"
+              width="17"
+              height="17"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3a5 5 0 0 0-5 5v3.6c0 .6-.2 1.2-.6 1.7L5 15.4c-.5.7 0 1.6.9 1.6h12.2c.9 0 1.4-.9.9-1.6l-1.4-2.1a2.9 2.9 0 0 1-.6-1.7V8a5 5 0 0 0-5-5Z"></path>
+              <path d="M10 19.5a2 2 0 0 0 4 0"></path>
+            </svg>
+            <span class="bark-widget__text">申请友链</span>
+          </button>
+          <span class="bark-widget__status" id="bark-hint" aria-live="polite">
+            点击摇铃，推送提醒到站长手机
+          </span>
+        </div>
       </div>
     </section>
 
@@ -267,14 +276,38 @@ const friendItems = FRIENDS.map((f) => ({
     color: var(--color-ed-fg);
   }
 
+  /* 申请友链挂件：吊环 + 挂绳 + 铃铛卡片，随呼吸轻摆；悬停摇铃，推送中摆幅加快 */
   .friend-bark {
-    margin-top: 1.25rem;
+    display: flex;
+    justify-content: center;
+    padding-top: 1.5rem;
   }
-  .friend-bark-btn {
-    padding: 0.55rem 1.2rem;
-    border: 1px solid var(--color-ed-rule-strong);
+  .bark-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform-origin: top center;
+    animation: bark-sway 5.6s ease-in-out infinite;
+  }
+  .bark-widget__hook {
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid var(--color-ed-rule);
+    border-radius: 50%;
+  }
+  .bark-widget__string {
+    width: 1px;
+    height: 14px;
+    background: var(--color-ed-rule);
+  }
+  .bark-widget__btn {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.65rem 1.15rem 0.7rem;
+    border: 1px solid var(--color-ed-rule);
     border-radius: 4px;
-    background: transparent;
+    background: var(--color-ed-bg);
     font: inherit;
     color: var(--color-ed-fg);
     cursor: pointer;
@@ -283,34 +316,75 @@ const friendItems = FRIENDS.map((f) => ({
       border-color 180ms ease,
       background-color 180ms ease;
   }
-  .friend-bark-btn:hover:not([aria-disabled="true"]) {
+  .bark-widget__btn:hover:not([aria-disabled="true"]),
+  .bark-widget__btn:focus-visible {
     color: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
-    background: rgba(166, 58, 43, 0.06);
+    background: rgba(166, 58, 43, 0.05);
   }
-  .friend-bark-btn[aria-disabled="true"] {
+  .bark-widget__btn[aria-disabled="true"] {
     color: var(--color-ed-subtle);
     border-color: var(--color-ed-hairline);
     cursor: default;
   }
-  .friend-bark-hint {
-    margin: 0.7rem 0 0;
-    font-size: 0.8125rem;
-    line-height: 1.6;
-    color: var(--color-ed-muted);
+  .bark-widget__btn:hover:not([aria-disabled="true"]) .bark-widget__bell {
+    animation: bark-ring 0.9s var(--ease-ed);
   }
-  .friend-bark-hint a {
-    color: var(--color-ed-fg);
-    text-decoration: underline;
-    text-decoration-color: var(--color-ed-subtle);
+  .bark-widget__bell {
+    transform-origin: top center;
   }
-
-  /* 页头右侧：本站二维码 + 开往（按钮态样式走全局 button.page-head__aside） */
-  .page-head__asides {
-    display: flex;
-    align-items: baseline;
-    gap: 1.25rem;
-    flex-shrink: 0;
+  .bark-widget__text {
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+  }
+  .bark-widget__status {
+    margin-top: 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: var(--color-ed-subtle);
+    max-width: 15rem;
+    text-align: center;
+  }
+  .bark-widget:has(#bark-push[data-busy="1"]) {
+    animation-duration: 1.6s;
+  }
+  .bark-widget:has(#bark-push[aria-disabled="true"]) {
+    animation: none;
+  }
+  @keyframes bark-sway {
+    0%,
+    100% {
+      transform: rotate(-1.4deg);
+    }
+    50% {
+      transform: rotate(1.4deg);
+    }
+  }
+  @keyframes bark-ring {
+    0% {
+      transform: rotate(0);
+    }
+    20% {
+      transform: rotate(13deg);
+    }
+    40% {
+      transform: rotate(-11deg);
+    }
+    60% {
+      transform: rotate(7deg);
+    }
+    80% {
+      transform: rotate(-4deg);
+    }
+    100% {
+      transform: rotate(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bark-widget,
+    .bark-widget__btn:hover .bark-widget__bell {
+      animation: none;
+    }
   }
 
   @media (max-width: 640px) {
@@ -333,8 +407,9 @@ const friendItems = FRIENDS.map((f) => ({
     // 当日已提醒过：进页面就禁用按钮（KV 传播延迟时的客户端兜底）
     if (localStorage.getItem(BARK_LS) === barkDay()) {
       const btn = document.getElementById("bark-push") as HTMLButtonElement | null;
-      if (btn) {
-        btn.textContent = "今日已提醒过啦";
+      const text = btn?.querySelector(".bark-widget__text");
+      if (btn && text) {
+        text.textContent = "今日已提醒过啦";
         btn.setAttribute("aria-disabled", "true");
       }
     }
@@ -347,33 +422,34 @@ const friendItems = FRIENDS.map((f) => ({
       return;
     }
     const hint = document.getElementById("bark-hint");
-    const baseText = btn.textContent;
+    const text = btn.querySelector(".bark-widget__text") as HTMLElement | null;
+    const baseText = text?.textContent ?? "";
     btn.dataset.busy = "1";
-    btn.textContent = "推送中…";
+    if (text) text.textContent = "推送中…";
     try {
       const res = await fetch("/api/bark", { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (res.ok) {
         localStorage.setItem(BARK_LS, barkDay());
-        btn.textContent = "今日已提醒 ✓";
+        if (text) text.textContent = "今日已提醒 ✓";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "提醒已送达站长手机；记得到 GitHub 提交申请。";
       } else if (data.error === "daily_cap") {
         localStorage.setItem(BARK_LS, barkDay());
-        btn.textContent = "今日名额已满";
+        if (text) text.textContent = "今日名额已满";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "今天的提醒额度已被领完，明天再来吧。";
       } else if (res.status === 429 || data.error === "already_sent") {
         localStorage.setItem(BARK_LS, barkDay());
-        btn.textContent = "今日已提醒过啦";
+        if (text) text.textContent = "今日已提醒过啦";
         btn.setAttribute("aria-disabled", "true");
         if (hint) hint.textContent = "每人每天一次，明天再来提醒我吧。";
       } else {
-        btn.textContent = baseText;
+        if (text) text.textContent = baseText;
         if (hint) hint.textContent = "推送暂时失败，请到 GitHub 直接提申请。";
       }
     } catch {
-      btn.textContent = baseText;
+      if (text) text.textContent = baseText;
       if (hint) hint.textContent = "网络异常，请稍后再试。";
     } finally {
       btn.dataset.busy = "0";
