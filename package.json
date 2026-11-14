@@ -27,7 +27,6 @@
     "@astrojs/check": "^0.9.4",
     "@tailwindcss/vite": "^4.1.12",
     "@types/hast": "^3.0.4",
-    "fast-xml-parser": "^5.12.0",
     "pagefind": "^1.5.2",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.12",

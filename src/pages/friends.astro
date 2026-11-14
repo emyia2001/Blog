@@ -9,7 +9,6 @@ import {
   SITE_SOCIAL,
 } from "../consts";
 import { FRIENDS } from "../data/friends";
-import { fetchFriendFeeds } from "../utils/friendFeeds";
 import FriendTreeDialog from "../components/FriendTreeDialog.astro";
 
 const github = SITE_SOCIAL.find((s) => s.icon === "mdi:github");
@@ -22,11 +21,6 @@ const friendItems = FRIENDS.map((f) => ({
   desc: f.desc,
   avatar: f.avatar ?? null,
 }));
-
-// 友链最新文章（构建期抓取，每日定时构建自动刷新；失败只 warn 不挂构建）
-const friendFeeds = await fetchFriendFeeds(FRIENDS);
-const fmtDay = (iso: string) =>
-  new Date(iso).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
 ---
 
 <BaseLayout title="友链" description="友链：独立博客之间的互相推荐与交换。">
@@ -48,8 +42,42 @@ const fmtDay = (iso: string) =>
       </div>
     </header>
 
+    <section class="mb-14" aria-labelledby="site-info-label">
+      <h2 class="section-label section-label--plain" id="site-info-label">本站信息</h2>
+
+      <dl class="friend-info">
+        <div>
+          <dt>名称</dt>
+          <dd>{SITE_NAME}</dd>
+        </div>
+        <div>
+          <dt>地址</dt>
+          <dd>{bare(SITE_URL)}</dd>
+        </div>
+        <div>
+          <dt>头像</dt>
+          <dd>{bare(avatarUrl)}</dd>
+        </div>
+        <div class="friend-info__wide">
+          <dt>简介</dt>
+          <dd>{SITE_DESCRIPTION}</dd>
+        </div>
+      </dl>
+
+      <div class="friend-bark">
+        <button type="button" id="bark-push" class="friend-bark-btn">
+          申请友链 · 推送提醒给站长
+        </button>
+        <p class="friend-bark-hint" aria-live="polite">
+          点击推送到站长手机，每天限一次；然后到
+          {github && <a href={github.href} target="_blank" rel="noopener noreferrer">GitHub</a>}
+          提交申请即可。
+        </p>
+      </div>
+    </section>
+
     {FRIENDS.length > 0 && (
-      <section class="mb-14" aria-labelledby="friends-label">
+      <section aria-labelledby="friends-label">
         <h2 class="sr-only" id="friends-label">友链</h2>
 
         <ul class="friend-grid" data-friend-grid>
@@ -90,71 +118,6 @@ const fmtDay = (iso: string) =>
         </ul>
       </section>
     )}
-
-    {friendFeeds.length > 0 && (
-      <section class="mb-14" aria-labelledby="friend-posts-label">
-        <h2 class="section-label section-label--plain" id="friend-posts-label">
-          友链文章
-        </h2>
-        <div class="friend-posts">
-          {friendFeeds.map((feed) => (
-            <div class="friend-feed reveal">
-              <h3 class="friend-feed__site">
-                <a href={feed.url} target="_blank" rel="noopener noreferrer">
-                  {feed.name}
-                </a>
-              </h3>
-              <ul class="friend-feed__list">
-                {feed.posts.map((p) => (
-                  <li class="friend-feed__item">
-                    <a
-                      class="friend-feed__title"
-                      href={p.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {p.title}
-                    </a>
-                    {p.date && <time class="friend-feed__date">{fmtDay(p.date)}</time>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-    )}
-
-    <section aria-labelledby="site-info-label">
-      <h2 class="section-label section-label--plain" id="site-info-label">本站信息</h2>
-
-      <dl class="friend-info">
-        <div>
-          <dt>名称</dt>
-          <dd>{SITE_NAME}</dd>
-        </div>
-        <div>
-          <dt>地址</dt>
-          <dd>{bare(SITE_URL)}</dd>
-        </div>
-        <div>
-          <dt>头像</dt>
-          <dd>{bare(avatarUrl)}</dd>
-        </div>
-        <div class="friend-info__wide">
-          <dt>简介</dt>
-          <dd>{SITE_DESCRIPTION}</dd>
-        </div>
-      </dl>
-
-      {github && (
-        <p class="friend-apply">
-          欢迎交换友链：把本站信息加到你的友链页后，到
-          <a href={github.href} target="_blank" rel="noopener noreferrer">GitHub</a>
-          告诉我。
-        </p>
-      )}
-    </section>
   </div>
 
   <FriendTreeDialog
@@ -273,68 +236,6 @@ const fmtDay = (iso: string) =>
     height: 1.125rem;
   }
 
-  /* 友链文章：每个站点一块，标题行 + 日期，外链新窗口打开 */
-  .friend-posts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .friend-feed {
-    padding: 1.1rem 1.15rem 1.25rem;
-    border-radius: 4px;
-    background: rgba(28, 28, 28, 0.035);
-  }
-  .friend-feed__site {
-    margin: 0 0 0.65rem;
-    font-family: var(--font-serif);
-    font-size: 1.0625rem;
-    font-weight: 400;
-  }
-  .friend-feed__site a {
-    color: var(--color-ed-fg);
-    transition: color 180ms ease;
-  }
-  .friend-feed__site a:hover {
-    color: var(--color-ed-accent);
-  }
-  .friend-feed__list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .friend-feed__item {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-  .friend-feed__title {
-    min-width: 0;
-    overflow: hidden;
-    font-size: 0.875rem;
-    line-height: 1.5;
-    color: var(--color-ed-fg);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    transition: color 180ms ease;
-  }
-  .friend-feed__title:hover {
-    color: var(--color-ed-accent);
-  }
-  .friend-feed__title::after {
-    content: " ↗";
-    font-size: 0.75rem;
-    color: var(--color-ed-subtle);
-  }
-  .friend-feed__date {
-    flex: none;
-    font-size: 0.6875rem;
-    color: var(--color-ed-subtle);
-  }
-
   .friend-info {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -366,17 +267,42 @@ const fmtDay = (iso: string) =>
     color: var(--color-ed-fg);
   }
 
-  .friend-apply {
+  .friend-bark {
     margin-top: 1.25rem;
+  }
+  .friend-bark-btn {
+    padding: 0.55rem 1.2rem;
+    border: 1px solid var(--color-ed-rule-strong);
+    border-radius: 4px;
+    background: transparent;
+    font: inherit;
+    color: var(--color-ed-fg);
+    cursor: pointer;
+    transition:
+      color 180ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+  .friend-bark-btn:hover:not([aria-disabled="true"]) {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+    background: rgba(166, 58, 43, 0.06);
+  }
+  .friend-bark-btn[aria-disabled="true"] {
+    color: var(--color-ed-subtle);
+    border-color: var(--color-ed-hairline);
+    cursor: default;
+  }
+  .friend-bark-hint {
+    margin: 0.7rem 0 0;
     font-size: 0.8125rem;
-    line-height: 1.75;
+    line-height: 1.6;
     color: var(--color-ed-muted);
   }
-  .friend-apply a {
+  .friend-bark-hint a {
     color: var(--color-ed-fg);
     text-decoration: underline;
     text-decoration-color: var(--color-ed-subtle);
-    text-underline-offset: 0.15em;
   }
 
   /* 页头右侧：本站二维码 + 开往（按钮态样式走全局 button.page-head__aside） */
@@ -389,9 +315,51 @@ const fmtDay = (iso: string) =>
 
   @media (max-width: 640px) {
     .friend-grid,
-    .friend-posts,
     .friend-info {
       grid-template-columns: 1fr;
     }
   }
 </style>
+
+<script>
+  // Bark 推送：点击 → POST /api/bark（Worker 限每人每天一次 + 转发到站长 Bark）。
+  // 推送成功/当日已提醒则禁用按钮；失败（502/503）可重试。
+  // 模块级 document 委托，VT 换页安全
+  document.addEventListener("click", async (e) => {
+    const btn = (e.target as Element).closest?.(
+      "#bark-push"
+    ) as HTMLButtonElement | null;
+    if (!btn || btn.dataset.busy === "1" || btn.getAttribute("aria-disabled") === "true") {
+      return;
+    }
+    const hint = document.getElementById("bark-hint");
+    const baseText = btn.textContent;
+    btn.dataset.busy = "1";
+    btn.textContent = "推送中…";
+    try {
+      const res = await fetch("/api/bark", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.ok) {
+        btn.textContent = "今日已提醒 ✓";
+        btn.setAttribute("aria-disabled", "true");
+        if (hint) hint.textContent = "提醒已送达站长手机；记得到 GitHub 提交申请。";
+      } else if (data.error === "daily_cap") {
+        btn.textContent = "今日名额已满";
+        btn.setAttribute("aria-disabled", "true");
+        if (hint) hint.textContent = "今天的提醒额度已被领完，明天再来吧。";
+      } else if (res.status === 429 || data.error === "already_sent") {
+        btn.textContent = "今日已提醒过啦";
+        btn.setAttribute("aria-disabled", "true");
+        if (hint) hint.textContent = "每人每天一次，明天再来提醒我吧。";
+      } else {
+        btn.textContent = baseText;
+        if (hint) hint.textContent = "推送暂时失败，请到 GitHub 直接提申请。";
+      }
+    } catch {
+      btn.textContent = baseText;
+      if (hint) hint.textContent = "网络异常，请稍后再试。";
+    } finally {
+      btn.dataset.busy = "0";
+    }
+  });
+</script>
