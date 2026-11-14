@@ -405,7 +405,8 @@ const friendItems = FRIENDS.map((f) => ({
     if (chimeRaf || !siteNav || !chimeBtn) return;
     chimeRaf = requestAnimationFrame(() => {
       chimeRaf = 0;
-      chimeBtn.style.top = `${siteNav.getBoundingClientRect().bottom + 6}px`;
+      // 紧贴导航分割线：只留 1px，避免风铃悬空
+      chimeBtn.style.top = `${siteNav.getBoundingClientRect().bottom + 1}px`;
     });
   };
   placeChime();
@@ -491,7 +492,9 @@ const friendItems = FRIENDS.map((f) => ({
       stringEl.style.height = `${STRING_BASE + Math.max(-22, offset)}px`;
     }
     if (chimeBtn) {
-      chimeBtn.style.transform = `rotate(${((swing * 180) / Math.PI).toFixed(2)}deg)`;
+      // swing 以物理约定存值（正 = 向右），CSS rotate 正角是顺时针——
+      // 挂点在上方时顺时针会让铃体向左跑，渲染取负号才是「向右拉风铃向右」
+      chimeBtn.style.transform = `rotate(${(-((swing * 180) / Math.PI)).toFixed(2)}deg)`;
     }
   }
 
