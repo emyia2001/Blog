@@ -15,8 +15,6 @@ const { nodes, links, lazy = false, bare = false } = Astro.props;
 const graphData = JSON.stringify({ nodes, links }).replace(/</g, "\\u003c");
 const nodeCount = nodes.length;
 const linkCount = links.length;
-// 有友链站点节点才渲染对应图例项（MiniGraph 等场景没有友链，图例不放空项）
-const hasFriends = nodes.some((n) => n.kind === "friend");
 ---
 
 <figure id="graph-view" class="graph-view" data-lazy={lazy ? "1" : undefined} data-bare={bare ? "1" : undefined}>
@@ -126,15 +124,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         <li>
           <span class="graph-legend-glyph" aria-hidden="true">
             <svg viewBox="0 0 16 16">
-              <circle cx="8" cy="8" r="5.6" fill="var(--color-ed-fg)"></circle>
-              <circle cx="8" cy="8" r="7" fill="none" stroke="var(--color-ed-accent)" stroke-width="1"></circle>
-            </svg>
-          </span>
-          我
-        </li>
-        <li>
-          <span class="graph-legend-glyph" aria-hidden="true">
-            <svg viewBox="0 0 16 16">
               <circle cx="8" cy="8" r="3.6" fill="var(--color-ed-fg)"></circle>
             </svg>
           </span>
@@ -156,26 +145,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
           </span>
           事件
         </li>
-        {hasFriends && (
-          <li>
-            <span class="graph-legend-glyph" aria-hidden="true">
-              <svg viewBox="0 0 16 16">
-                <circle cx="8" cy="8" r="4.6" fill="none" stroke="var(--color-ed-accent)" stroke-width="1.4" stroke-dasharray="2.6 1.8"></circle>
-              </svg>
-            </span>
-            友链站点
-          </li>
-        )}
-        {hasFriends && (
-          <li>
-            <span class="graph-legend-glyph" aria-hidden="true">
-              <svg viewBox="0 0 16 16">
-                <circle cx="8" cy="8" r="2.8" fill="none" stroke="var(--color-ed-fg)" stroke-width="1.2"></circle>
-              </svg>
-            </span>
-            友链文章
-          </li>
-        )}
       </ul>
 
       <aside
@@ -574,11 +543,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     stroke: rgba(28, 28, 28, 0.24);
     stroke-width: 1;
   }
-  :global(.graph-link--friend) {
-    stroke: rgba(166, 58, 43, 0.38);
-    stroke-width: 1;
-    stroke-dasharray: 3 2.4;
-  }
   :global(.graph-link--peer) {
     stroke: rgba(28, 28, 28, 0.44);
     stroke-width: 1.4;
@@ -586,6 +550,14 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   :global(.graph-link.is-hot) {
     stroke: var(--color-ed-accent);
     stroke-width: 2.2;
+  }
+
+  /* 节点可拖拽（Obsidian 式）：静置 grab、按住 grabbing */
+  :global(.graph-node) {
+    cursor: grab;
+  }
+  :global(.graph-node:active) {
+    cursor: grabbing;
   }
 
   @keyframes graph-in {
@@ -842,6 +814,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
 
 <script>
   import type { GraphLink, GraphNode } from "../utils/graphData";
+  import { initSnake } from "../utils/graphSnake";
 
   async function initGraph() {
   const svg = document.querySelector<SVGSVGElement>("#graph-svg")!;
@@ -886,6 +859,8 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   const nodes = data.nodes.map((n) => ({ ...n })) as SimNode[];
   const links = data.links.map((l) => ({ ...l }));
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  // 书虫吞下的节点 id：collide 半径归零、连线沉底（集合由 graphSnake 模块增删）
+  const swallowedIds = new Set<string>();
 
   // 节点较多时隐藏常驻标签（见 .graph-layout.is-dense），避免整页叠字
   if (nodes.length > 18) {
@@ -904,14 +879,12 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   );
   // 半径（事件的菱形按 L1 半径计）
   const R = {
-    self: 6 * nodeScale, // 与文章点等大（相关文章图谱里中心与环绕一致）
+    self: 6 * nodeScale, // 相关文章图谱的中心（当前文章，与环绕文章点等大）
     avatarSelf: 12 * nodeScale,
-    avatar: 12 * nodeScale, // 友链头像：与自我头像同大（用户要求）
-    year: 9.5 * nodeScale, // 年
+    avatar: 12 * nodeScale, // 头像节点
     node: 6 * nodeScale, // 文章
     person: 7 * nodeScale,
     event: 8 * nodeScale,
-    friendPost: 5 * nodeScale, // 友链文章：小一号的空心点，视觉弱于自家内容
     hit: 20 * nodeScale,
     collide: 34 * nodeScale,
   };
@@ -920,259 +893,43 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     if (n.avatar) return n.kind === "self" ? R.avatarSelf : R.avatar;
     if (n.kind === "self") return R.self;
     if (n.kind === "event") return R.event;
-    if (n.kind === "year") return R.year;
-    if (n.kind === "friend") return R.year; // 友链站点与年份同环同级，半径一致
-    if (n.kind === "friendPost") return R.friendPost;
     if (n.kind === "person") return R.person;
     return R.node;
   };
 
-  // 中枢槽位（layoutRadial 里随画布重算）：年份/友链站点的角度锚定点
-  const hubSlots = new Map<string, { x: number; y: number }>();
-
-  // 节点父映射：友链文章 → 友链站点（layoutRadial 填充；环绕力按父查）
-  const parentOf = new Map<string, string>();
-  const friendRingByHub = new Map<string, number>();
-
-  // 极坐标分层布局（确定性，不靠力导收敛出形态）：
-  // self 居中；年份与友链站点在内椭圆带按角度均分；内容在外椭圆带、
-  // 均匀铺在各自中枢角度为中心的扇区内；友链文章不上外带，环绕各自的
-  // 友链站点节点呈小圆环均分。跨年锚点关联边因此基本不穿插。
-  // 环带是椭圆（x/y 半径独立）：宽画布横向铺满、纵向留出标签空间不裁边
-  function layoutRadial(w: number, h: number) {
+  // 初始位置：从中心按黄金角螺旋散开（确定性，无随机）——Obsidian 式纯力导
+  // 没有环带/中枢锚点，最终形态完全由连线弹簧 + 斥力涌现，孤点自然漂到外圈
+  function seedNodes(w: number, h: number) {
     const cx = w / 2;
     const cy = h / 2;
-
-    for (const l of links) {
-      const dst = String(l.target);
-      if (dst !== "self") parentOf.set(dst, String(l.source));
-    }
-
-    // 中枢节点：年份 + 友链站点（友链文章以站点为父，同构于内容以年份为父）
-    const yearNodes = nodes.filter(
-      (n) => n.kind === "year" || n.kind === "friend"
-    );
-    const yearAngle = new Map<string, number>();
-    yearNodes.forEach((n, i) => {
-      const a =
-        (i / Math.max(yearNodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
-      yearAngle.set(n.id, a);
-      n.x = cx + Math.cos(a) * bandR.ix;
-      n.y = cy + Math.sin(a) * bandR.iy;
-      hubSlots.set(n.id, { x: n.x, y: n.y });
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    nodes.forEach((n, i) => {
+      const r = 30 + Math.sqrt(i) * 46;
+      const a = i * golden;
+      n.x = cx + Math.cos(a) * r;
+      n.y = cy + Math.sin(a) * r;
     });
-
-    const selfN = nodes.find((n) => n.kind === "self");
-    if (selfN) {
-      selfN.x = cx;
-      selfN.y = cy;
-    }
-
-    // 内容按年份分组，同组在年份角度 ±0.5rad 的扇区内均分
-    const groups = new Map<string, typeof nodes>();
-    nodes
-      .filter(
-        (n) => n.kind !== "self" && n.kind !== "year" && n.kind !== "friendPost"
-      )
-      .forEach((n) => {
-        const yid = parentOf.get(n.id) ?? "";
-        if (!groups.has(yid)) groups.set(yid, []);
-        groups.get(yid)!.push(n);
-      });
-    for (const [yid, group] of groups) {
-      const base = yearAngle.get(yid);
-      // 扇区张角随组内节点数放宽上限：外椭圆横向更长，铺开些左右不空
-      const span = Math.min(1.1, 0.3 + group.length * 0.14);
-      group.forEach((n, i) => {
-        const a =
-          group.length === 1
-            ? (base ?? 0)
-            : (base ?? 0) - span / 2 + (i / (group.length - 1)) * span;
-        n.x = cx + Math.cos(a) * bandR.ox;
-        n.y = cy + Math.sin(a) * bandR.oy;
-      });
-    }
-
-    // 友链文章：环绕各自的友链站点节点（小圆环均分，起始角随中枢角度），
-    // 不再上外带扇形——虚线子图「围着自己的站点转」；环半径按子节点数写入
-    // friendRingByHub 供环绕力与连线距离使用
-    const friendChildren = new Map<string, typeof nodes>();
-    nodes
-      .filter((n) => n.kind === "friendPost")
-      .forEach((n) => {
-        const fid = parentOf.get(n.id) ?? "";
-        if (!friendChildren.has(fid)) friendChildren.set(fid, []);
-        friendChildren.get(fid)!.push(n);
-      });
-    for (const [fid, group] of friendChildren) {
-      const slot = hubSlots.get(fid);
-      if (!slot) continue;
-      const ringR = friendRingR(group.length);
-      friendRingByHub.set(fid, ringR);
-      group.forEach((n, i) => {
-        const a = (yearAngle.get(fid) ?? 0) + (i / group.length) * Math.PI * 2;
-        n.x = slot.x + Math.cos(a) * ringR;
-        n.y = slot.y + Math.sin(a) * ringR;
-      });
-    }
   }
-
-  // 环带半径跟随画布（fitViewBox 里 resize 时更新）。
-  // 椭圆双半径：横向尽量铺满宽画布（x 只留小边距），纵向给节点+标签留足空间；
-  // 上下不再贴边裁字，左右不再大片留白
-  let bandR = { ix: 70, iy: 70, ox: 150, oy: 150 };
-  const bandCenter = { x: W / 2, y: H / 2 };
-  const syncBands = (w: number, h: number) => {
-    bandR = {
-      ix: Math.max(48, Math.min(w * 0.14, w * 0.22)),
-      iy: Math.max(34, Math.min(h * 0.18, h / 2 - 64)),
-      ox: Math.max(80, Math.min(w * 0.4, w / 2 - 60)),
-      oy: Math.max(78, Math.min(h * 0.42, h / 2 - 30)),
-    };
-    bandCenter.x = w / 2;
-    bandCenter.y = h / 2;
-  };
-  syncBands(svg.clientWidth || W, svg.clientHeight || H);
-
-  // 友链文章环绕半径：随内带缩放（画布越大环越大），节点多时环稍大
-  const friendRingR = (count: number) =>
-    Math.max(52, Math.min(44 + count * 14, bandR.ix * 0.6));
-
-  // 椭圆环带力：等价 forceRadial，但 x/y 半径独立。沿径向把节点拉回自己的椭圆带：
-  // 只拉年份/友链站点（内带）与内容（外带）；self 居中不拉；友链文章由
-  // forceFriendRing 接管（环绕各自站点节点的圆环），不参与本力。
-  // 半径与中心读闭包里的 bandR/bandCenter，resize 时自动生效
-  function forceBandEllipse(alpha: number) {
-    for (const n of nodes) {
-      // self 居中不拉；友链文章由环绕力接管（forceFriendRing），不上外带
-      if (n.kind === "self" || n.kind === "friendPost") continue;
-      const dx = n.x - bandCenter.x;
-      const dy = n.y - bandCenter.y;
-      const d = Math.hypot(dx, dy);
-      if (d === 0) continue;
-      const ux = dx / d;
-      const uy = dy / d;
-      const hub = n.kind === "year" || n.kind === "friend";
-      const rx = hub ? bandR.ix : bandR.ox;
-      const ry = hub ? bandR.iy : bandR.oy;
-      // 当前方向上椭圆应到的距离：1 / hypot(ux/rx, uy/ry)
-      const target = 1 / Math.hypot(ux / rx, uy / ry);
-      const pull = (target - d) * 0.55 * alpha;
-      n.vx = (n.vx ?? 0) + ux * pull;
-      n.vy = (n.vy ?? 0) + uy * pull;
-    }
-  }
-
-  // 友链文章环绕力：沿「站点→文章」方向把友链文章拉到各自站点节点的圆环上
-  // （半径由 layoutRadial 按子节点数写入 friendRingByHub，resize 随画布重算）。
-  // 只约束半径不约束角度，角度由 collide/charge 自然均分
-  function forceFriendRing(alpha: number) {
-    for (const n of nodes) {
-      if (n.kind !== "friendPost") continue;
-      const hub = nodeById.get(parentOf.get(n.id) ?? "");
-      if (!hub) continue;
-      const ringR = friendRingByHub.get(hub.id);
-      if (!ringR) continue;
-      const dx = n.x - hub.x;
-      const dy = n.y - hub.y;
-      const d = Math.hypot(dx, dy) || 1;
-      const ux = dx / d;
-      const uy = dy / d;
-      const pull = (ringR - d) * 0.5 * alpha;
-      n.vx = (n.vx ?? 0) + ux * pull;
-      n.vy = (n.vy ?? 0) + uy * pull;
-    }
-  }
-
-  // 连线目标距离（与椭圆带同源，让连线力与环带力同向而不是互相打架）：
-  //   self—中枢（年/友链站点）：该方向的内带半径
-  //   中枢—内容（含友链站点—友链文章）：该方向的带间距（外带 − 内带）
-  //   内容—内容（锚点关联）：固定短边，表达「强关联」
-  const bandRadiusAt = (
-    ux: number,
-    uy: number,
-    band: "inner" | "outer"
-  ): number => {
-    const rx = band === "inner" ? bandR.ix : bandR.ox;
-    const ry = band === "inner" ? bandR.iy : bandR.oy;
-    const h = Math.hypot(ux / rx, uy / ry);
-    // 方向为零向量时 hypot=0 会除出 Infinity，回退到纵半径
-    return h > 0 ? 1 / h : ry;
-  };
-  const bandLinkDistance = (l: { source: unknown; target: unknown }) => {
-    const s = l.source as SimNode | string;
-    const t = l.target as SimNode | string;
-    const sid = typeof s === "string" ? s : s.id;
-    const tid = typeof t === "string" ? t : t.id;
-    let ret: number;
-    if (sid === "self" || tid === "self") {
-      // 取「非 self」的一端为中枢（按 id 判断，不能按是否为字符串判断——
-      // d3 已把端点解析成节点对象）
-      const hub = (sid === "self" ? t : s) as SimNode;
-      const dx = hub.x - bandCenter.x;
-      const dy = hub.y - bandCenter.y;
-      const d = Math.hypot(dx, dy) || 1;
-      ret = bandRadiusAt(dx / d, dy / d, "inner");
-    } else {
-      const sHub = sid.startsWith("year-") || sid.startsWith("friend-");
-      const tHub = tid.startsWith("year-") || tid.startsWith("friend-");
-      if (sHub || tHub) {
-        const so = s as SimNode;
-        const to = t as SimNode;
-        // 友链站点→其文章：环绕半径（其余中枢→内容仍是外带间距）
-        const hubN =
-          so.kind === "friend" ? so : to.kind === "friend" ? to : null;
-        const childN = hubN ? (hubN === so ? to : so) : null;
-        if (hubN && childN && childN.kind === "friendPost") {
-          ret = friendRingByHub.get(hubN.id) ?? 100;
-        } else {
-          const dx = to.x - so.x;
-          const dy = to.y - so.y;
-          const d = Math.hypot(dx, dy) || 1;
-          ret =
-            bandRadiusAt(dx / d, dy / d, "outer") -
-            bandRadiusAt(dx / d, dy / d, "inner");
-        }
-      } else {
-        ret = 90; // 内容之间的锚点关联边：短，表达「强关联」
-      }
-    }
-    // 兜底：任何非有限值都会被 d3 link 力直接写进节点速度（NaN 污染全图）
-    return Number.isFinite(ret) ? ret : 120;
-  };
-
-  // 中枢角度锚定：把年份/友链站点往各自槽位拉（弹簧式，resize 重排后回位）。
-  // 环带力只约束半径、不约束角度，没有它中枢会在力导里整体漂移聚堆，
-  // 椭圆布局被挤到一角、另一侧大片留白
-  function forceHubSlots(alpha: number) {
-    for (const n of nodes) {
-      if (n.kind !== "year" && n.kind !== "friend") continue;
-      const slot = hubSlots.get(n.id);
-      if (!slot) continue;
-      n.vx = (n.vx ?? 0) + (slot.x - n.x) * 0.5 * alpha;
-      n.vy = (n.vy ?? 0) + (slot.y - n.y) * 0.5 * alpha;
-    }
-  }
-
-  layoutRadial(svg.clientWidth || W, svg.clientHeight || H);
+  seedNodes(svg.clientWidth || W, svg.clientHeight || H);
 
   const NS = "http://www.w3.org/2000/svg";
+
+  // 连线默认透明度：Obsidian 式「淡网」，悬停/选中节点时关联线点亮到 1
+  const LINK_FADED_OPACITY = "0.35";
 
   const linkEls = links.map((l, i) => {
     const line = document.createElementNS(NS, "line");
     const sid = String(l.source);
     const tid = String(l.target);
+    // self 连线仅出现在相关文章迷你图谱（当前文章 → 相关文章）
     const isSelfLink = sid === "self" || tid === "self";
-    // 友链子图的连线（friend- 前缀同时覆盖站点与文章节点）
-    const isFriendLink = sid.startsWith("friend-") || tid.startsWith("friend-");
     line.setAttribute(
       "class",
-      isSelfLink
-        ? "graph-link graph-link--self"
-        : isFriendLink
-          ? "graph-link graph-link--friend"
-          : "graph-link graph-link--peer"
+      isSelfLink ? "graph-link graph-link--self" : "graph-link graph-link--peer"
     );
+    // 默认淡化连线（Obsidian 式）：悬停/选中节点才点亮关联线；
+    // bare 迷你图的连线就是信息本体，不淡化
+    if (!isBare) line.setAttribute("opacity", LINK_FADED_OPACITY);
     line.style.animationDelay = `${i * 24}ms`;
     linksG.appendChild(line);
     return line;
@@ -1193,7 +950,8 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     g.setAttribute("role", "button");
     g.setAttribute("tabindex", "0");
     g.setAttribute("aria-label", `${kindLabel(n.kind)}：${n.title}`);
-    g.style.cursor = "pointer";
+    // bare 迷你图是导航组件（点击跳转），保持 pointer；全图节点可拖拽走 CSS grab
+    if (isBare) g.style.cursor = "pointer";
     g.style.animationDelay = `${80 + ni * 40}ms`;
 
     const r = radiusOf(n);
@@ -1276,34 +1034,6 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       shape.setAttribute("stroke", "var(--color-ed-bg)");
       shape.setAttribute("stroke-width", "2");
       g.appendChild(shape);
-    } else if (n.kind === "year") {
-      // 年：砖红空心圆，视觉权重要明显高于内容节点
-      const shape = document.createElementNS(NS, "circle");
-      shape.setAttribute("class", "graph-node-shape");
-      shape.setAttribute("r", String(R.year));
-      shape.setAttribute("fill", "var(--color-ed-bg)");
-      shape.setAttribute("stroke", "var(--color-ed-accent)");
-      shape.setAttribute("stroke-width", "2.2");
-      g.appendChild(shape);
-    } else if (n.kind === "friend") {
-      // 友链站点：砖红虚线空心环——同环但与年份实线环区分（有头像走上面的头像分支）
-      const shape = document.createElementNS(NS, "circle");
-      shape.setAttribute("class", "graph-node-shape");
-      shape.setAttribute("r", String(R.year));
-      shape.setAttribute("fill", "var(--color-ed-bg)");
-      shape.setAttribute("stroke", "var(--color-ed-accent)");
-      shape.setAttribute("stroke-width", "2");
-      shape.setAttribute("stroke-dasharray", "3.4 2.2");
-      g.appendChild(shape);
-    } else if (n.kind === "friendPost") {
-      // 友链文章：小空心点，与自家实心文章点区分
-      const shape = document.createElementNS(NS, "circle");
-      shape.setAttribute("class", "graph-node-shape");
-      shape.setAttribute("r", String(R.friendPost));
-      shape.setAttribute("fill", "var(--color-ed-bg)");
-      shape.setAttribute("stroke", "var(--color-ed-fg)");
-      shape.setAttribute("stroke-width", "1.2");
-      g.appendChild(shape);
     } else if (n.kind === "post") {
       const shape = document.createElementNS(NS, "circle");
       shape.setAttribute("class", "graph-node-shape");
@@ -1330,7 +1060,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     label.setAttribute("text-anchor", "middle");
     label.setAttribute("dominant-baseline", "middle");
     label.setAttribute("y", String(sign * (r + 13)));
-    if (isSelf || n.kind === "year") label.style.fontWeight = "600";
+    if (isSelf) label.style.fontWeight = "600";
     label.textContent =
       n.title.length > maxLabelChars
         ? `${n.title.slice(0, maxLabelChars - 1)}…`
@@ -1349,10 +1079,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         post: "文章",
         person: "人物",
         event: "事件",
-        year: "年份",
-        self: "我",
-        friend: "友链站点",
-        friendPost: "友链文章",
+        self: "当前文章",
       }[kind] ?? "节点"
     );
   }
@@ -1378,19 +1105,21 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       "link",
       forceLink(links as never)
         .id((d: GraphNode) => d.id)
-        // 分层边长与椭圆带同源（见 bandLinkDistance）：层级内聚不穿插，
-        // 连线力把内容推到外带上而不是往里收
-        .distance(bandLinkDistance)
+        // 统一短边：真实关联（graph.links / 站内 md 链接）表达「强关联」
+        .distance(110)
     )
-    .force("charge", forceManyBody().strength(-160))
-    // 椭圆环带约束：self 固定圆心；年份与友链站点拉到内椭圆带；内容/友链文章拉到外椭圆带。
-    // 力导在带内自由排布，形态自然但层级分明（对比静态定格的僵硬感）
-    .force("band", forceBandEllipse)
-    .force("friendRing", forceFriendRing)
-    .force("hubSlots", forceHubSlots)
+    // Obsidian 式纯力导：斥力摊开 + 碰撞防叠 + 中心聚拢，没有环带/中枢锚点，
+    // 连线密集处自然成簇，孤点漂到外圈
+    .force("charge", forceManyBody().strength(-200))
     .force("center", forceCenter(W / 2, H / 2))
-    .force("collide", forceCollide().radius(R.collide))
-    // "self" is pinned to the center
+    // 被书虫吞下的节点不占碰撞位（隐身且钉在原地）
+    .force(
+      "collide",
+      forceCollide().radius((d: GraphNode) =>
+        swallowedIds.has(d.id) ? 0 : R.collide
+      )
+    )
+    // "self" is pinned to the center（相关文章迷你图谱：当前文章居中）
     .force(
       "x",
       forceX(W / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
@@ -1400,12 +1129,14 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       forceY(H / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
     )
     .on("tick", ticked);
-  // 力导自动开跑：layoutRadial 提供的初始位置 + radial 环带约束收敛
+  // 力导自动开跑：seedNodes 提供初始位置，收敛后 alpha 衰减自动停表
 
   let resizeObserver: ResizeObserver | null = null;
 
   function cleanup() {
     cleanupController.abort();
+    disposeSnake?.();
+    disposeSnake = null;
     stopZoomAnim();
     resizeObserver?.disconnect();
     resizeObserver = null;
@@ -1439,6 +1170,24 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     once: true,
     signal: cleanupController.signal,
   });
+
+  // 彩蛋：墨色书虫（蠹鱼）——在图里漫游、叼走节点过会儿吐回、鼠标靠近逃跑。
+  // bare 迷你图 / reduce-motion / 节点太少（书虫没得挑）都不养
+  let disposeSnake: (() => void) | null = null;
+  if (!isBare && !prefersReducedMotion && nodes.length >= 3) {
+    disposeSnake = initSnake({
+      svg,
+      zoomG,
+      nodes,
+      nodeEls,
+      links,
+      linkEls,
+      swallowedIds,
+      restingLinkOpacity: LINK_FADED_OPACITY,
+      busyId: () => dragNode?.id ?? activeId ?? null,
+      cleanupSignal: cleanupController.signal,
+    });
+  }
 
   function resolveNode(
     ref: string | (GraphNode & { x?: number; y?: number })
@@ -1477,25 +1226,18 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
   }
 
   function ticked() {
-    linkEls.forEach((line, i) => {
-      const l = links[i];
-      const s = resolveNode(l.source);
-      const t = resolveNode(l.target);
-      if (!s || !t) return;
-      const [x1, y1, x2, y2] = edgePoints(s, t);
-      line.setAttribute("x1", String(x1));
-      line.setAttribute("y1", String(y1));
-      line.setAttribute("x2", String(x2));
-      line.setAttribute("y2", String(y2));
-    });
     const w = viewW || W;
     const h = viewH || H;
+    // 节点先 clamp、连线后重算——顺序不能反：
+    // 在线模式下 ticked 由 d3 定时器的 tick 事件逐帧驱动，离线定格（reduce-motion）
+    // 下由显式调用驱动（d3 的手动 simulation.tick() 不派发事件）。clamp 会改写
+    // 节点坐标，若先画线，线端点会停在节点被压回边界之前的旧位置，缩略图上整段错开
     nodeEls.forEach((g, i) => {
       const n = nodes[i];
-        // 兜底 clamp：节点本体压进画布内边距，上下不再顶边
-        // （下边距更大，给下侧标签留位；标签另有独立 clamp）
-        n.x = Math.min(Math.max(n.x, 26), Math.max(w - 26, 26));
-        n.y = Math.min(Math.max(n.y, 38), Math.max(h - 42, 38));
+      // 兜底 clamp：节点本体压进画布内边距，上下不再顶边
+      // （下边距更大，给下侧标签留位；标签另有独立 clamp）
+      n.x = Math.min(Math.max(n.x, 26), Math.max(w - 26, 26));
+      n.y = Math.min(Math.max(n.y, 38), Math.max(h - 42, 38));
       g.setAttribute("transform", `translate(${n.x},${n.y})`);
 
       // 标签贴着节点但在画布内：越界的部分向内收，避免被裁掉
@@ -1515,10 +1257,32 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         label.setAttribute("y", String(y - n.y));
       }
     });
+    linkEls.forEach((line, i) => {
+      const l = links[i];
+      const s = resolveNode(l.source);
+      const t = resolveNode(l.target);
+      if (!s || !t) return;
+      const [x1, y1, x2, y2] = edgePoints(s, t);
+      line.setAttribute("x1", String(x1));
+      line.setAttribute("y1", String(y1));
+      line.setAttribute("x2", String(x2));
+      line.setAttribute("y2", String(y2));
+    });
   }
 
   // Fit the viewBox to the visible canvas so the graph fills it (no letterboxing)
   let fitTries = 0;
+  let graphFitted = false;
+
+  // reduce-motion 退路：离线松弛 90 tick 后定格（手动 tick 不派发事件，
+  // DOM 落盘由循环后的显式 ticked() 一次完成——节点先 clamp、连线后重算）
+  function settleOffline() {
+    simulation.alpha(1);
+    for (let i = 0; i < 90; i++) simulation.tick();
+    ticked();
+    simulation.stop();
+  }
+
   function fitViewBox() {
     if (!svg.isConnected) {
       fitTries = 0;
@@ -1532,8 +1296,11 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       return;
     }
     fitTries = 0;
+    const sizeChanged = viewW !== w || viewH !== h;
+    const firstFit = !graphFitted;
     viewW = w;
     viewH = h;
+    graphFitted = true;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     measureLabels();
     simulation.force("center", forceCenter(w / 2, h / 2));
@@ -1546,21 +1313,22 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         "y",
         forceY(h / 2).strength((d: GraphNode) => (d.kind === "self" ? 1 : 0))
       );
-    // 画布变化：syncBands 更新椭圆半径与中心（bandLinkDistance 随之生效），
-    // layoutRadial 重摆初始位，再让力导在新画布上重新收敛
-    syncBands(w, h);
-    layoutRadial(w, h);
-    simulation.force("center", forceCenter(w / 2, h / 2));
-    const linkForce = simulation.force("link") as {
-      distance: (v: unknown) => unknown;
-    } | null;
-    linkForce?.distance(bandLinkDistance);
-    // 确定性静态布局：离线松弛 90 tick 后即定格——默认初始化位置就是最终位置，
-    // 不再有力导定时器/漂移；resize/展开时走同一条重排路径
-    simulation.alpha(1);
-    for (let i = 0; i < 90; i++) simulation.tick();
-    ticked();
-    simulation.stop();
+    // 画布变化：只更新中心/轴向力与夹取边界，节点在力导下滑向新画布中心（回流）
+    if (firstFit) {
+      // 首次定位：立即落盘一帧；在线力导自创建起已在跑（tick 事件逐帧驱动
+      // ticked），alpha 衰减到阈值后 d3 自动停表，静止时不漂移
+      ticked();
+      if (prefersReducedMotion) settleOffline();
+      return;
+    }
+    // 同尺寸触发（load / fonts.ready）：只补测量与锚点，不重排
+    if (!sizeChanged) return;
+    if (prefersReducedMotion) {
+      settleOffline();
+    } else {
+      // Obsidian 式回流：小幅预热，节点在力导下滑到新画布的位置后自然沉降
+      simulation.alpha(0.4).restart();
+    }
   }
   resizeObserver = new ResizeObserver(fitViewBox);
   resizeObserver.observe(svg);
@@ -1663,6 +1431,17 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     return pt.matrixTransform(svg.getScreenCTM()!.inverse());
   }
 
+  // 拖拽目标坐标必须落在 #graph-zoom 空间（节点 x/y 是 zoom 层坐标）：
+  // 对 zoom 层求 getScreenCTM 逆矩阵，viewBox 与 zoom 的平移缩放一次算齐
+  function zoomPoint(e: { clientX: number; clientY: number }) {
+    const ctm = zoomG.getScreenCTM();
+    if (!ctm) return svgPoint(e);
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    return pt.matrixTransform(ctm.inverse());
+  }
+
   svg.addEventListener(
     "wheel",
     (e) => {
@@ -1748,6 +1527,14 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     py: number;
   } | null = null;
 
+  // 节点拖拽（Obsidian 式）：拖过阈值后用 fx/fy 钉住节点并预热力导（alpha 0.3），
+  // 邻居经连线弹簧/斥力被自然牵动；松手释放钉住、alphaTarget 归零降温，
+  // 全网回流沉降后 d3 自动停表。拖动 >3px 才算拖拽（纯点击不惊动力导）；
+  // reduce-motion 退化为直接落位；bare 迷你图不支持拖拽
+  let dragNode: SimNode | null = null;
+  let dragStart: { x: number; y: number } | null = null;
+  let dragMoved = false;
+
   function selectOrToggle(id: string) {
     if (activeId === id) {
       clearActive();
@@ -1792,6 +1579,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         };
         pointerId = null;
         downOnNode = false;
+        dragNode = null; // 第二根手指落下即转捏合，挂起的拖拽作废
         return;
       }
 
@@ -1817,6 +1605,12 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       pointerId = target.dataset.id ?? null;
       if (pointerId) {
         target.focus();
+        // 记录拖拽起点：bare 迷你图是导航组件，不支持拖拽
+        if (!isBare) {
+          dragNode = nodeById.get(pointerId) ?? null;
+          dragStart = dragNode ? { x: dragNode.x, y: dragNode.y } : null;
+          dragMoved = false;
+        }
       }
     },
     { signal: cleanupController.signal }
@@ -1839,6 +1633,35 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
         applyZoom();
         return;
       }
+      // 节点拖拽：拖过阈值即钉住节点（fx/fy）并预热力导，邻居被连线弹簧牵动；
+      // reduce-motion 不惊动力导，直接落位
+      if (dragNode) {
+        const p = zoomPoint(e);
+        if (
+          !dragMoved &&
+          dragStart &&
+          Math.hypot(p.x - dragStart.x, p.y - dragStart.y) > 3
+        ) {
+          dragMoved = true;
+          if (!prefersReducedMotion) {
+            // 先钉在当前位置避免起跳，再预热力导
+            dragNode.fx = dragNode.x;
+            dragNode.fy = dragNode.y;
+            simulation.alpha(0.3);
+            simulation.alphaTarget(0.3);
+            simulation.restart();
+          }
+        }
+        if (!prefersReducedMotion) {
+          dragNode.fx = p.x;
+          dragNode.fy = p.y;
+        } else {
+          dragNode.x = p.x;
+          dragNode.y = p.y;
+          ticked();
+        }
+        return;
+      }
       // 空白处平移：按住拖动 = 移动视图
       if (panState && e.pointerId === panState.id) {
         zoom.tx = panState.tx + (e.clientX - panState.x);
@@ -1854,7 +1677,19 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     if (e) pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     panState = null;
-    if (!cancelled && downOnNode && pointerId) {
+    const wasDrag = dragNode;
+    const moved = dragMoved;
+    // 释放钉住并降温：alphaTarget 归零后力导自然回流沉降、衰减停表
+    if (wasDrag && moved && !prefersReducedMotion) {
+      wasDrag.fx = null;
+      wasDrag.fy = null;
+      simulation.alphaTarget(0);
+    }
+    dragNode = null;
+    dragStart = null;
+    dragMoved = false;
+    // 拖动过的松手不算点击（不选中/不跳转）
+    if (!cancelled && !moved && wasDrag && downOnNode && pointerId) {
       activateNode(pointerId);
     }
     pointerId = null;
@@ -2059,8 +1894,22 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     linkEls.forEach((line, i) => {
       const [sid, tid] = linkEndIds(links[i]);
       const hot = !!focus && (sid === focus || tid === focus);
-      line.setAttribute("opacity", !nb ? "1" : hot ? "1" : "0.12");
-      line.classList.toggle("is-hot", hot);
+      // 被吞节点相关的连线沉到近隐（书虫进食中）
+      const eaten = swallowedIds.has(sid) || swallowedIds.has(tid);
+      // 无焦点：整网淡化；有焦点：关联线点亮、无关线压到近隐
+      line.setAttribute(
+        "opacity",
+        eaten
+          ? "0.05"
+          : !nb
+            ? isBare
+              ? "1"
+              : LINK_FADED_OPACITY
+            : hot
+              ? "1"
+              : "0.12"
+      );
+      line.classList.toggle("is-hot", hot && !eaten);
     });
   }
 
@@ -2155,21 +2004,11 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
       wrap.appendChild(rel);
     }
 
-    if (n.url && (n.kind === "post" || n.kind === "friend" || n.kind === "friendPost")) {
+    if (n.url && n.kind === "post") {
       const a = document.createElement("a");
       a.href = n.url;
       a.className = "graph-preview-link hover-underline";
-      a.textContent =
-        n.kind === "post"
-          ? "阅读全文 →"
-          : n.kind === "friend"
-            ? "前往 TA 的站点 ↗"
-            : "前往原文 ↗";
-      // 友链两类都是外站，新窗口打开别把浏览上下文带跑
-      if (n.kind !== "post") {
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-      }
+      a.textContent = "阅读全文 →";
       wrap.appendChild(a);
     }
     return wrap;
@@ -2221,7 +2060,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     g.addEventListener(
       "pointerenter",
       (e) => {
-        if (e.pointerType !== "mouse") return;
+        if (e.pointerType !== "mouse" || dragNode) return;
         hoverId = g.dataset.id ?? null;
         refreshHighlight();
       },
@@ -2230,7 +2069,7 @@ const hasFriends = nodes.some((n) => n.kind === "friend");
     g.addEventListener(
       "pointerleave",
       (e) => {
-        if (e.pointerType !== "mouse") return;
+        if (e.pointerType !== "mouse" || dragNode) return;
         if (hoverId === g.dataset.id) {
           hoverId = null;
           refreshHighlight();

@@ -9,6 +9,7 @@ import {
   SITE_SOCIAL,
 } from "../consts";
 import { FRIENDS } from "../data/friends";
+import { fetchFriendFeeds } from "../utils/friendFeeds";
 import FriendTreeDialog from "../components/FriendTreeDialog.astro";
 
 const github = SITE_SOCIAL.find((s) => s.icon === "mdi:github");
@@ -21,6 +22,11 @@ const friendItems = FRIENDS.map((f) => ({
   desc: f.desc,
   avatar: f.avatar ?? null,
 }));
+
+// 友链最新文章（构建期抓取，每日定时构建自动刷新；失败只 warn 不挂构建）
+const friendFeeds = await fetchFriendFeeds(FRIENDS);
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
 ---
 
 <BaseLayout title="友链" description="友链：独立博客之间的互相推荐与交换。">
@@ -82,6 +88,40 @@ const friendItems = FRIENDS.map((f) => ({
             </li>
           ))}
         </ul>
+      </section>
+    )}
+
+    {friendFeeds.length > 0 && (
+      <section class="mb-14" aria-labelledby="friend-posts-label">
+        <h2 class="section-label section-label--plain" id="friend-posts-label">
+          友链文章
+        </h2>
+        <div class="friend-posts">
+          {friendFeeds.map((feed) => (
+            <div class="friend-feed reveal">
+              <h3 class="friend-feed__site">
+                <a href={feed.url} target="_blank" rel="noopener noreferrer">
+                  {feed.name}
+                </a>
+              </h3>
+              <ul class="friend-feed__list">
+                {feed.posts.map((p) => (
+                  <li class="friend-feed__item">
+                    <a
+                      class="friend-feed__title"
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {p.title}
+                    </a>
+                    {p.date && <time class="friend-feed__date">{fmtDay(p.date)}</time>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </section>
     )}
 
@@ -233,6 +273,68 @@ const friendItems = FRIENDS.map((f) => ({
     height: 1.125rem;
   }
 
+  /* 友链文章：每个站点一块，标题行 + 日期，外链新窗口打开 */
+  .friend-posts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .friend-feed {
+    padding: 1.1rem 1.15rem 1.25rem;
+    border-radius: 4px;
+    background: rgba(28, 28, 28, 0.035);
+  }
+  .friend-feed__site {
+    margin: 0 0 0.65rem;
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    font-weight: 400;
+  }
+  .friend-feed__site a {
+    color: var(--color-ed-fg);
+    transition: color 180ms ease;
+  }
+  .friend-feed__site a:hover {
+    color: var(--color-ed-accent);
+  }
+  .friend-feed__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .friend-feed__item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .friend-feed__title {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-ed-fg);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 180ms ease;
+  }
+  .friend-feed__title:hover {
+    color: var(--color-ed-accent);
+  }
+  .friend-feed__title::after {
+    content: " ↗";
+    font-size: 0.75rem;
+    color: var(--color-ed-subtle);
+  }
+  .friend-feed__date {
+    flex: none;
+    font-size: 0.6875rem;
+    color: var(--color-ed-subtle);
+  }
+
   .friend-info {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -302,6 +404,7 @@ const friendItems = FRIENDS.map((f) => ({
 
   @media (max-width: 640px) {
     .friend-grid,
+    .friend-posts,
     .friend-info {
       grid-template-columns: 1fr;
     }

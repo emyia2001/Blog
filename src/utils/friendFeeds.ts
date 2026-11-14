@@ -1,11 +1,11 @@
 import { XMLParser } from "fast-xml-parser";
 import type { FriendLink } from "../data/friends";
 
-// 友链 RSS/Atom 取数（构建时执行，烤进归档页关系图谱）。
+// 友链 RSS/Atom 取数（构建时执行，烤进友链页「友链文章」板块）。
 // 与 contributions.ts 同一套纪律：带超时、逐级回退、任何失败只 warn 不挂构建——
-// 友链站点挂了或没 feed，顶多这个站不入图，页面照常出。
+// 友链站点挂了或没 feed，顶多这个站不展示，页面照常出。
 
-/** 每个友链站点最多入图的文章数：图谱是给人看关系的，堆太多反而糊 */
+/** 每个友链站点最多展示的文章数：列表是给人扫一眼的，堆太多反而糊 */
 const POST_LIMIT = 5;
 /** 构建期单次请求超时（feed 站点偶发挂起，别把构建拖死） */
 const REQUEST_TIMEOUT_MS = 5_000;
