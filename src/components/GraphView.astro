@@ -205,7 +205,7 @@ const linkCount = links.length;
     position: relative;
     height: var(--graph-h, 26rem);
     overflow: hidden;
-    border: 1px solid var(--color-ed-rule);
+    border: 1.5px solid var(--color-ed-rule);
     border-radius: 4px;
     background:
       radial-gradient(
@@ -1296,6 +1296,8 @@ const linkCount = links.length;
       return;
     }
     fitTries = 0;
+    const oldW = viewW;
+    const oldH = viewH;
     const sizeChanged = viewW !== w || viewH !== h;
     const firstFit = !graphFitted;
     viewW = w;
@@ -1315,15 +1317,26 @@ const linkCount = links.length;
       );
     // 画布变化：只更新中心/轴向力与夹取边界，节点在力导下滑向新画布中心（回流）
     if (firstFit) {
-      // 首次定位：立即落盘一帧；在线力导自创建起已在跑（tick 事件逐帧驱动
-      // ticked），alpha 衰减到阈值后 d3 自动停表，静止时不漂移
+      // 首次亮相：立即落盘一帧；默认收起的图谱在展开前 alpha 多半已衰减
+      // 停表——重新开花收敛，展开瞬间能看到节点从种子位荡开成网
       ticked();
-      if (prefersReducedMotion) settleOffline();
+      if (prefersReducedMotion) {
+        settleOffline();
+      } else {
+        simulation.alpha(1).restart();
+      }
       return;
     }
-    // 同尺寸触发（load / fonts.ready）：只补测量与锚点，不重排
+    // 同尺寸触发（load / fonts.ready）：只补测量，不重排
     if (!sizeChanged) return;
-    if (prefersReducedMotion) {
+    // 展开/还原这类大尺寸跳变：重摆种子 + 离线定格，瞬切到新画布的正确布局
+    // ——FLIP 飞行全程遮住内部变化，不出现节点边飞边爬的破碎感；
+    // 普通窗口缩放（小增量）保持滑移回流
+    const bigDelta =
+      Math.abs(w - oldW) / Math.max(1, oldW) > 0.25 ||
+      Math.abs(h - oldH) / Math.max(1, oldH) > 0.25;
+    if (bigDelta) seedNodes(w, h);
+    if (prefersReducedMotion || bigDelta) {
       settleOffline();
     } else {
       // Obsidian 式回流：小幅预热，节点在力导下滑到新画布的位置后自然沉降
@@ -1743,6 +1756,8 @@ const linkCount = links.length;
       }
     }
     document.body.style.overflow = on ? "hidden" : "";
+    // 还原完成的广播：归档页听到后把图谱区块收回「展开」按钮态
+    if (!on) document.dispatchEvent(new CustomEvent("graph:collapsed"));
   }
   // 容器尺寸变化后：viewBox 跟随新尺寸，并按新画布重排（离线松弛后定格，
   // 保持 zoom 不动，不做自动铺满）
@@ -1857,6 +1872,19 @@ const linkCount = links.length;
     (e) => {
       e.stopPropagation();
       setExpanded(!layoutEl?.classList.contains("is-expanded"));
+    },
+    { signal: cleanupController.signal }
+  );
+
+  // 归档页「展开图谱」按钮：区块默认收起，点按钮从归档区块展开成全屏。
+  // bare 迷你图不响应
+  document.addEventListener(
+    "graph:expand",
+    () => {
+      if (isBare || expanding || layoutEl?.classList.contains("is-expanded")) {
+        return;
+      }
+      setExpanded(true);
     },
     { signal: cleanupController.signal }
   );

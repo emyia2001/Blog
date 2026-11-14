@@ -66,7 +66,6 @@ const kindLabel = (k: Entry["kind"]) =>
   k === "post" ? "文章" : k === "person" ? "人物" : "事件";
 
 // 只有混合类型时标签才有信息量：全是文章时每行都标「文章」等于没标
-const momentsCount = publishedMoments.length;
 const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
 ---
 
@@ -75,20 +74,45 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
     <header class="page-head">
       <div class="page-head__row">
         <h1 class="page-head__title">归档</h1>
-        <div class="flex items-baseline gap-5">
-          <a href="/tags/" class="page-head__aside">全部标签 <span class="aside-arrow">→</span></a>
+        <div class="flex items-center gap-4">
+          <button
+            type="button"
+            data-open-search
+            class="page-head__aside page-head__icon"
+            aria-label="搜索"
+            title="搜索"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M16.3 16.3 21 21"></path>
+            </svg>
+          </button>
+          <a
+            href="/tags/"
+            class="page-head__aside page-head__icon"
+            aria-label="全部标签"
+            title="全部标签"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3.2 13.2V4a1 1 0 0 1 1-1h9.2l7.2 7.6a2 2 0 0 1 0 2.8Z"></path>
+              <circle cx="7.8" cy="7.8" r="1.3" fill="currentColor" stroke="none"></circle>
+            </svg>
+          </a>
         </div>
       </div>
-      <p class="page-head__meta">
-        {publishedPosts.length} 篇文章{momentsCount > 0 && <> · {momentsCount} 条人物 / 事件</>}
-      </p>
     </header>
 
-    <section class="mb-14 reveal" aria-labelledby="graph-label">
-      <h2 class="section-label" id="graph-label">关系图谱</h2>
+    <section class="graph-section" aria-label="关系图谱">
       {graphNodes.length > 1 ? (
-        <div class="graph-tall">
+        <div class="graph-thumb">
           <GraphView nodes={graphNodes} links={graphLinks} />
+          <span class="graph-thumb-chip" aria-hidden="true">关系图谱</span>
+          <button
+            type="button"
+            class="graph-thumb-open"
+            aria-label="展开关系图谱"
+            title="展开关系图谱"
+          ></button>
         </div>
       ) : (
         <p class="empty-note">暂无内容。</p>
@@ -144,74 +168,73 @@ const mixedKinds = new Set(entries.map((e) => e.kind)).size > 1;
 </BaseLayout>
 
 <style>
-  /* 归档页整页宽度渲染图谱（原 /graph 页画布高度规则搬过来） */
-  .graph-tall {
-    --graph-h: clamp(24rem, 56vh, 38rem);
+  /* 关系图谱缩略条：MiniGraph 同规格的活体预览，整条可点 → 全屏展开。
+     展开时 .graph-layout 脱离本容器挂到 body，控制按钮等 chrome 随之
+     恢复显示；还原落位后 chrome 重新隐藏——作用域天然切换，无需 JS。
+     上下间距与页头底距同值，保持节奏对称 */
+  .graph-section {
+    margin-bottom: clamp(1.75rem, 3.5vw, 2.5rem);
+  }
+  .graph-thumb {
+    position: relative;
+    --graph-h: 13rem;
+  }
+  .graph-thumb :global(.graph-controls),
+  .graph-thumb :global(.graph-legend),
+  .graph-thumb :global(.graph-hint) {
+    display: none;
+  }
+  .graph-thumb-chip {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.7rem;
+    z-index: 3;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    color: var(--color-ed-subtle);
+    pointer-events: none;
+  }
+  .graph-thumb-open {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 180ms ease;
+  }
+  .graph-thumb-open:hover,
+  .graph-thumb-open:focus-visible {
+    background: rgba(166, 58, 43, 0.04);
   }
 
-  @media (max-width: 640px) {
-    .graph-tall {
-      --graph-h: 26rem;
-    }
+  /* 页头图标按钮（搜索 / 全部标签）：细线 SVG，悬停变砖红 + 微底色 */
+  .page-head__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 4px;
+    transition:
+      color 180ms ease,
+      background-color 180ms ease;
   }
-
-  /* 年份标题右侧的结构线：随年份块揭示从左长出（scaleX 0→1，不动布局宽度）。
-     无 JS 时 .js 不存在，线直接是全长；reduced-motion 也直接给全长。 */
-  .year-label::after {
-    content: "";
-    flex: 1 1 auto;
-    align-self: center;
-    height: 1px;
-    background: var(--color-ed-rule);
-    transform-origin: left center;
+  .page-head__icon svg {
+    display: block;
   }
-
-  :global(.js) .reveal .year-label::after {
-    transform: scaleX(0);
-    transition: transform 900ms var(--ease-ed) 120ms;
-  }
-
-  :global(.js) .reveal.is-visible .year-label::after {
-    transform: scaleX(1);
-  }
-
-  /* 极速换页（html.nav-fast，见 BaseLayout）：年份线不做生长编排，
-     直接全长呈现（置终态 + 杀过渡；权重须压过上面 .js .reveal 的初始态） */
-  :global(html.nav-fast) .reveal .year-label::after {
-    transform: none;
-    transition: none;
-  }
-
-  /* 「全部标签 →」箭头：hover 时右移 2px，与全站微交互同一条缓动（位移收进 hover-gate，
-     :focus-visible 的键盘反馈留在门外） */
-  .aside-arrow {
-    display: inline-block;
-    transition: transform 200ms var(--ease-ed);
-  }
-
-  .page-head__aside:focus-visible .aside-arrow {
-    transform: translateX(2px);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .page-head__aside:hover .aside-arrow {
-      transform: translateX(2px);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    :global(.js) .reveal .year-label::after {
-      transform: none;
-      transition: none;
-    }
-
-    .aside-arrow {
-      transition: none;
-    }
-
-    .page-head__aside:hover .aside-arrow,
-    .page-head__aside:focus-visible .aside-arrow {
-      transform: none;
-    }
+  .page-head__icon:hover,
+  .page-head__icon:focus-visible {
+    background: rgba(166, 58, 43, 0.06);
   }
 </style>
+
+<script>
+  // 关系图谱缩略条：整条可点，广播 graph:expand 让 GraphView 全屏展开；
+  // 还原落位即回到缩略条，无收回逻辑。模块级委托，VT 换页安全
+  document.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest?.(".graph-thumb-open")) return;
+    document.dispatchEvent(new CustomEvent("graph:expand"));
+  });
+</script>
