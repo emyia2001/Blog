@@ -173,6 +173,7 @@ export function initSnake(o: SnakeOptions): () => void {
   const gulps: Anim[] = [];
   const pops: Anim[] = [];
   const eatenAt = new Map<string, number>();
+  const eatenHome = new Map<string, Seg>(); // 被吞节点的原位（吐出时归位）
   const eatenLinks = new Map<string, SVGLineElement[]>();
 
   const pointer = { x: -9999, y: -9999 };
@@ -253,6 +254,9 @@ export function initSnake(o: SnakeOptions): () => void {
     targetNodeId = null;
     nextEatAt =
       performance.now() + EAT_COOLDOWN_MS + Math.random() * EAT_COOLDOWN_JITTER_MS;
+    // 记录原位：吞入动画会把节点吸向虫头，吐出时要回到这里，
+    // 否则节点在虫腹位置复活、连线被拉到结构之外
+    eatenHome.set(node.id, { x: node.x, y: node.y });
     // 该节点的连线沉底（吐出时恢复常态透明度）
     const mine = linkEls.filter((line, i) => {
       const l = links[i];
@@ -272,6 +276,13 @@ export function initSnake(o: SnakeOptions): () => void {
   function respawn(node: SnakeNode) {
     swallowedIds.delete(node.id);
     eatenAt.delete(node.id);
+    // 归位到被吞前的原位（越界则压回当前画布内——展开/还原换过画布时兜底）
+    const home = eatenHome.get(node.id);
+    if (home) {
+      node.x = Math.max(26, Math.min(W() - 26, home.x));
+      node.y = Math.max(38, Math.min(H() - 42, home.y));
+    }
+    eatenHome.delete(node.id);
     node.fx = null;
     node.fy = null;
     const el = nodeEls[nodes.indexOf(node)];
