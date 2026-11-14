@@ -57,7 +57,7 @@ src/
 ├── styles/                editorial.css（@theme 设计令牌 + 全局/Prose 样式）、fonts.css、giscus-theme.css
 ├── types/                 第三方无类型模块的本地声明（d3-force）
 └── utils/                 urls.ts（站内 URL 统一出口）/ readingTime.ts / graphData.ts（图谱聚合）
-│                          / contributions.ts（GitHub 热力图取数）/ friendFeeds.ts（友链 RSS 构建期取数）
+│                          / contributions.ts（GitHub 热力图取数）/ graphSnake.ts（归档页书虫彩蛋）
 │                          / editorialShikiTheme.ts
 │                          / rehype-code-block.ts / rehype-image-attrs.ts
 public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（响应头，Workers 静态资源同样读取）
@@ -74,12 +74,12 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - 必备字段：`title`、`date`、`excerpt`。常用可选：`slug`（**决定** `/blog/<slug>`，英文短名；不填则用文件名——URL 统一由 `src/utils/urls.ts` 的 `postPath()` 生成）、`tags`、`heroImage`、`articleLayout: sidebar`（目前唯一）、`draft`、`featured`、`dropCap`、`bgm`、`graph`。
 - `featured: true` 会让该文成为首页头条（多篇置顶时取最新；都没有则取最新一篇）。
 - 排版约定（来自 `src/content/posts/example-post.mdx`）：正文标题从 `##` 起（`#` 留给页面标题），可到 `####`，都会进右侧目录；文章以 800~1500 字为宜；首段自动下沉首字（除非 `dropCap: false`）。
-- **关系图谱**：正文用 wiki-link `[[锚点]]` 声明关联，锚点 = 目标节点在图谱中的 `graph.name`（默认取文章 `title`）。注意目前 `[[...]]` 只生成图谱连线，正文会原样显示方括号文字——**不要为了做内链而用 `[[...]]`**。
+- **关系图谱**：连线只来自真实关联——frontmatter `graph.links`（slug 列表，权威来源；指向不存在的 slug 构建期 warn）与正文里的站内 md 链接（`/blog/<slug>/` 形式，隐式补充）。**不要用 wiki-link `[[锚点]]` 做关联声明**——`[[...]]` 不产生连线，正文会原样显示方括号文字。
 - 示例模板：`src/content/posts/example-post.mdx`（复制改字段即可）。
 
 ### moments（纪事）
 - 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`excerpt?`、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。
-- **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进关系图谱（/graph）与归档（/archive）。
+- **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进归档页关系图谱与归档列表（/archive）。
 - **diary**（日记）：日常流水，`title`/`excerpt` 可留空——**不进图谱 / 归档 / RSS / 搜索**，只在纪事页时间线展示（轴上为方点、标签「日记」）。
 - 无独立页面；person/event 出现在「纪事」时间线（点开内联展开）与关系图谱，diary 只出现在时间线。
 - **lock 内容加密（三类都可用）**：`{ question, answer }`——构建期用 `src/utils/lockContent.ts` 把**正文** AES-GCM 加密成密文写入产物（**明文绝不进源码**），浏览器端输对 `answer` 经 PBKDF2(120000, SHA-256) 派生密钥解密，解密结果会话记忆。**安全边界**：密文+谜面都在页面里，懂技术且耐心者可离线破解，故 `answer` 必须长且唯一（勿用单词/生日/姓名）。解密后为 markdown 原文、以纯文本分段展示（不重新编译 MDX 排版）。客户端逻辑在 `timeline.astro` 的 `<script>` 中（`tryUnlock`/`decryptBlock`），事件委托处理克隆进详情区的 `.lock-box`。**BGM 与锁联动**：同一条目既配 `bgm` 又配 `lock` 时，`MiniPlayer` 会收到 `gated`——播放器先隐藏、不自动播放、也不注册「首次交互即播放」，解锁成功后由 `fillLocked()` 调 `player.unlockPlay()` 才显示并播放（会话记忆恢复走同一路径）。
@@ -89,12 +89,12 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 ### 首页/纪事/文章侧栏：个人信息与迷你关系图谱（构建期实现要点）
 - **个人信息（原 about 页，已并入首页）**：无 `/about` 页。首页 `index.astro` 右栏「关于」卡承载头像/介绍/统计/**GitHub 贡献热力图**/社交链接；热力图数据经 `src/utils/contributions.ts` 构建时拉取，渲染用 `ContributionHeatmap.astro` 组件。
-- **图谱渲染位置**：**没有独立图谱页**（`/graph` 与导航「图谱」项已在 8b6d906 删除，`/graph` 现在 404）。完整图谱在**归档页顶部**（`archive.astro`，立即初始化）；文章页侧栏是「相关文章迷你图谱」（`Sidebar.astro` 里的 `<MiniGraph>`，内部复用 `GraphView.astro`，懒初始化：浏览器空闲时才拉 d3-force chunk 渲染）。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments, friendFeeds?)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：d3-force 力导布局 + 原生 SVG 渲染，支持拖拽/缩放/节点详情/放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
-- **节点聚合规则**：posts + moments 中「非 draft 且 `graph.enabled !== false`（默认 true）」的内容各成一个节点，另加固定的「我」(self) 节点；**moments 中 `type: diary` 的日记不入图**。节点显示名 = `graph.name ?? title`；post 节点可跳 `/blog/<id去掉.mdx>`，moment 无落地页。
-- **连边来源**：所有内容节点都连向 self；正文里 `[[锚点]]`（对原始 body 做正则匹配）按 `graph.name` 优先、`title` 回退找目标节点（保留旧链接可用），跳过自连与重复边。
-- **改动图谱前必读**：见上方 posts 的「关系图谱」条目——`[[...]]` 目前只产生连线、正文原样显示方括号，**别拿它当正文内链**。
+- **图谱渲染位置**：**没有独立图谱页**。完整图谱在**归档页顶部**（`archive.astro`），默认是一条可点缩略条（MiniGraph 同规格高度，chrome 隐藏、整条覆盖按钮）——点击经 `graph:expand` CustomEvent 全屏展开（FLIP），全屏还原时广播 `graph:collapsed` 落回缩略条；大尺寸跳变时节点重摆种子 + 离线定格。文章页侧栏是「相关文章迷你图谱」（`Sidebar.astro` 里的 `<MiniGraph>`，内部复用 `GraphView.astro`，`bare` 模式，懒初始化：浏览器空闲时才拉 d3-force chunk 渲染）。节点/连线由 `src/utils/graphData.ts` 的 `buildGraphData(posts, moments)` 聚合（不需 render 全文，节点详情只用自带字段）；交互脚本在 `GraphView.astro` 自带 `<script>` 中（无 `client:` 指令，Astro 打包后随页面执行）：Obsidian 式在线力导 + 原生 SVG 渲染，支持连线淡化/悬停点亮关联线、节点物理拖拽（fx/fy + 重热）、放大全屏，并监听 `astro:before-swap` / `pagehide` 做清理（ViewTransitions 兼容）。
+- **节点聚合规则**：posts + moments 中「非 draft 且 `graph.enabled !== false`（默认 true）」的内容各成一个节点（无 self 中心、无年份中枢）；**moments 中 `type: diary` 的日记不入图**。节点显示名 = `graph.name ?? title`；post 节点可跳 `/blog/<id去掉.mdx>`，moment 无落地页。
+- **连边来源**：只有真实关联——frontmatter `graph.links`（slug 列表）与正文站内 md 链接，跳过自连与重复边；没有关联的内容就是孤点，漂在图外圈。
+- **书虫彩蛋**：`src/utils/graphSnake.ts`——归档图谱里一只墨色书虫漫游、吞节点（节点隐身 + 连线沉底 + collide 半径归零）、按 `RESPAWN_MS` 吐回原位、避光标（静止光标胆子变大）、可抓取丢弃。参数全在该文件顶部；`prefers-reduced-motion` / bare 迷你图 / 节点 <3 时不初始化。
+- **改动图谱前必读**：见上方 posts 的「关系图谱」条目——关联只认 `graph.links` 与站内 md 链接，**别拿 `[[...]]` 当连线或内链**。
 - **贡献热力图**：首页关于卡在构建期请求 GitHub 贡献数据并烤进 HTML（`contributions.ts`）。有 `GITHUB_CONTRIB_TOKEN` 时走 GraphQL（含「公开显示的私有仓库」贡献），否则或失败时回退公开抓取，再失败则热力图留空（构建日志 console.warn 可见）。令牌读取：`import.meta.env.GITHUB_CONTRIB_TOKEN ?? process.env.GITHUB_CONTRIB_TOKEN`（Astro 构建与 Vite dev 都会读 `.env.local`）。这正是 §1 里 GitHub Actions 每日重建要刷新的「构建期数据」。
-- **友链 RSS 图谱**：`friends.ts` 里填了 `rss` 的友链，构建期经 `friendFeeds.ts` 抓 feed（RSS 2.0 + Atom，未填 rss 时先抓主页读 `<link rel=alternate>` 再探测常见路径；带 5s 超时、失败只 warn 不挂构建），每站最新 5 篇以 `friend`/`friendPost` 节点进归档页图谱（站点节点与年份同环、文章节点在站点扇区内环，外链新窗口打开）。feed 不可达的友链只显示在 `/friends/` 页、不入图。同样靠每日定时构建刷新。
 
 ## 5. Git 提交规范（本仓库有强制钩子）
 

@@ -11,15 +11,6 @@ const navLinks = [
   { href: ROUTES.friends, label: "友链" },
 ];
 
-// 开往（Travellings）友链接力：外链需放在打开网站即可见的位置（顶栏/侧栏）
-const TRAVELLINGS_HREF = "https://www.travellings.cn/go.html";
-const travellingsAttrs = {
-  href: TRAVELLINGS_HREF,
-  target: "_blank",
-  rel: "noopener noreferrer",
-  title: "开往 · 友链接力",
-};
-
 // 去尾斜杠后比较：ROUTES 里的路径带尾斜杠，而 Astro.url.pathname 依产物形态而定，
 // 原来直接 === 比较导致「当前页」永远匹配不上（导航从不显示选中态）。
 const normalize = (p: string) => p.replace(/\/$/, "") || "/";
@@ -62,9 +53,6 @@ const isActivePath = (href: string) => {
           </li>
         );
       })}
-      <li>
-        <a {...travellingsAttrs} class="nav-link">开往</a>
-      </li>
     </ul>
 
     <!-- Mobile hamburger -->
@@ -122,9 +110,6 @@ const isActivePath = (href: string) => {
             </li>
           );
         })}
-        <li>
-          <a {...travellingsAttrs} class="nav-drawer-link" style="--i:5">开往</a>
-        </li>
       </ul>
     </div>
   </div>
