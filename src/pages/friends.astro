@@ -51,39 +51,35 @@ const friendItems = FRIENDS.map((f) => ({
         </div>
       </dl>
 
-      <div class="friend-bark">
-        <div class="bark-widget">
-          <span class="bark-widget__hook" aria-hidden="true"></span>
-          <span class="bark-widget__string" aria-hidden="true"></span>
-          <button
-            type="button"
-            id="bark-push"
-            class="bark-widget__btn"
-            aria-label="申请友链 · 摇铃推送提醒给站长"
-          >
-            <svg
-              class="bark-widget__bell"
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 3a5 5 0 0 0-5 5v3.6c0 .6-.2 1.2-.6 1.7L5 15.4c-.5.7 0 1.6.9 1.6h12.2c.9 0 1.4-.9.9-1.6l-1.4-2.1a2.9 2.9 0 0 1-.6-1.7V8a5 5 0 0 0-5-5Z"></path>
-              <path d="M10 19.5a2 2 0 0 0 4 0"></path>
-            </svg>
-            <span class="bark-widget__text">申请友链</span>
-          </button>
-          <span class="bark-widget__status" id="bark-hint" aria-live="polite">
-            点击摇铃，推送提醒到站长手机
-          </span>
-        </div>
-      </div>
     </section>
+
+    <button
+      type="button"
+      id="bark-push"
+      class="bark-chime"
+      aria-label="申请友链 · 拉一下推送提醒给站长"
+    >
+      <span class="bark-chime__string" aria-hidden="true"></span>
+      <span class="bark-chime__body">
+        <svg
+          class="bark-chime__bell"
+          viewBox="0 0 24 30"
+          width="22"
+          height="28"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true"
+        >
+          <path d="M12 2C7.6 2 5 5.4 5 10.5V16h14v-5.5C19 5.4 16.4 2 12 2Z"></path>
+          <path d="M5 16h14"></path>
+        </svg>
+        <span class="bark-chime__clapper" aria-hidden="true"></span>
+        <span class="bark-chime__tanzaku" id="bark-hint" aria-live="polite">
+          申请友链
+        </span>
+      </span>
+    </button>
 
     {FRIENDS.length > 0 && (
       <section aria-labelledby="friends-label">
@@ -276,114 +272,111 @@ const friendItems = FRIENDS.map((f) => ({
     color: var(--color-ed-fg);
   }
 
-  /* 申请友链挂件：吊环 + 挂绳 + 铃铛卡片，随呼吸轻摆；悬停摇铃，推送中摆幅加快 */
-  .friend-bark {
-    display: flex;
-    justify-content: center;
-    padding-top: 1.5rem;
-  }
-  .bark-widget {
+  /* 友链申请风铃：悬在导航栏下沿，摇铃 = 推送提醒给站长。
+     top 由脚本跟随导航底边（导航滑隐时风铃随之上收） */
+  .bark-chime {
+    position: fixed;
+    z-index: 35;
+    right: clamp(1.25rem, 4vw, 3rem);
     display: flex;
     flex-direction: column;
     align-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: grab;
+    touch-action: none;
     transform-origin: top center;
-    animation: bark-sway 5.6s ease-in-out infinite;
   }
-  .bark-widget__hook {
-    width: 9px;
-    height: 9px;
-    border: 1.5px solid var(--color-ed-rule);
-    border-radius: 50%;
+  .bark-chime:active {
+    cursor: grabbing;
   }
-  .bark-widget__string {
+  .bark-chime__string {
     width: 1px;
-    height: 14px;
-    background: var(--color-ed-rule);
+    height: 34px;
+    background: var(--color-ed-rule-strong);
   }
-  .bark-widget__btn {
+  .bark-chime__body {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.65rem 1.15rem 0.7rem;
-    border: 1px solid var(--color-ed-rule);
-    border-radius: 4px;
-    background: var(--color-ed-bg);
-    font: inherit;
+    will-change: transform;
+  }
+  .bark-chime__bell {
+    color: var(--color-ed-accent);
+    filter: drop-shadow(0 1px 1.5px rgba(28, 28, 28, 0.16));
+  }
+  .bark-chime__clapper {
+    width: 5px;
+    height: 5px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: var(--color-ed-accent);
+  }
+  .bark-chime__tanzaku {
+    margin-top: 4px;
+    padding: 0.55rem 0.18rem 0.75rem;
+    writing-mode: vertical-rl;
+    font-size: 0.8125rem;
+    letter-spacing: 0.16em;
     color: var(--color-ed-fg);
-    cursor: pointer;
+    background: var(--color-ed-bg);
+    border: 1px solid var(--color-ed-rule);
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 1px 2px rgba(28, 28, 28, 0.08);
     transition:
       color 180ms ease,
       border-color 180ms ease,
       background-color 180ms ease;
   }
-  .bark-widget__btn:hover:not([aria-disabled="true"]),
-  .bark-widget__btn:focus-visible {
+  .bark-chime:hover .bark-chime__tanzaku,
+  .bark-chime:focus-visible .bark-chime__tanzaku {
     color: var(--color-ed-accent);
     border-color: var(--color-ed-accent);
-    background: rgba(166, 58, 43, 0.05);
   }
-  .bark-widget__btn[aria-disabled="true"] {
-    color: var(--color-ed-subtle);
-    border-color: var(--color-ed-hairline);
-    cursor: default;
+  .bark-chime:hover .bark-chime__bell {
+    animation: chime-ring 0.9s var(--ease-ed);
   }
-  .bark-widget__btn:hover:not([aria-disabled="true"]) .bark-widget__bell {
-    animation: bark-ring 0.9s var(--ease-ed);
-  }
-  .bark-widget__bell {
+  .bark-chime__bell,
+  .bark-chime__clapper {
     transform-origin: top center;
   }
-  .bark-widget__text {
-    font-size: 0.875rem;
-    letter-spacing: 0.02em;
+  .bark-chime[aria-disabled="true"] {
+    cursor: default;
   }
-  .bark-widget__status {
-    margin-top: 0.5rem;
-    font-size: 0.6875rem;
-    line-height: 1.5;
+  .bark-chime[aria-disabled="true"] .bark-chime__bell {
     color: var(--color-ed-subtle);
-    max-width: 15rem;
-    text-align: center;
   }
-  .bark-widget:has(#bark-push[data-busy="1"]) {
-    animation-duration: 1.6s;
+  .bark-chime[aria-disabled="true"] .bark-chime__tanzaku {
+    color: var(--color-ed-subtle);
+    border-color: var(--color-ed-hairline);
   }
-  .bark-widget:has(#bark-push[aria-disabled="true"]) {
-    animation: none;
-  }
-  @keyframes bark-sway {
-    0%,
-    100% {
-      transform: rotate(-1.4deg);
-    }
-    50% {
-      transform: rotate(1.4deg);
-    }
-  }
-  @keyframes bark-ring {
+  @keyframes chime-ring {
     0% {
       transform: rotate(0);
     }
-    20% {
-      transform: rotate(13deg);
+    25% {
+      transform: rotate(10deg);
     }
-    40% {
-      transform: rotate(-11deg);
+    50% {
+      transform: rotate(-8deg);
     }
-    60% {
-      transform: rotate(7deg);
-    }
-    80% {
-      transform: rotate(-4deg);
+    75% {
+      transform: rotate(4deg);
     }
     100% {
       transform: rotate(0);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .bark-widget,
-    .bark-widget__btn:hover .bark-widget__bell {
+    .bark-chime:hover .bark-chime__bell {
       animation: none;
+    }
+  }
+  @media (max-width: 767px) {
+    .bark-chime {
+      scale: 0.85;
+      right: 0.9rem;
     }
   }
 
@@ -403,56 +396,213 @@ const friendItems = FRIENDS.map((f) => ({
   const BARK_LS = "friend-bark:last-day";
   const barkDay = () =>
     new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
-  document.addEventListener("astro:page-load", () => {
-    // 当日已提醒过：进页面就禁用按钮（KV 传播延迟时的客户端兜底）
-    if (localStorage.getItem(BARK_LS) === barkDay()) {
-      const btn = document.getElementById("bark-push") as HTMLButtonElement | null;
-      const text = btn?.querySelector(".bark-widget__text");
-      if (btn && text) {
-        text.textContent = "今日已提醒过啦";
-        btn.setAttribute("aria-disabled", "true");
-      }
-    }
-  });
-  document.addEventListener("click", async (e) => {
-    const btn = (e.target as Element).closest?.(
-      "#bark-push"
-    ) as HTMLButtonElement | null;
-    if (!btn || btn.dataset.busy === "1" || btn.getAttribute("aria-disabled") === "true") {
-      return;
-    }
-    const hint = document.getElementById("bark-hint");
-    const text = btn.querySelector(".bark-widget__text") as HTMLElement | null;
-    const baseText = text?.textContent ?? "";
-    btn.dataset.busy = "1";
-    if (text) text.textContent = "推送中…";
+
+  // 风铃 top 跟随导航底边（导航向下滑隐时风铃随之上收，像真的挂在导航上）
+  const siteNav = document.querySelector(".site-nav");
+  const chimeBtn = document.getElementById("bark-push");
+  let chimeRaf = 0;
+  const placeChime = () => {
+    if (chimeRaf || !siteNav || !chimeBtn) return;
+    chimeRaf = requestAnimationFrame(() => {
+      chimeRaf = 0;
+      chimeBtn.style.top = `${siteNav.getBoundingClientRect().bottom + 6}px`;
+    });
+  };
+  placeChime();
+  window.addEventListener("resize", placeChime, { passive: true });
+  window.addEventListener("scroll", placeChime, { passive: true });
+
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+  const tanzaku = chimeBtn?.querySelector(
+    ".bark-chime__tanzaku"
+  ) as HTMLElement | null;
+
+  // —— 状态文案（短册） ——
+  const setTanzaku = (s: string) => {
+    if (tanzaku) tanzaku.textContent = s;
+  };
+  const barkDisable = (msg: string) => {
+    if (!chimeBtn) return;
+    chimeBtn.setAttribute("aria-disabled", "true");
+    setTanzaku(msg);
+  };
+
+  let busy = false;
+  async function barkFire() {
+    if (!chimeBtn || busy) return;
+    busy = true;
+    setTanzaku("推送中…");
     try {
       const res = await fetch("/api/bark", { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (res.ok) {
         localStorage.setItem(BARK_LS, barkDay());
-        if (text) text.textContent = "今日已提醒 ✓";
-        btn.setAttribute("aria-disabled", "true");
-        if (hint) hint.textContent = "提醒已送达站长手机；记得到 GitHub 提交申请。";
+        barkDisable("已提醒 ✓");
       } else if (data.error === "daily_cap") {
         localStorage.setItem(BARK_LS, barkDay());
-        if (text) text.textContent = "今日名额已满";
-        btn.setAttribute("aria-disabled", "true");
-        if (hint) hint.textContent = "今天的提醒额度已被领完，明天再来吧。";
+        barkDisable("名额已满");
       } else if (res.status === 429 || data.error === "already_sent") {
         localStorage.setItem(BARK_LS, barkDay());
-        if (text) text.textContent = "今日已提醒过啦";
-        btn.setAttribute("aria-disabled", "true");
-        if (hint) hint.textContent = "每人每天一次，明天再来提醒我吧。";
+        barkDisable("已提醒过啦");
       } else {
-        if (text) text.textContent = baseText;
-        if (hint) hint.textContent = "推送暂时失败，请到 GitHub 直接提申请。";
+        setTanzaku("推送暂时失败，请到 GitHub 直接提申请");
       }
     } catch {
-      if (text) text.textContent = baseText;
-      if (hint) hint.textContent = "网络异常，请稍后再试。";
+      setTanzaku("网络异常，请稍后再试");
     } finally {
-      btn.dataset.busy = "0";
+      busy = false;
+    }
+  }
+
+  // —— 竖直弹簧物理：往下拉挂绳，松手弹回（拉一下就是提示） ——
+  const STRING_BASE = 34; // 挂绳静止长度（px）
+  const MAX_PULL = 90; // 最大下拉距离（px）
+  const MIN_PULL = -10; // 上推距离（挂绳压缩下限）
+  const SPRING_K = 34; // 弹簧刚度 /s²
+  const SPRING_C = 4.2; // 阻尼 /s
+  const G_LAT = 900; // 横向单摆重力 /s²（等效摆长约 100px）
+  const DAMP_LAT = 0.8; // 横向阻尼 /s
+  const MAX_SWING = 1.1; // 横向最大摆角（rad ≈ 63°）
+  let offset = 0; // 挂绳伸长量（正 = 下拉）
+  let vel = 0; // px/s
+  let swing = 0; // 横向摆角（rad，0 = 铅直）
+  let swingVel = 0;
+  let dragging = false;
+  let grabBase = 0; // 抓住时的指针 Y
+  let grabX = 0; // 抓住时的指针 X
+  let grabY = 0; // 抓住时的指针 Y
+  let grabOffset = 0; // 抓住时的位移
+  let grabSwing = 0; // 抓住时的摆角
+  let lastSwing = 0;
+  let lastOffset = 0;
+  let lastMoveY = 0;
+  let lastMoveT = 0;
+  let frameRaf = 0;
+  let lastFrame = 0;
+
+  function renderChime() {
+    if (!chimeBtn) return;
+    const stringEl = chimeBtn.querySelector(
+      ".bark-chime__string"
+    ) as HTMLElement | null;
+    if (stringEl) {
+      stringEl.style.height = `${STRING_BASE + Math.max(-22, offset)}px`;
+    }
+    if (chimeBtn) {
+      chimeBtn.style.transform = `rotate(${((swing * 180) / Math.PI).toFixed(2)}deg)`;
+    }
+  }
+
+  function stepPhysics(dt: number, now: number) {
+    if (dragging) return;
+    // 弹簧回弹 + 一点环境风：静止时也有呼吸般的微沉微浮
+    const wind = Math.sin(now / 1100) * 0.5;
+    vel += (-SPRING_K * offset - SPRING_C * vel + wind) * dt;
+    offset += vel * dt;
+    if (offset < MIN_PULL) {
+      offset = MIN_PULL;
+      vel = Math.abs(vel) * 0.3;
+    }
+    // 横向单摆 + 环境风：静止时也有呼吸般的微晃
+    const breeze = Math.sin(now / 900) * 0.1;
+    swingVel +=
+      (-(G_LAT / 100) * Math.sin(swing) - DAMP_LAT * swingVel + breeze) * dt;
+    swing += swingVel * dt;
+    if (Math.abs(swing) > MAX_SWING) {
+      swing = Math.sign(swing) * MAX_SWING;
+      swingVel *= -0.4;
+    }
+    renderChime();
+  }
+
+  function frame(now: number) {
+    const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0.016;
+    lastFrame = now;
+    stepPhysics(dt, now);
+    frameRaf = requestAnimationFrame(frame);
+  }
+  if (!prefersReducedMotion) frameRaf = requestAnimationFrame(frame);
+
+  // —— 拉拽交互：抓住拖动（横竖都可），松手即推送 ——
+  function onChimeDown(e: PointerEvent) {
+    if (busy) return;
+    dragging = true;
+    grabX = e.clientX;
+    grabY = e.clientY;
+    grabSwing = swing;
+    grabOffset = offset;
+    lastSwing = swing;
+    lastOffset = offset;
+    lastMoveY = e.clientY;
+    lastMoveT = performance.now();
+    chimeBtn?.classList.add("is-grabbed");
+  }
+  chimeBtn?.addEventListener("pointerdown", onChimeDown);
+
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - grabX;
+      const dy = e.clientY - grabY;
+      swing = Math.max(-MAX_SWING, Math.min(MAX_SWING, grabSwing + dx / 55));
+      offset = Math.max(
+        MIN_PULL,
+        Math.min(MAX_PULL, grabOffset + (e.clientY - grabBase))
+      );
+      const now = performance.now();
+      const dtm = Math.max(16, now - lastMoveT);
+      swingVel = (swing - lastSwing) / dtm;
+      vel = Math.max(
+        -420,
+        Math.min(480, ((e.clientY - lastMoveY) / dtm) * 1000)
+      );
+      lastSwing = swing;
+      lastOffset = offset;
+      lastMoveY = e.clientY;
+      lastMoveT = now;
+      renderChime();
+    },
+  );
+  function onRelease() {
+    if (!dragging) return;
+    dragging = false;
+    chimeBtn?.classList.remove("is-grabbed");
+    // 松手速度取自指针：甩得多狠弹得多高
+    vel = Math.max(-420, Math.min(480, vel));
+    swingVel = Math.max(-5, Math.min(5, swingVel));
+    if (prefersReducedMotion) {
+      offset = 0;
+      vel = 0;
+      swing = 0;
+      swingVel = 0;
+      renderChime();
+    }
+    barkFire(); // 拉一下就是提示：松手即推送（当日已限过则提示已提醒）
+  }
+  window.addEventListener("pointerup", onRelease);
+  window.addEventListener(
+    "pointercancel",
+    () => {
+      dragging = false;
+      chimeBtn?.classList.remove("is-grabbed");
+    }
+  );
+
+  // 键盘可达：Enter/Space 触发按钮原生 click（detail === 0 区分鼠标）
+  document.addEventListener("click", (e) => {
+    const t = (e.target as Element).closest?.("#bark-push");
+    if (t && (e as MouseEvent).detail === 0) barkFire();
+  });
+
+  // 页面加载：当日已提醒则禁用（KV 传播延迟时的客户端兜底）
+  document.addEventListener("astro:page-load", () => {
+    placeChime();
+    renderChime();
+    if (localStorage.getItem(BARK_LS) === barkDay()) {
+      barkDisable("今日已提醒过啦");
     }
   });
 </script>
