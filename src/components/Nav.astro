@@ -32,7 +32,7 @@ const isActivePath = (href: string) => {
 ---
 
 <nav
-  class="site-nav sticky top-0 z-40 border-b border-[var(--color-ed-rule)]"
+  class="site-nav sticky top-0 z-40 border-b-2 border-[var(--color-ed-rule-strong)]"
   style="background: var(--color-ed-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); view-transition-name: site-nav;"
   aria-label="站点导航"
 >
@@ -64,11 +64,6 @@ const isActivePath = (href: string) => {
       })}
       <li>
         <a {...travellingsAttrs} class="nav-link">开往</a>
-      </li>
-      <li>
-        <button type="button" data-open-search class="nav-link nav-link--button">
-          搜索
-        </button>
       </li>
     </ul>
 
@@ -129,11 +124,6 @@ const isActivePath = (href: string) => {
         })}
         <li>
           <a {...travellingsAttrs} class="nav-drawer-link" style="--i:5">开往</a>
-        </li>
-        <li>
-          <button type="button" data-open-search class="nav-drawer-link" style="--i:6">
-            搜索
-          </button>
         </li>
       </ul>
     </div>
@@ -280,12 +270,6 @@ const isActivePath = (href: string) => {
   .nav-link.is-active {
     color: var(--color-ed-accent);
     background: rgba(166, 58, 43, 0.06);
-  }
-  .nav-link--button {
-    border: 0;
-    background: none;
-    font-family: inherit;
-    cursor: pointer;
   }
 
   /* 移动抽屉：左侧细线标出当前页，整行 44px 命中 */

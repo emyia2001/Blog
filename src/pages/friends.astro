@@ -379,27 +379,12 @@ const fmtDay = (iso: string) =>
     text-underline-offset: 0.15em;
   }
 
-  /* 页头右侧：本站二维码 + 开往 */
+  /* 页头右侧：本站二维码 + 开往（按钮态样式走全局 button.page-head__aside） */
   .page-head__asides {
     display: flex;
     align-items: baseline;
     gap: 1.25rem;
     flex-shrink: 0;
-  }
-  button.page-head__aside {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    font: inherit;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    color: var(--color-ed-subtle);
-    cursor: pointer;
-    transition: color 180ms ease;
-  }
-  button.page-head__aside:hover,
-  button.page-head__aside:focus-visible {
-    color: var(--color-ed-accent);
   }
 
   @media (max-width: 640px) {
