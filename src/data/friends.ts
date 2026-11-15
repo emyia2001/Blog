@@ -1,3 +1,5 @@
+import friendsData from "./friends.json";
+
 export interface FriendLink {
   /** 站点名 */
   name: string;
@@ -16,20 +18,8 @@ export interface FriendLink {
 }
 
 /**
- * 友链列表：在这里加一项，就会出现在 /friends/ 页面；
- * mutual: true 的排进「双向友链」，其余排进「单向友链」。顺序即组内展示顺序。
+ * 友链列表：数据在 friends.json，在这里加一项（或用 Obsidian 的 Snark Blog CMS 插件编辑），
+ * 就会出现在 /friends/ 页面；mutual: true 的排进「双向友链」，其余排进「单向友链」。
+ * 顺序即组内展示顺序。
  */
-export const FRIENDS: FriendLink[] = [
-  {
-    name: "MmzMing的博客",
-    url: "https://tblog.mmzhiku.xyz/",
-    desc: "Java 后端与 AI 工程实践",
-    avatar: "https://tblog.mmzhiku.xyz/assets/images/aut.jpg",
-  },
-  {
-    name: "花墨",
-    url: "https://flowersink.com/",
-    desc: "再花的个人博客：生活随笔、书影音与折腾记录",
-    avatar: "https://api.flowersink.com/img/logo.png",
-  },
-];
+export const FRIENDS: FriendLink[] = friendsData;
