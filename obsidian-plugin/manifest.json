@@ -1,0 +1,9 @@
+{
+  "id": "snark-blog-cms",
+  "name": "Snark Blog CMS",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "把 Obsidian 笔记发布到 Snark 博客：文章 / 纪事 / 友链，提交 GitHub 触发构建上线",
+  "author": "Snark",
+  "isDesktopOnly": false
+}

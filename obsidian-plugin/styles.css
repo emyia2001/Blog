@@ -1,0 +1,192 @@
+/* Snark Blog CMS —— 模态框样式（最小化，跟随 Obsidian 主题变量） */
+
+.snark-cms-modal {
+  max-width: 640px;
+}
+
+.snark-cms-field {
+  margin-bottom: 12px;
+}
+
+.snark-cms-field > label {
+  display: block;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.snark-cms-field input[type="text"],
+.snark-cms-field input[type="date"],
+.snark-cms-field textarea,
+.snark-cms-field select {
+  width: 100%;
+}
+
+.snark-cms-field textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.snark-cms-segment {
+  display: flex;
+  gap: 0;
+}
+
+.snark-cms-segment button {
+  flex: 1;
+}
+
+.snark-cms-status {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  min-height: 1.2em;
+}
+
+/* 发布成功后的结果链接行：状态行下方左对齐 */
+.snark-cms-links {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+.snark-cms-status.is-error {
+  color: var(--text-error);
+}
+
+/* 管理列表 */
+.snark-cms-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.snark-cms-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.snark-cms-list li:last-child {
+  border-bottom: none;
+}
+
+.snark-cms-list .snark-cms-item-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.snark-cms-list .snark-cms-item-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snark-cms-list .snark-cms-item-path {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snark-cms-badge {
+  font-size: var(--font-ui-smaller);
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.snark-cms-badge.is-draft {
+  color: var(--text-warning);
+}
+
+.snark-cms-list .snark-cms-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* 全部属性折叠区 */
+.snark-cms-more {
+  margin-bottom: 12px;
+}
+
+.snark-cms-more summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-bottom: 8px;
+  user-select: none;
+}
+
+.snark-cms-toggles {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.snark-cms-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-ui-small);
+}
+
+/* 友链编辑 */
+.snark-friends-modal {
+  max-width: 760px;
+}
+
+.snark-friends-modal .snark-cms-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.snark-friend-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 6px 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: relative;
+}
+
+.snark-friend-row input {
+  width: 100%;
+}
+
+.snark-friend-row .snark-friend-row-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snark-friend-row .snark-friend-row-index {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.snark-friend-row .snark-friend-row-remove {
+  margin-left: auto;
+}
+
+.snark-friend-row .snark-friend-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.snark-cms-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
