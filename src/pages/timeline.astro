@@ -695,9 +695,9 @@ const fmtPoint = (d: Date) =>
     padding: 2.25rem 0 2.5rem;
     scroll-margin-top: 6rem;
   }
-  /* 同一年内相邻条目之间一条发丝线；跨年由年份标分隔，不再加线 */
+  /* 条目分隔线：虚线（呼应锁盒/流水语义），rule 色阶比发丝线明显一档 */
   .tl-entry + .tl-entry {
-    border-top: 1px solid var(--color-ed-hairline);
+    border-top: 1px dashed var(--color-ed-rule);
   }
   .tl-entry__meta {
     display: flex;
