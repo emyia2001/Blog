@@ -78,7 +78,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - 示例模板：`src/content/posts/example-post.mdx`（复制改字段即可）。
 
 ### moments（纪事）
-- 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`excerpt?`、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。
+- 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`excerpt?`、`tags?`（日期行右侧展示）、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。
 - **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进归档页关系图谱与归档列表（/archive）。
 - **diary**（日记）：日常流水，`title`/`excerpt` 可留空——**不进图谱 / 归档 / RSS / 搜索**，只在纪事页时间线展示（轴上为方点、标签「日记」）。
 - 无独立页面；纪事页是**连续信息流**（全部条目服务端直出、按年分组，右侧时间轴是 scroll-spy 目录，点击滚动定位；`#锚点` 深链接可用），diary 在流中无标题、占位更紧。
