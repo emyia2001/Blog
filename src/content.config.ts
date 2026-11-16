@@ -38,7 +38,7 @@ const posts = defineCollection({
 const moments = defineCollection({
   type: "content",
   schema: z.object({
-    title: z.string().optional(), // 可选：person/event 通常有；diary 常缺省，展示用日期兜底
+    title: z.string().optional(), // 可选：person/event 通常有；diary 不用标题（碎碎念，轴点显示正文首行）
     date: z.date(),
     excerpt: z.string().optional(),
     type: z.enum(["person", "event", "diary"]).default("event"),

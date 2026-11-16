@@ -23,6 +23,16 @@ const KIND_LABEL: Record<Kind, string> = {
   diary: "日记",
 };
 
+// 日记不用标题（碎碎念）：轴点显示正文首行截断，替代「每条都叫日记」的重复兜底
+const diaryTeaser = (body: string | undefined) => {
+  const firstLine = (body ?? "")
+    .split("\n")
+    .map((s) => s.replace(/[#>*`[\]!]|^- /g, "").trim())
+    .find(Boolean);
+  if (!firstLine) return "";
+  return firstLine.length > 22 ? `${firstLine.slice(0, 22)}…` : firstLine;
+};
+
 // 所有内容统一预渲染全文；带 lock 的文章构建期加密正文，浏览器端用答案解密
 interface RenderedAll {
   id: string;
@@ -65,6 +75,8 @@ interface TimelineEntry {
   date: Date;
   kind: Kind;
   title: string;
+  /** 日记无标题时的正文首行截断（碎碎念）；person/event 恒为空 */
+  teaser: string;
   label: string; // 轴点小标签：人物 / 事件 / 日记
   contentIndex: number;
   locked: boolean;
@@ -79,6 +91,7 @@ const entries: TimelineEntry[] = publishedMoments
     date: m.data.date,
     kind: m.data.type as Kind,
     title: m.data.title ?? "",
+    teaser: m.data.type === "diary" ? diaryTeaser(m.body) : "",
     label: KIND_LABEL[m.data.type as Kind],
     contentIndex: contentIndex.get(m.id)!,
     locked: Boolean(m.data.lock?.answer),
@@ -151,7 +164,7 @@ const defaultRendered =
                       {fmtPoint(entry.date)}
                     </time>
                     <span class="tl-title block font-serif text-sm leading-snug text-[var(--color-ed-fg)] transition-colors duration-300 group-hover:text-[var(--color-ed-accent)]">
-                      {entry.title || "日记"}
+                      {entry.title || entry.teaser || "日记"}
                     </span>
                     <span class="tl-simple__meta">
                       <span class="tl-simple__label">{entry.label}</span>
@@ -190,10 +203,12 @@ const defaultRendered =
             >
             {defaultRendered && (
               <article class="pt-8 pb-4">
-                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                  {defaultRendered.entry.data.title ??
-                    fmtLong(defaultRendered.entry.data.date)}
-                </h2>
+                {defaultRendered.kind !== "diary" && (
+                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                    {defaultRendered.entry.data.title ??
+                      fmtLong(defaultRendered.entry.data.date)}
+                  </h2>
+                )}
                 <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
                   {fmtLong(defaultRendered.entry.data.date)}
                 </p>
@@ -292,9 +307,11 @@ const defaultRendered =
         renderedAll.map((c, idx) => (
           <div class="content-body" data-content-index={idx}>
             <article class="pt-8 pb-4">
-              <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                {c.entry.data.title ?? fmtLong(c.entry.data.date)}
-              </h2>
+              {c.kind !== "diary" && (
+                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
+                  {c.entry.data.title ?? fmtLong(c.entry.data.date)}
+                </h2>
+              )}
               <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
                 {fmtLong(c.entry.data.date)}
               </p>
