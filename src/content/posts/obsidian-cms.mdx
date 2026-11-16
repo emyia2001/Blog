@@ -19,4 +19,11 @@ draft: false
 ![Pasted image 20261115233003](https://img.snarkm.com/blog/2026/11/15-o8hm3b.png)
 
 文章的R2图床配置
+
 ![Pasted image 20261115233030](https://img.snarkm.com/blog/2026/11/15-uxy72w.png)
+
+目前来看效果还是很不错，即实现了一些无头CMS的功能，还可以控制我的R2图床。并且通过Fast Note Sync这个插件实现多端同步，包括配置项一起同步，也就是我的插件和插件的相关信息也能一起同步到其他客户端。
+
+![Pasted image 20261116100500](https://img.snarkm.com/blog/2026/11/16-jvk03k.png)
+
+并且我是自建的Fast Note Sync服务端，并通过CF的Tunnels暴露出来，其中的一些敏感配置也不会经过其他人，导致泄漏。除非Fast Note Sync出现漏洞，导致其他人能直接获取到我的Fast Note Sync管理员权限，把我所以配置项全部dump下来。不过问题也不大，我的令牌权限只给了R2存储桶和giithub博客仓库的令牌。我个人习惯多端备份，所以就算数据全丢也不是太影响。
