@@ -124,10 +124,6 @@ content:
         label: 日期（记录当天，必填）
         type: date
         required: true
-      - name: excerpt
-        label: 摘要（可留空）
-        type: text
-        required: false
       - name: heroImage
         label: 封面图 URL
         type: string

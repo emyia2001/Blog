@@ -71,7 +71,11 @@ export function buildGraphData(
     url: urlOf(id, entry),
     contentIndex: -1,
     avatar: entry.data.graph?.avatar,
-    excerpt: entry.data.excerpt,
+    // posts 有 excerpt；纪事已去掉摘要字段，节点悬停预览只出标题/头像
+    excerpt:
+      entry.collection === "posts"
+        ? (entry as PostEntry).data.excerpt
+        : undefined,
     heroImage: entry.data.heroImage,
   }));
 

@@ -129,9 +129,8 @@ export function buildFrontmatter(kind: "posts" | "moments", p: NoteProps): strin
   }
   entries.push(scalar("date", p.date ?? "", true)); // YAML 裸 ISO 日期 → z.date()
   if (kind === "moments") entries.push(scalar("type", p.type ?? "event"));
-  if (kind === "posts" || p.excerpt) {
-    entries.push(scalar("excerpt", p.excerpt ?? ""));
-  }
+  // excerpt 仅 posts（纪事 schema 已去掉摘要字段）
+  if (kind === "posts") entries.push(scalar("excerpt", p.excerpt ?? ""));
   if (kind === "posts") entries.push(scalar("slug", p.slug ?? ""));
   // tags 仅 posts（纪事 schema 无 tags，右侧展示的是类型而非标签）
   if (kind === "posts" && tags.length) entries.push(blockList("tags", tags));

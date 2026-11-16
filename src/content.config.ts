@@ -40,7 +40,7 @@ const moments = defineCollection({
   schema: z.object({
     title: z.string().optional(), // 可选：person/event 通常有；diary 不用标题（碎碎念，轴点显示正文首行）
     date: z.date(),
-    excerpt: z.string().optional(),
+    // 纪事无摘要字段：摘要（excerpt）是 posts 专属
     type: z.enum(["person", "event", "diary"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
