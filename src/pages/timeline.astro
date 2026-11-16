@@ -211,13 +211,26 @@ const fmtPoint = (d: Date) =>
                   ]}
                   data-pagefind-ignore={c.kind === "diary" ? "true" : undefined}
                 >
-                  <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
-                    {fmtLong(c.entry.data.date)}
-                  </time>
+                  <div class="tl-entry__meta">
+                    <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
+                      {fmtLong(c.entry.data.date)}
+                    </time>
+                    {(c.entry.data.tags?.length ?? 0) > 0 && (
+                      <ul class="tl-entry__tags" aria-label="标签">
+                        {c.entry.data.tags!.map((t) => (
+                          <li>{t}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                   {c.kind !== "diary" && (
                     <h2 class="tl-entry__title">
                       {c.entry.data.title ?? fmtLong(c.entry.data.date)}
                     </h2>
+                  )}
+                  {/* 引文行：person/event 的 excerpt 作为刊物式 lead，永远可见 */}
+                  {c.kind !== "diary" && c.entry.data.excerpt && (
+                    <p class="tl-entry__lead">{c.entry.data.excerpt}</p>
                   )}
                   {c.entry.data.bgm?.src && (
                     <div class="mt-4">
@@ -697,6 +710,12 @@ const fmtPoint = (d: Date) =>
   .tl-entry + .tl-entry {
     border-top: 1px solid var(--color-ed-hairline);
   }
+  .tl-entry__meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
   .tl-entry__date {
     display: block;
     font-size: 0.6875rem;
@@ -704,12 +723,38 @@ const fmtPoint = (d: Date) =>
     color: var(--color-ed-subtle);
     letter-spacing: 0.06em;
   }
+  /* 标签：日期行右对齐小字，中点分隔（编辑风注脚） */
+  .tl-entry__tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.25rem 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-subtle);
+  }
+  .tl-entry__tags li + li::before {
+    content: '·';
+    margin-right: 0.6rem;
+    color: var(--color-ed-faint);
+  }
   .tl-entry__title {
     margin-top: 0.35rem;
     font-family: var(--font-serif);
     font-size: 1.5rem;
     line-height: 1.3;
     color: var(--color-ed-fg);
+  }
+  /* 引文行：person/event 的 excerpt 作为刊物式 lead，永远可见 */
+  .tl-entry__lead {
+    margin: 0.9rem 0 0;
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    color: var(--color-ed-muted);
   }
   /* 日记：无标题，正文直接跟在日期下 */
   .tl-entry--diary {

@@ -8,9 +8,9 @@ interface Props {
    */
   gated?: boolean;
   /**
-   * 内联模式（纪事信息流）：播放器随条目排布、不自动播放也不注册
-   * 「首次交互即播放」——页面同时有多条纪事，自动播放会让多条 BGM 一起响；
-   * 改为纯手动，由读者点该条目里的播放按钮决定。
+   * 内联模式（纪事信息流）：渲染为条目内的「曲目行」——发丝线上下包夹的一行
+   * ♪ 曲名 + 进度线，整行点击播放/暂停；不自动播放也不注册
+   * 「首次交互即播放」（页面同时有多条纪事，自动播放会让多条 BGM 一起响）。
    */
   inline?: boolean;
 }
@@ -23,38 +23,49 @@ const { src, title, gated = false, inline = false } = Astro.props;
   data-title={title}
   data-gated={gated ? "true" : undefined}
   data-inline={inline ? "true" : undefined}
-  hidden={gated}>
-  <button
-    id="mp-btn"
-    class="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center font-serif text-sm border"
-    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule); border-radius: 50%;"
-    aria-label={title ? `Play ${title}` : "Play background music"}
-  >
-    <span id="mp-icon">&#9654;</span>
-  </button>
-  <div
-    id="mp-bar"
-    class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 h-11 px-4 border"
-    style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule);"
-  >
-    <button id="mp-play" class="font-serif text-sm" aria-label="Play/Pause">
-      &#9654;
+  hidden={gated || undefined}>
+  {inline ? (
+    <button id="mp-track" class="mp-track" type="button" aria-label={title ? `播放 ${title}` : "播放背景音乐"}>
+      <span id="mp-glyph" aria-hidden="true">&#9834;</span>
+      <span id="mp-eq" class="mp-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      {title && <span class="mp-track__title">{title}</span>}
+      <span class="mp-track__line"><span id="mp-progress" style="background: var(--color-ed-muted); width: 100%; transform: scaleX(0); transform-origin: 0 50%;"></span></span>
     </button>
-    <!-- 播放中的均衡器：4 根 1px 竖条，只用 scaleY 律动（暂停时静止） -->
-    <span id="mp-eq" class="mp-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-    {title && (
-      <span class="text-xs text-[var(--color-ed-muted)] whitespace-nowrap max-w-[120px] truncate">
-        {title}
-      </span>
-    )}
-    <div class="w-24 h-px" style="background: var(--color-ed-hairline);">
+  ) : (
+    <>
+      <button
+        id="mp-btn"
+        class="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center font-serif text-sm border"
+        style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule); border-radius: 50%;"
+        aria-label={title ? `Play ${title}` : "Play background music"}
+      >
+        <span id="mp-icon">&#9654;</span>
+      </button>
       <div
-        id="mp-progress"
-        class="h-px"
-        style="background: var(--color-ed-fg); width: 100%; transform: scaleX(0); transform-origin: 0 50%;"
-      ></div>
-    </div>
-  </div>
+        id="mp-bar"
+        class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 h-11 px-4 border"
+        style="background: var(--color-ed-bg); color: var(--color-ed-fg); border-color: var(--color-ed-rule);"
+      >
+        <button id="mp-play" class="font-serif text-sm" aria-label="Play/Pause">
+          &#9654;
+        </button>
+        <!-- 播放中的均衡器：4 根 1px 竖条，只用 scaleY 律动（暂停时静止） -->
+        <span id="mp-eq" class="mp-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        {title && (
+          <span class="text-xs text-[var(--color-ed-muted)] whitespace-nowrap max-w-[120px] truncate">
+            {title}
+          </span>
+        )}
+        <div class="w-24 h-px" style="background: var(--color-ed-hairline);">
+          <div
+            id="mp-progress"
+            class="h-px"
+            style="background: var(--color-ed-fg); width: 100%; transform: scaleX(0); transform-origin: 0 50%;"
+          ></div>
+        </div>
+      </div>
+    </>
+  )}
 </mini-player>
 
 <style>
@@ -100,18 +111,22 @@ const { src, title, gated = false, inline = false } = Astro.props;
     transform-origin: bottom center;
     transition: transform 200ms var(--ease-ed);
   }
-  #mp-bar.is-playing .mp-eq i {
+  #mp-bar.is-playing .mp-eq i,
+  #mp-track.is-playing .mp-eq i {
     animation: mp-eq 900ms ease-in-out infinite alternate;
   }
-  #mp-bar.is-playing .mp-eq i:nth-child(2) {
+  #mp-bar.is-playing .mp-eq i:nth-child(2),
+  #mp-track.is-playing .mp-eq i:nth-child(2) {
     animation-duration: 720ms;
     animation-delay: -180ms;
   }
-  #mp-bar.is-playing .mp-eq i:nth-child(3) {
+  #mp-bar.is-playing .mp-eq i:nth-child(3),
+  #mp-track.is-playing .mp-eq i:nth-child(3) {
     animation-duration: 1080ms;
     animation-delay: -420ms;
   }
-  #mp-bar.is-playing .mp-eq i:nth-child(4) {
+  #mp-bar.is-playing .mp-eq i:nth-child(4),
+  #mp-track.is-playing .mp-eq i:nth-child(4) {
     animation-duration: 840ms;
     animation-delay: -300ms;
   }
@@ -131,7 +146,8 @@ const { src, title, gated = false, inline = false } = Astro.props;
       opacity 200ms var(--ease-ed),
       transform 250ms linear;
   }
-  #mp-bar:not(.is-playing) #mp-progress {
+  #mp-bar:not(.is-playing) #mp-progress,
+  #mp-track:not(.is-playing) #mp-progress {
     opacity: 0.55;
   }
 
@@ -152,19 +168,74 @@ const { src, title, gated = false, inline = false } = Astro.props;
     .mp-eq {
       display: none;
     }
+    /* 无动效环境：曲目行保留 ♪ 字形（配合砖红色提示播放态），进度线不动 */
+    #mp-track.is-playing #mp-glyph {
+      display: inline;
+    }
     #mp-progress {
       transition: none;
     }
   }
 
-  /* 内联模式（纪事信息流）：不再是右下角悬浮件，随条目排布的行内控件 */
-  mini-player[data-inline] #mp-btn,
-  mini-player[data-inline] #mp-bar {
-    position: static;
+  /* —— 内联曲目行（纪事信息流）——
+     与条目元数据同一套语言：左对齐、发丝线上下包夹；静默时只是一行注脚，
+     动只发生在播放中（均衡器律动 + 进度线推进）。 */
+  #mp-track {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.05rem;
+    border: 0;
+    border-top: 1px solid var(--color-ed-hairline);
+    border-bottom: 1px solid var(--color-ed-hairline);
+    background: none;
+    color: var(--color-ed-muted);
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease;
   }
-  mini-player[data-inline] #mp-bar {
-    width: fit-content;
-    max-width: 100%;
+  #mp-track:hover {
+    color: var(--color-ed-fg);
+  }
+  #mp-glyph {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    line-height: 1;
+    transition: transform 120ms var(--ease-ed), opacity 120ms var(--ease-ed);
+  }
+  #mp-track:active #mp-glyph {
+    transform: scale(0.9);
+  }
+  .mp-track__title {
+    font-family: var(--font-serif);
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    color: var(--color-ed-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mp-track__line {
+    position: relative;
+    flex: 1;
+    height: 1px;
+    background: var(--color-ed-hairline);
+    overflow: hidden;
+  }
+  /* 播放中：♪ 隐、均衡器显，曲目行整体转砖红提示「正在响」 */
+  #mp-track .mp-eq {
+    display: none;
+  }
+  #mp-track.is-playing {
+    color: var(--color-ed-accent);
+  }
+  #mp-track.is-playing #mp-glyph {
+    display: none;
+  }
+  #mp-track.is-playing .mp-eq {
+    display: inline-flex;
   }
 </style>
 
@@ -185,6 +256,8 @@ const { src, title, gated = false, inline = false } = Astro.props;
     userPaused = false;
     btn: HTMLElement | null = null;
     bar: HTMLElement | null = null;
+    /** 内联曲目行（纪事信息流）：整行点击 = 播放/暂停 */
+    track: HTMLElement | null = null;
     playBtn: HTMLElement | null = null;
     progress: HTMLElement | null = null;
     icon: HTMLElement | null = null;
@@ -282,8 +355,12 @@ const { src, title, gated = false, inline = false } = Astro.props;
       if (!this.audio) return;
       delete this.dataset.gated;
       this.hidden = false;
-      if (this.btn) this.btn.style.display = "none";
-      this.showBar();
+      if (this.track) {
+        // 曲目行：解锁后揭示该行并直接起播（♪ → 均衡器律动）
+      } else {
+        if (this.btn) this.btn.style.display = "none";
+        this.showBar();
+      }
       this.unlocked = true;
       this.unlockEvents.forEach((evt) => window.removeEventListener(evt, this._onUnlock));
       this.setIcons(false);
@@ -293,6 +370,7 @@ const { src, title, gated = false, inline = false } = Astro.props;
     connectedCallback() {
       this.btn = this.querySelector<HTMLElement>("#mp-btn");
       this.bar = this.querySelector<HTMLElement>("#mp-bar");
+      this.track = this.querySelector<HTMLElement>("#mp-track");
       this.playBtn = this.querySelector<HTMLElement>("#mp-play");
       this.progress = this.querySelector<HTMLElement>("#mp-progress");
       this.icon = this.querySelector<HTMLElement>("#mp-icon");
@@ -316,9 +394,11 @@ const { src, title, gated = false, inline = false } = Astro.props;
       // 均衡器/进度线只跟真实播放状态走：自动播放被拦截、淡出暂停都不会误动
       this.audio.addEventListener("play", () => {
         this.bar?.classList.add("is-playing");
+        this.track?.classList.add("is-playing");
       });
       this.audio.addEventListener("pause", () => {
         this.bar?.classList.remove("is-playing");
+        this.track?.classList.remove("is-playing");
       });
 
       this.audio.addEventListener("error", () => {
@@ -331,6 +411,11 @@ const { src, title, gated = false, inline = false } = Astro.props;
         this.playing = false;
         if (!this.audio) return;
         this.audio.volume = 1;
+        if (this.track) {
+          // 曲目行：加载失败把 ♪ 换成「!」提示
+          const glyph = this.querySelector<HTMLElement>("#mp-glyph");
+          if (glyph) glyph.textContent = "!";
+        }
         if (this.btn) {
           this.btn.style.display = "flex";
           this.btn.innerHTML = "!";
@@ -342,21 +427,26 @@ const { src, title, gated = false, inline = false } = Astro.props;
         }, 1500);
       });
 
-      this.btn?.addEventListener("click", () => {
-        this.showBar();
-        if (this.btn) this.btn.style.display = "none";
-        this.play(true); // 用户主动点击：立即出声
-      });
+      if (this.track) {
+        // 曲目行：整行点击 = 播放/暂停（不自动播放，见下）
+        this.track.addEventListener("click", () => this.toggle());
+      } else {
+        this.btn?.addEventListener("click", () => {
+          this.showBar();
+          if (this.btn) this.btn.style.display = "none";
+          this.play(true); // 用户主动点击：立即出声
+        });
 
-      this.playBtn?.addEventListener("click", () => this.toggle());
+        this.playBtn?.addEventListener("click", () => this.toggle());
+      }
 
       // 默认打开页面即尝试播放：直接显示进度条，跳过圆形按钮。
       // 锁定内容（data-gated）例外：既不显示也不播放，也不注册"首次交互即解锁播放"，
       // 否则用户随便滚动一下就把加密文章的 BGM 放出来了。
       if (this.dataset.gated !== "true") {
-        if (this.dataset.inline === "true") {
-          // 信息流内联模式：不自动播放、不注册「首次交互即播放」，
-          // 保留该条目里的圆形播放按钮，由读者决定何时出声。
+        if (this.track) {
+          // 曲目行常显：不自动播放、不注册「首次交互即播放」，
+          // 由读者点该条目的曲目行决定何时出声。
         } else {
           this.showBar();
           if (this.btn) this.btn.style.display = "none";

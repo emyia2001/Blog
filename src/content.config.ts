@@ -41,6 +41,7 @@ const moments = defineCollection({
     title: z.string().optional(), // 可选：person/event 通常有；diary 不用标题（碎碎念，轴点显示正文首行）
     date: z.date(),
     excerpt: z.string().optional(),
+    tags: z.array(z.string()).optional().default([]), // 日期行右侧展示；posts 同构
     type: z.enum(["person", "event", "diary"]).default("event"),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
