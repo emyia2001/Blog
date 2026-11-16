@@ -24,8 +24,8 @@ const KIND_LABEL: Record<Kind, string> = {
   diary: "日记",
 };
 
-// 日记不用标题（碎碎念）：轴点显示正文首行截断，替代「每条都叫日记」的重复兜底
-const diaryTeaser = (body: string | undefined) => {
+  // 无标题条目的轴点文本：正文首行截断（碎碎念日记、无标题事件通用）
+  const diaryTeaser = (body: string | undefined) => {
   const firstLine = (body ?? "")
     .split("\n")
     .map((s) => s.replace(/[#>*`[\]!]|^- /g, "").trim())
@@ -80,7 +80,7 @@ interface RailEntry {
   date: Date;
   kind: Kind;
   title: string;
-  /** 日记无标题时的正文首行截断（碎碎念）；person/event 恒为空 */
+  /** 无标题时轴点显示正文首行截断；person/event 恒为空 */
   teaser: string;
   label: string; // 轴点小标签：人物 / 事件 / 日记
   locked: boolean;
@@ -95,7 +95,7 @@ const railEntries: RailEntry[] = publishedMoments.map((m) => ({
   date: m.data.date,
   kind: m.data.type as Kind,
   title: m.data.title ?? "",
-  teaser: m.data.type === "diary" ? diaryTeaser(m.body) : "",
+  teaser: diaryTeaser(m.body),
   label: KIND_LABEL[m.data.type as Kind],
   locked: Boolean(m.data.lock?.answer),
   hasBgm: Boolean(m.data.bgm?.src),
@@ -217,10 +217,9 @@ const fmtPoint = (d: Date) =>
                     </time>
                     <span class="tl-entry__kind">{railEntries[i].label}</span>
                   </div>
-                  {c.kind !== "diary" && (
-                    <h2 class="tl-entry__title">
-                      {c.entry.data.title ?? fmtLong(c.entry.data.date)}
-                    </h2>
+                  {/* 有标题才渲染标题；无标题时日期行已带日期，不再兜底重复 */}
+                  {c.kind !== "diary" && c.entry.data.title && (
+                    <h2 class="tl-entry__title">{c.entry.data.title}</h2>
                   )}
                   {c.entry.data.bgm?.src && (
                     <div class="mt-4">
