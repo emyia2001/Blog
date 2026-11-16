@@ -215,13 +215,7 @@ const fmtPoint = (d: Date) =>
                     <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
                       {fmtLong(c.entry.data.date)}
                     </time>
-                    {(c.entry.data.tags?.length ?? 0) > 0 && (
-                      <ul class="tl-entry__tags" aria-label="标签">
-                        {c.entry.data.tags!.map((t) => (
-                          <li>{t}</li>
-                        ))}
-                      </ul>
-                    )}
+                    <span class="tl-entry__kind">{railEntries[i].label}</span>
                   </div>
                   {c.kind !== "diary" && (
                     <h2 class="tl-entry__title">
@@ -723,23 +717,12 @@ const fmtPoint = (d: Date) =>
     color: var(--color-ed-subtle);
     letter-spacing: 0.06em;
   }
-  /* 标签：日期行右对齐小字，中点分隔（编辑风注脚） */
-  .tl-entry__tags {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.25rem 0.6rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+  /* 类型：日期行右对齐小字（人物 / 事件 / 日记） */
+  .tl-entry__kind {
+    flex: none;
     font-size: 0.6875rem;
     letter-spacing: 0.08em;
     color: var(--color-ed-subtle);
-  }
-  .tl-entry__tags li + li::before {
-    content: '·';
-    margin-right: 0.6rem;
-    color: var(--color-ed-faint);
   }
   .tl-entry__title {
     margin-top: 0.35rem;
