@@ -3,7 +3,8 @@ import { GitHubClient } from "./github";
 import type { SnarkSettings } from "./settings";
 import { MomentType, NoteProps, buildFrontmatter, flipDraft, readNoteProps, stripFrontmatter } from "./frontmatter";
 import { LinkMap, addToLinkMap, convertBody } from "./converter";
-import { BLOG_HASH_PROP, BLOG_PATH_PROP, SLUG_RE, hhmm, sha256Hex, successNotice } from "./utils";
+import { r2Config, R2Config, deleteR2Object, uploadImageToR2 } from "./r2";
+import { BLOG_HASH_PROP, BLOG_PATH_PROP, SLUG_RE, hhmm, sha256Hex, errorNotice, successNotice } from "./utils";
 
 export interface PublishContext {
   app: App;
@@ -69,8 +70,47 @@ export function buildLinkMap(ctx: PublishContext): LinkMap {
 }
 
 /**
+ * 发布前把笔记里的 ![[附件]] 上传 R2 并改写为外链：
+ * 仓库与笔记本体都会拿到 https:// 外链（笔记回填后，下次发布不会重复上传）。
+ * 附件在 vault 中找不到时直接报错，不做半成品提交。
+ */
+async function uploadNoteEmbeds(
+  ctx: PublishContext,
+  cfg: R2Config,
+  file: TFile,
+  body: string,
+): Promise<{ body: string; count: number }> {
+  const embedRe = /!\[\[([^\[\]]+)\]\]/g;
+  const targets = new Map<string, string>(); // 附件链接路径 → 上传后的公网 URL
+  for (const m of body.matchAll(embedRe)) {
+    const base = m[1].split("|")[0].trim(); // 去掉 |宽高 提示
+    if (!base || targets.has(base)) continue;
+    const dest = ctx.app.metadataCache.getFirstLinkpathDest(base, file.path);
+    if (!dest) throw new Error(`附件「${base}」在 vault 中不存在，无法上传 R2（请先确认文件还在）`);
+    const bytes = new Uint8Array(await ctx.app.vault.readBinary(dest));
+    const ext = dest.extension.toLowerCase().replace("jpeg", "jpg");
+    targets.set(base, await uploadImageToR2(bytes, ext, cfg));
+  }
+  if (!targets.size) return { body, count: 0 };
+
+  const rewrite = (text: string): string =>
+    text.replace(embedRe, (_whole: string, inner: string) => {
+      const base = inner.split("|")[0].trim();
+      const url = targets.get(base);
+      if (!url) return _whole;
+      const name = base.replace(/^.*\//, "").replace(/\.[^.]+$/, "") || "image";
+      return `![${name}](${url})`;
+    });
+  const newBody = rewrite(body);
+  // 回填到笔记本体（frontmatter 不受影响），保持笔记与仓库一致
+  if (newBody !== body) await ctx.app.vault.process(file, (data: string) => rewrite(data));
+  return { body: newBody, count: targets.size };
+}
+
+/**
  * 发布 / 更新一篇笔记：
- * 校验 → 正文转换 → 组装 mdx → 单文件 commit（冲突需确认，不静默覆盖）→ 写回 blog-path 等属性。
+ * 校验 → （R2 已配置时）上传正文附件 → 正文转换 → 组装 mdx → 单文件 commit
+ * （冲突需确认，不静默覆盖）→ 写回 blog-path 等属性。
  * 抛错时 Error.message 是可直接展示给用户的中文说明。
  */
 export async function publishNote(
@@ -98,9 +138,16 @@ export async function publishNote(
   }
   if (issues.length) throw new Error(issues.join("；"));
 
-  // 2. 正文转换
+  // 2. 正文转换（R2 已配置时，先把 ![[附件]] 上传并回填外链）
   const noteText = await ctx.app.vault.read(file);
-  const body = stripFrontmatter(noteText);
+  const r2cfg = r2Config(ctx.settings);
+  const uploadWarns: string[] = [];
+  let body = stripFrontmatter(noteText);
+  if (r2cfg) {
+    const up = await uploadNoteEmbeds(ctx, r2cfg, file, body);
+    body = up.body;
+    if (up.count) uploadWarns.push(`已上传 ${up.count} 张图片到 R2 并回填外链到笔记`);
+  }
   const conv = convertBody(body, buildLinkMap(ctx));
   if (conv.errors.length) throw new Error(conv.errors.join("\n"));
 
@@ -202,7 +249,13 @@ export async function publishNote(
     else fm["graph-enabled"] = false;
   });
 
-  return { path, created: result.created, commitUrl: result.commitUrl, warnings: renamed ? [...conv.warnings, "已因 slug 更名删除旧文件"] : conv.warnings };
+  const warnings = [...uploadWarns, ...conv.warnings];
+  return {
+    path,
+    created: result.created,
+    commitUrl: result.commitUrl,
+    warnings: renamed ? [...warnings, "已因 slug 更名删除旧文件"] : warnings,
+  };
 }
 
 /** 撤回 / 恢复草稿：远端翻转 draft 字段并同步本地属性 */
@@ -232,7 +285,24 @@ export async function setDraft(
   successNotice(draft ? `《${title}》已转草稿` : `《${title}》已取消草稿`);
 }
 
-/** 删除远端文件（本地笔记保留，仅清掉 blog-path） */
+/** 收集文本中指向本图床桶的外链 URL（去重） */
+function collectBucketUrls(text: string, cfg: R2Config): string[] {
+  const escaped = cfg.publicPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`${escaped}/[^\\s)\\]"'<>]+`, "g");
+  return Array.from(new Set(text.match(re) ?? []));
+}
+
+/** 图床 URL → 对象键（构造键时是按段编码的，按段解码还原） */
+function urlToKey(url: string, cfg: R2Config): string {
+  const raw = url.slice(cfg.publicPrefix.length + 1);
+  try {
+    return raw.split("/").map((s) => decodeURIComponent(s)).join("/");
+  } catch {
+    return raw;
+  }
+}
+
+/** 删除远端文件（本地笔记保留，仅清掉 blog-path）；图床孤儿图片联动清理 */
 export async function deleteRemote(ctx: PublishContext, file: TFile, confirm: ConfirmFn): Promise<void> {
   const props = readNoteProps(ctx.app.metadataCache.getFileCache(file)?.frontmatter);
   if (!props.blogPath) throw new Error("该笔记尚未通过插件发布（缺 blog-path 属性）");
@@ -243,6 +313,36 @@ export async function deleteRemote(ctx: PublishContext, file: TFile, confirm: Co
     delete fm[BLOG_PATH_PROP];
   });
   successNotice(`已删除远端 ${props.blogPath}（本地笔记保留）`);
+
+  // 联动清理图床：本文引用的图片 URL 中，剔除仍被其他笔记引用的，剩余的经确认后删除
+  const cfg = r2Config(ctx.settings);
+  if (!cfg) return;
+  const noteText = await ctx.app.vault.read(file);
+  const urls = collectBucketUrls(noteText, cfg);
+  if (!urls.length) return;
+  const referencedElsewhere = new Set<string>();
+  for (const other of ctx.app.vault.getMarkdownFiles()) {
+    if (other.path === file.path) continue;
+    const text = await ctx.app.vault.read(other);
+    for (const u of collectBucketUrls(text, cfg)) referencedElsewhere.add(u);
+  }
+  const orphans = urls.filter((u) => !referencedElsewhere.has(u));
+  if (!orphans.length) return;
+  const preview = orphans.slice(0, 3).map((u) => u.slice(cfg.publicPrefix.length + 1)).join("、");
+  const ok = await confirm(
+    `检测到 ${orphans.length} 张仅这篇文章引用的图床图片，也一并从 R2 删除？删除后不可恢复（其他端创建的内容无法检测引用）。\n${preview}${orphans.length > 3 ? "…" : ""}`,
+  );
+  if (!ok) return;
+  let cleaned = 0;
+  for (const url of orphans) {
+    try {
+      await deleteR2Object(cfg, urlToKey(url, cfg));
+      cleaned++;
+    } catch (e) {
+      errorNotice(String((e as Error).message ?? e));
+    }
+  }
+  if (cleaned) successNotice(`已清理 ${cleaned}/${orphans.length} 张图床图片`);
 }
 
 /** 最近一次构建状态的一行说明 */

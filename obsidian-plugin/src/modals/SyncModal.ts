@@ -68,30 +68,46 @@ export class SyncModal extends Modal {
       this.listEl.createEl("p", { text: "远端还没有文章或纪事" });
       return;
     }
-    const list = this.listEl.createEl("ul", { cls: "snark-cms-list" });
-    for (const entry of this.entries) {
-      const li = list.createEl("li");
-      li.createDiv({
-        cls: `snark-cms-badge${entry.status === "remote-deleted" ? " is-draft" : ""}`,
-        text: STATUS_LABEL[entry.status],
-      });
+    this.listEl.appendChild(this.renderSection("文章", this.entries.filter((e) => e.kind === "posts")));
+    this.listEl.appendChild(this.renderSection("纪事", this.entries.filter((e) => e.kind === "moments")));
+  }
 
-      const main = li.createDiv({ cls: "snark-cms-item-main" });
-      main.createDiv({ cls: "snark-cms-item-title", text: entry.title });
-      main.createDiv({ cls: "snark-cms-item-path", text: entry.path });
-      if (entry.local) {
-        main.addEventListener("click", () => this.openLocal(entry.local as TFile));
-      }
+  private renderSection(title: string, entries: SyncEntry[]): DocumentFragment {
+    const frag = document.createDocumentFragment();
+    if (!entries.length) return frag;
+    const heading = document.createElement("div");
+    heading.className = "snark-cms-section-title";
+    heading.textContent = `${title}（${entries.length}）`;
+    frag.appendChild(heading);
+    const list = document.createElement("ul");
+    list.className = "snark-cms-list";
+    for (const entry of entries) this.buildRow(list, entry);
+    frag.appendChild(list);
+    return frag;
+  }
 
-      const actions = li.createDiv({ cls: "snark-cms-item-actions" });
-      if (needsPull(entry)) {
-        this.iconBtn(actions, "download", entry.local ? "下载并覆盖本地笔记" : "下载为笔记", () => void this.pull(entry));
-      }
-      if (entry.status === "remote-deleted") {
-        this.iconBtn(actions, "unlink", "清除 blog-path 映射（保留笔记内容）", () =>
-          void this.withReload(clearMapping(this.ctx, entry.local as TFile)),
-        );
-      }
+  private buildRow(list: HTMLElement, entry: SyncEntry): void {
+    const li = list.createEl("li");
+    li.createDiv({
+      cls: `snark-cms-badge${entry.status === "remote-deleted" ? " is-draft" : ""}`,
+      text: STATUS_LABEL[entry.status],
+    });
+
+    const main = li.createDiv({ cls: "snark-cms-item-main" });
+    main.createDiv({ cls: "snark-cms-item-title", text: entry.title });
+    main.createDiv({ cls: "snark-cms-item-path", text: entry.path });
+    if (entry.local) {
+      main.addEventListener("click", () => this.openLocal(entry.local as TFile));
+    }
+
+    const actions = li.createDiv({ cls: "snark-cms-item-actions" });
+    if (needsPull(entry)) {
+      this.iconBtn(actions, "download", entry.local ? "下载并覆盖本地笔记" : "下载为笔记", () => void this.pull(entry));
+    }
+    if (entry.status === "remote-deleted") {
+      this.iconBtn(actions, "unlink", "清除 blog-path 映射（保留笔记内容）", () =>
+        void this.withReload(clearMapping(this.ctx, entry.local as TFile)),
+      );
     }
   }
 

@@ -137,6 +137,28 @@
   font-size: var(--font-ui-small);
 }
 
+/* 右侧栏发布面板 */
+.snark-blog-panel {
+  padding: 10px 14px;
+}
+
+.snark-cms-target {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 分组标题（同步面板：文章 / 纪事） */
+.snark-cms-section-title {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 10px 0 2px;
+}
+
 /* 友链编辑 */
 .snark-friends-modal {
   max-width: 760px;
@@ -157,8 +179,12 @@
   position: relative;
 }
 
-.snark-friend-row input {
+.snark-friend-row input[type="text"] {
   width: 100%;
+}
+
+.snark-friend-check input[type="checkbox"] {
+  width: auto;
 }
 
 .snark-friend-row .snark-friend-row-head {

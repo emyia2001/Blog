@@ -133,7 +133,8 @@ export function buildFrontmatter(kind: "posts" | "moments", p: NoteProps): strin
     entries.push(scalar("excerpt", p.excerpt ?? ""));
   }
   if (kind === "posts") entries.push(scalar("slug", p.slug ?? ""));
-  if (tags.length) entries.push(blockList("tags", tags));
+  // tags 仅 posts（纪事 schema 无 tags，右侧展示的是类型而非标签）
+  if (kind === "posts" && tags.length) entries.push(blockList("tags", tags));
   if (p.heroImage) entries.push(scalar("heroImage", p.heroImage));
   entries.push(scalar("draft", p.draft ?? false));
   if (p.featured === true) entries.push(scalar("featured", true));

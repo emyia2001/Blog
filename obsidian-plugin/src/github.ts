@@ -43,20 +43,41 @@ export class GitHubClient {
     url: string,
     body?: unknown,
   ): Promise<{ status: number; json: any }> {
-    const res = await requestUrl({
-      url,
-      method,
-      headers: { ...this.headers(), "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      throw: false,
-    });
-    let json: any = null;
-    try {
-      json = res.json;
-    } catch {
-      json = null;
+    // GET 幂等，可安全重试；国内直连 api.github.com 常被重置，多试几次
+    const attempts = method === "GET" ? 3 : 1;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const res = await requestUrl({
+          url,
+          method,
+          headers: { ...this.headers(), "Content-Type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          throw: false,
+        });
+        let json: any = null;
+        try {
+          json = res.json;
+        } catch {
+          json = null;
+        }
+        return { status: res.status, json };
+      } catch (e) {
+        lastErr = e;
+        if (attempt < attempts - 1) {
+          await new Promise((r) => window.setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
     }
-    return { status: res.status, json };
+    throw new Error(this.networkError(lastErr));
+  }
+
+  private networkError(e: unknown): string {
+    const msg = String((e as Error)?.message ?? e);
+    if (/CONNECTION_CLOSED|CONNECTION_RESET|ECONNRESET|ERR_NETWORK|ERR_INTERNET|fetch failed|socket/i.test(msg)) {
+      return `连接 GitHub 失败（${msg}）。api.github.com 直连不稳定，建议开启代理后重试`;
+    }
+    return `网络请求失败：${msg}`;
   }
 
   private friendlyError(status: number, message: string): string {

@@ -171,7 +171,7 @@ npm run preview  # 预览构建结果（含搜索索引）
 
 ---
 
-## 用 Obsidian 发布（Snark Blog CMS 插件）
+## 用 Obsidian 发布（Snark 博客 插件）
 
 在 Obsidian 里写作并直接发布：`obsidian-plugin/` 是随本仓库维护的 Obsidian 插件，把 vault 笔记按 `content.config.ts` 的 schema 转成 mdx、单文件提交到 main，触发 Actions 构建上线；同时支持纪事（含 lock/bgm）与友链可视化管理。安装与使用见 [obsidian-plugin/README.md](obsidian-plugin/README.md)。
 

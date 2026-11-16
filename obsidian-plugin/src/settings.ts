@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type SnarkBlogCmsPlugin from "./main";
+import { r2Config, verifyR2 } from "./r2";
 
 export interface SnarkSettings {
   /** fine-grained PAT：仅本仓库、Contents: Read and write */
@@ -13,6 +14,13 @@ export interface SnarkSettings {
   siteUrl: string;
   /** 「同步博客内容」抓取远端文件放进 vault 的文件夹（空 = vault 根目录） */
   syncFolder: string;
+  /** R2 直传（S3 兼容）：粘贴/拖入图片自动上传并回填外链；任一项为空即停用 */
+  r2AccessKey: string;
+  r2SecretKey: string;
+  r2AccountId: string;
+  r2Bucket: string;
+  r2PublicPrefix: string;
+  r2KeyPrefix: string;
 }
 
 export const DEFAULT_SETTINGS: SnarkSettings = {
@@ -25,6 +33,12 @@ export const DEFAULT_SETTINGS: SnarkSettings = {
   friendsPath: "src/data/friends.json",
   siteUrl: "https://snarkm.com",
   syncFolder: "博客",
+  r2AccessKey: "",
+  r2SecretKey: "",
+  r2AccountId: "",
+  r2Bucket: "",
+  r2PublicPrefix: "https://img.snarkm.com",
+  r2KeyPrefix: "blog",
 };
 
 export class SnarkSettingTab extends PluginSettingTab {
@@ -103,7 +117,59 @@ export class SnarkSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("同步文件夹")
-      .setDesc("「同步博客内容」把远端文章/纪事抓进 vault 的文件夹（空 = 根目录）")
+      .setDesc("「同步博客内容」抓取的根文件夹（空 = 根目录）；其下自动分为 文章/ 与 纪事/ 两个子文件夹")
       .addText((t) => t.setValue(s.syncFolder).onChange((v) => { s.syncFolder = v.trim().replace(/^\/+|\/+$/g, ""); save(); }));
+
+    // ---- 图片直传 R2 ----
+    containerEl.createEl("h4", { text: "图片直传 R2（粘贴/拖入即上传）" });
+    const r2Desc = document.createDocumentFragment();
+    r2Desc.append(
+      "Cloudflare → R2 → 管理 R2 API 令牌 → 创建令牌（对象读和写）。填齐后，发布时会把笔记里的 ![[图片附件]] 自动上传 R2 并把笔记本体回填为 img.snarkm.com 外链（下次发布不再重复上传）；粘贴/拖入图片仍按 Obsidian 默认存为本地附件。留空任一项则发布时要求使用图床外链。",
+    );
+    new Setting(containerEl)
+      .setName("R2 说明")
+      .setDesc(r2Desc)
+      .addExtraButton((btn) =>
+        btn
+          .setIcon("zap")
+          .setTooltip("验证连接：上传/读取/清理一个测试文件")
+          .onClick(async () => {
+            const cfg = r2Config(this.plugin.settings);
+            if (!cfg) {
+              this.plugin.showTransientStatus("先填齐 R2 各项再验证", true);
+              return;
+            }
+            btn.setDisabled(true);
+            try {
+              const msg = await verifyR2(cfg);
+              this.plugin.showTransientStatus(msg);
+            } catch (e) {
+              this.plugin.showTransientStatus(String((e as Error).message ?? e), true);
+            } finally {
+              btn.setDisabled(false);
+            }
+          }),
+      );
+    new Setting(containerEl)
+      .setName("R2 Access Key ID")
+      .addText((t) => t.setValue(s.r2AccessKey).onChange((v) => { s.r2AccessKey = v.trim(); save(); }));
+    new Setting(containerEl)
+      .setName("R2 Secret Access Key")
+      .addText((t) => { t.inputEl.type = "password"; return t.setValue(s.r2SecretKey).onChange((v) => { s.r2SecretKey = v.trim(); save(); }); });
+    new Setting(containerEl)
+      .setName("R2 账户 ID")
+      .setDesc("账户 ID 填数字 ID（r2.cloudflarestorage.com 前缀用）")
+      .addText((t) => t.setValue(s.r2AccountId).onChange((v) => { s.r2AccountId = v.trim(); save(); }));
+    new Setting(containerEl)
+      .setName("R2 桶名")
+      .addText((t) => t.setValue(s.r2Bucket).onChange((v) => { s.r2Bucket = v.trim(); save(); }));
+    new Setting(containerEl)
+      .setName("公网前缀")
+      .setDesc("图床对外 URL 前缀")
+      .addText((t) => t.setValue(s.r2PublicPrefix).onChange((v) => { s.r2PublicPrefix = v.trim().replace(/\/+$/, ""); save(); }));
+    new Setting(containerEl)
+      .setName("对象键前缀")
+      .setDesc("上传对象的前缀，如 blog（按 年/月/日 归档）")
+      .addText((t) => t.setValue(s.r2KeyPrefix).onChange((v) => { s.r2KeyPrefix = v.trim().replace(/^\/+|\/+$/g, ""); save(); }));
   }
 }

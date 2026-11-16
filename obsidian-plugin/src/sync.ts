@@ -130,8 +130,10 @@ export async function pullIntoVault(ctx: PublishContext, entry: SyncEntry): Prom
     return entry.local;
   }
 
-  const dir = folderPath(ctx.settings.syncFolder);
-  if (dir && !ctx.app.vault.getAbstractFileByPath(dir)) {
+  const base = folderPath(ctx.settings.syncFolder);
+  // 文章与纪事分开放：博客/文章、博客/纪事（syncFolder 为空时直接用 文章/纪事）
+  const dir = base ? `${base}/${entry.kind === "posts" ? "文章" : "纪事"}` : entry.kind === "posts" ? "文章" : "纪事";
+  if (!ctx.app.vault.getAbstractFileByPath(dir)) {
     try {
       await ctx.app.vault.createFolder(dir);
     } catch {
