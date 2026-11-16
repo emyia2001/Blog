@@ -7,15 +7,22 @@ interface Props {
    * 等页面在解锁成功后调用 element.unlockPlay() 才显示并开始播放。
    */
   gated?: boolean;
+  /**
+   * 内联模式（纪事信息流）：播放器随条目排布、不自动播放也不注册
+   * 「首次交互即播放」——页面同时有多条纪事，自动播放会让多条 BGM 一起响；
+   * 改为纯手动，由读者点该条目里的播放按钮决定。
+   */
+  inline?: boolean;
 }
 
-const { src, title, gated = false } = Astro.props;
+const { src, title, gated = false, inline = false } = Astro.props;
 ---
 
 <mini-player
   data-src={src}
   data-title={title}
   data-gated={gated ? "true" : undefined}
+  data-inline={inline ? "true" : undefined}
   hidden={gated}>
   <button
     id="mp-btn"
@@ -148,6 +155,16 @@ const { src, title, gated = false } = Astro.props;
     #mp-progress {
       transition: none;
     }
+  }
+
+  /* 内联模式（纪事信息流）：不再是右下角悬浮件，随条目排布的行内控件 */
+  mini-player[data-inline] #mp-btn,
+  mini-player[data-inline] #mp-bar {
+    position: static;
+  }
+  mini-player[data-inline] #mp-bar {
+    width: fit-content;
+    max-width: 100%;
   }
 </style>
 
@@ -337,17 +354,22 @@ const { src, title, gated = false } = Astro.props;
       // 锁定内容（data-gated）例外：既不显示也不播放，也不注册"首次交互即解锁播放"，
       // 否则用户随便滚动一下就把加密文章的 BGM 放出来了。
       if (this.dataset.gated !== "true") {
-        this.showBar();
-        if (this.btn) this.btn.style.display = "none";
-        this.setIcons(false);
-        this.play();
+        if (this.dataset.inline === "true") {
+          // 信息流内联模式：不自动播放、不注册「首次交互即播放」，
+          // 保留该条目里的圆形播放按钮，由读者决定何时出声。
+        } else {
+          this.showBar();
+          if (this.btn) this.btn.style.display = "none";
+          this.setIcons(false);
+          this.play();
 
-        // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
-        // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
-        // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
-        this.unlockEvents.forEach((evt) =>
-          window.addEventListener(evt, this._onUnlock, { passive: true })
-        );
+          // 浏览器自动播放策略：无用户交互的有声播放会被拦截。
+          // 首次用户交互（点击/滚动/按键/触摸）后立即解锁播放，
+          // 此时浏览器允许带声音播放，实现"打开页面就响"的效果。
+          this.unlockEvents.forEach((evt) =>
+            window.addEventListener(evt, this._onUnlock, { passive: true })
+          );
+        }
       } else {
         // 兜底：若克隆/升级时同一条目已在本会话解锁（正文已展开），直接进入播放态，
         // 不依赖脚本执行顺序（fillLocked 与自定义元素升级谁先到都能工作）。

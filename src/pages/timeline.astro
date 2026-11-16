@@ -4,7 +4,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 import { encryptContent } from "../utils/lockContent";
 
-// 纪事（moments）：person / event / diary 三类统一成一条时间线
+// 纪事（moments）：person / event / diary 连续信息流，全部服务端直出。
+// 右侧时间轴是目录（scroll-spy 高亮当前位置，点击滚动到对应条目）。
 const allMoments = await getCollection("moments");
 
 const publishedMoments = allMoments
@@ -34,8 +35,10 @@ const diaryTeaser = (body: string | undefined) => {
 };
 
 // 所有内容统一预渲染全文；带 lock 的文章构建期加密正文，浏览器端用答案解密
-interface RenderedAll {
+interface FeedItem {
   id: string;
+  /** 深链接锚点：由内容 id 去掉扩展名（稳定、可分享） */
+  anchor: string;
   kind: Kind;
   entry: CollectionEntry<"moments">;
   Content?: RenderedContent; // 未加密才有明文 Content
@@ -47,9 +50,14 @@ interface RenderedAll {
   };
 }
 
-const renderedAll: RenderedAll[] = await Promise.all(
+const feed: FeedItem[] = await Promise.all(
   publishedMoments.map(async (m) => {
-    const base = { id: m.id, kind: m.data.type as Kind, entry: m };
+    const base = {
+      id: m.id,
+      anchor: m.id.replace(/\.mdx?$/, ""),
+      kind: m.data.type as Kind,
+      entry: m,
+    };
     if (m.data.lock?.answer) {
       // 加密正文（构建期）；明文不进产物
       const enc = encryptContent(String(m.body ?? ""), m.data.lock.answer);
@@ -67,10 +75,7 @@ const renderedAll: RenderedAll[] = await Promise.all(
   })
 );
 
-const contentIndex = new Map(renderedAll.map((c, i) => [c.id, i]));
-
-interface TimelineEntry {
-  /** 深链接锚点：由内容 id 去掉扩展名（稳定、可分享） */
+interface RailEntry {
   anchor: string;
   date: Date;
   kind: Kind;
@@ -78,32 +83,29 @@ interface TimelineEntry {
   /** 日记无标题时的正文首行截断（碎碎念）；person/event 恒为空 */
   teaser: string;
   label: string; // 轴点小标签：人物 / 事件 / 日记
-  contentIndex: number;
   locked: boolean;
   hasBgm: boolean;
   /** 只在年份切换（或第一条）时显示年份，避免每行重复 */
   showYear: boolean;
 }
 
-const entries: TimelineEntry[] = publishedMoments
-  .map((m) => ({
-    anchor: m.id.replace(/\.mdx?$/, ""),
-    date: m.data.date,
-    kind: m.data.type as Kind,
-    title: m.data.title ?? "",
-    teaser: m.data.type === "diary" ? diaryTeaser(m.body) : "",
-    label: KIND_LABEL[m.data.type as Kind],
-    contentIndex: contentIndex.get(m.id)!,
-    locked: Boolean(m.data.lock?.answer),
-    hasBgm: Boolean(m.data.bgm?.src),
-    showYear: false,
-  }))
-  .sort((a, b) => b.date.getTime() - a.date.getTime());
+// 时间轴目录条目：publishedMoments 已排序，与 feed 同序一一对应
+const railEntries: RailEntry[] = publishedMoments.map((m) => ({
+  anchor: m.id.replace(/\.mdx?$/, ""),
+  date: m.data.date,
+  kind: m.data.type as Kind,
+  title: m.data.title ?? "",
+  teaser: m.data.type === "diary" ? diaryTeaser(m.body) : "",
+  label: KIND_LABEL[m.data.type as Kind],
+  locked: Boolean(m.data.lock?.answer),
+  hasBgm: Boolean(m.data.bgm?.src),
+  showYear: false,
+}));
 
 // 年份分组：降序排列时，第一条和每次跨年才标出年份
-entries.forEach((entry, i) => {
+railEntries.forEach((entry, i) => {
   entry.showYear =
-    i === 0 || entry.date.getFullYear() !== entries[i - 1].date.getFullYear();
+    i === 0 || entry.date.getFullYear() !== railEntries[i - 1].date.getFullYear();
 });
 
 const fmtLong = (d: Date) =>
@@ -117,13 +119,9 @@ const fmtLong = (d: Date) =>
 // 轴点日期：08.20（年份只在跨年时前缀显示，见上面的 showYear）
 const fmtPoint = (d: Date) =>
   `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-
-// 默认展开最新一条（轴点默认高亮它）
-const defaultRendered =
-  entries.length > 0 ? renderedAll[entries[0].contentIndex] : null;
 ---
 
-<BaseLayout title="纪事" description="纪事时间线：人物、事件与日常日记，按时间从近到远排列。">
+<BaseLayout title="纪事" description="纪事：人物、事件与日常碎念，按时间从近到远连续排列。">
   <div class="page-shell">
     <section>
       <header class="page-head">
@@ -132,24 +130,23 @@ const defaultRendered =
         </div>
       </header>
 
-      {entries.length > 0 ? (
+      {railEntries.length > 0 ? (
         <div class="timeline-layout">
           <!-- 时间轴：手机端在正文上方横向滑动，桌面端是右侧竖轴 -->
           <aside id="view-timeline" class="timeline-rail" aria-label="纪事时间线">
             <div class="tl-title-row">时间线</div>
             <ol class="tl-simple">
-              {entries.map((entry, i) => (
+              {railEntries.map((entry, i) => (
                 <li
                   id={entry.anchor}
                   class="timeline-point group"
                   data-kind={entry.kind}
                   data-index={i}
-                  data-content-index={entry.contentIndex}
                   data-anchor={entry.anchor}
                   role="button"
                   tabindex="0"
                   aria-current={i === 0 ? "true" : undefined}
-                  aria-controls="timeline-detail"
+                  aria-controls={entry.anchor}
                   style={`--tl-i: ${i}`}
                 >
                   {/* 段竖线：独立于可缩放内容，入场时逐段生长、悬停时本段高亮 */}
@@ -194,185 +191,83 @@ const defaultRendered =
             </ol>
           </aside>
 
-          <div class="timeline-main">
-            <div
-              id="timeline-detail"
-              class="timeline-detail"
-              aria-live="polite"
-              data-default-index="0"
-            >
-            {defaultRendered && (
-              <article class="pt-8 pb-4">
-                {defaultRendered.kind !== "diary" && (
-                  <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                    {defaultRendered.entry.data.title ??
-                      fmtLong(defaultRendered.entry.data.date)}
-                  </h2>
-                )}
-                <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                  {fmtLong(defaultRendered.entry.data.date)}
-                </p>
-                {defaultRendered.kind === "person" && (
-                  <span class="kind-chip mt-3">
-                    人物
-                  </span>
-                )}
-                {defaultRendered.kind === "event" && (
-                  <span class="kind-chip mt-3">
-                    事件
-                  </span>
-                )}
-                {defaultRendered.kind === "diary" && (
-                  <span class="kind-chip mt-3">
-                    日记
-                  </span>
-                )}
-                {defaultRendered.entry.data.bgm?.src && (
-                  <div class="mt-4">
-                    <MiniPlayer
-                      src={defaultRendered.entry.data.bgm.src}
-                      title={defaultRendered.entry.data.bgm.title}
-                      gated={Boolean(defaultRendered.lock)}
-                    />
+          <!-- 连续信息流：全部条目服务端直出，日记是无标题的碎碎念（占位更紧）。
+               data-pagefind-body 让搜索只索引这个区域；日记按约定不进索引，
+               加锁条目只有谜面与密文，也一并跳过。 -->
+          <div id="timeline-feed" class="timeline-feed" data-pagefind-body>
+            {feed.map((c, i) => (
+              <>
+                {railEntries[i].showYear && (
+                  <div class="tl-year" aria-hidden="true">
+                    {railEntries[i].date.getFullYear()}
                   </div>
                 )}
-                {defaultRendered.lock ? (
-                  <div
-                    class="lock-box mt-6"
-                    data-lock-id={defaultRendered.id}
-                    data-ciphertext={defaultRendered.lock.ciphertext}
-                    data-salt={defaultRendered.lock.salt}
-                    data-iv={defaultRendered.lock.iv}
-                  >
-                    <p class="lock-question">{defaultRendered.lock.question}</p>
-                    <div class="lock-row">
-                      <input
-                        type="text"
-                        class="lock-input"
-                        placeholder="输入答案解锁"
-                        autocomplete="off"
-                        aria-label="答案"
+                <article
+                  id={c.anchor}
+                  class:list={[
+                    "tl-entry",
+                    "reveal",
+                    c.kind === "diary" && "tl-entry--diary",
+                  ]}
+                  data-pagefind-ignore={c.kind === "diary" ? "true" : undefined}
+                >
+                  <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
+                    {fmtLong(c.entry.data.date)}
+                  </time>
+                  {c.kind !== "diary" && (
+                    <h2 class="tl-entry__title">
+                      {c.entry.data.title ?? fmtLong(c.entry.data.date)}
+                    </h2>
+                  )}
+                  {c.entry.data.bgm?.src && (
+                    <div class="mt-4">
+                      <MiniPlayer
+                        src={c.entry.data.bgm.src}
+                        title={c.entry.data.bgm.title}
+                        gated={Boolean(c.lock)}
+                        inline
                       />
-                      <button type="button" class="lock-btn">解锁</button>
                     </div>
-                    <p class="lock-error" hidden>答案不对，再试试。</p>
-                    <div class="lock-content prose mt-4" hidden></div>
-                  </div>
-                ) : (
-                  defaultRendered.Content && (
-                    <div class="prose mt-6">
-                      <defaultRendered.Content />
+                  )}
+                  {c.lock ? (
+                    <div
+                      class="lock-box mt-6"
+                      data-lock-id={c.id}
+                      data-ciphertext={c.lock.ciphertext}
+                      data-salt={c.lock.salt}
+                      data-iv={c.lock.iv}
+                      data-pagefind-ignore="true"
+                    >
+                      <p class="lock-question">{c.lock.question}</p>
+                      <div class="lock-row">
+                        <input
+                          type="text"
+                          class="lock-input"
+                          placeholder="输入答案解锁"
+                          autocomplete="off"
+                          aria-label="答案"
+                        />
+                        <button type="button" class="lock-btn">解锁</button>
+                      </div>
+                      <p class="lock-error" hidden>答案不对，再试试。</p>
+                      <div class="lock-content prose mt-4" hidden></div>
                     </div>
-                  )
-                )}
-              </article>
-            )}
-            </div>
-
-            <nav id="timeline-nav" class="timeline-nav" aria-label="纪事翻页" hidden>
-              <button type="button" class="tl-step tl-step--prev" data-tl-step="-1">
-                <span class="tl-step__dir">← 更新一条</span>
-                <span class="tl-step__title" data-tl-step-title></span>
-              </button>
-              <button type="button" class="tl-step tl-step--next" data-tl-step="1">
-                <span class="tl-step__dir">更早一条 →</span>
-                <span class="tl-step__title" data-tl-step-title></span>
-              </button>
-            </nav>
+                  ) : (
+                    c.Content && (
+                      <div class="prose mt-6">
+                        <c.Content />
+                      </div>
+                    )
+                  )}
+                </article>
+              </>
+            ))}
           </div>
         </div>
       ) : (
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
       )}
     </section>
-
-    <!-- 全站搜索索引：纪事的正文原本只存在于 <template>（不进 DOM，Pagefind 抓不到），
-         这里给「人物/事件」补一份隐藏的纯文本；日记按约定不进搜索，加密条目只有密文也跳过。
-         索引后的结果统一落到 /timeline/。 -->
-    <div hidden data-pagefind-body>
-      <h2>纪事</h2>
-      {renderedAll
-        .filter((c) => c.kind !== "diary" && !c.lock)
-        .map((c) => (
-          <article>
-            <h3>{c.entry.data.title ?? fmtLong(c.entry.data.date)}</h3>
-            <p>{String(c.entry.body ?? "")}</p>
-          </article>
-        ))}
-    </div>
-
-    <!-- Hidden full-text contents (moments + diary), cloned into detail area on click -->
-    <template id="content-templates">
-      {
-        renderedAll.map((c, idx) => (
-          <div class="content-body" data-content-index={idx}>
-            <article class="pt-8 pb-4">
-              {c.kind !== "diary" && (
-                <h2 class="font-serif text-2xl text-[var(--color-ed-fg)]">
-                  {c.entry.data.title ?? fmtLong(c.entry.data.date)}
-                </h2>
-              )}
-              <p class="mt-2 text-xs text-[var(--color-ed-subtle)] tabular-nums">
-                {fmtLong(c.entry.data.date)}
-              </p>
-              {c.kind === "person" && (
-                <span class="kind-chip mt-3">
-                  人物
-                </span>
-              )}
-              {c.kind === "event" && (
-                <span class="kind-chip mt-3">
-                  事件
-                </span>
-              )}
-              {c.kind === "diary" && (
-                <span class="kind-chip mt-3">
-                  日记
-                </span>
-              )}
-              {c.entry.data.bgm?.src && (
-                <div class="mt-4">
-                  <MiniPlayer
-                    src={c.entry.data.bgm.src}
-                    title={c.entry.data.bgm.title}
-                    gated={Boolean(c.lock)}
-                  />
-                </div>
-              )}
-              {c.lock ? (
-                <div
-                  class="lock-box mt-6"
-                  data-lock-id={c.id}
-                  data-ciphertext={c.lock.ciphertext}
-                  data-salt={c.lock.salt}
-                  data-iv={c.lock.iv}
-                >
-                  <p class="lock-question">{c.lock.question}</p>
-                  <div class="lock-row">
-                    <input
-                      type="text"
-                      class="lock-input"
-                      placeholder="输入答案解锁"
-                      autocomplete="off"
-                      aria-label="答案"
-                    />
-                    <button type="button" class="lock-btn">解锁</button>
-                  </div>
-                  <p class="lock-error" hidden>答案不对，再试试。</p>
-                  <div class="lock-content prose mt-4" hidden></div>
-                </div>
-              ) : (
-                c.Content && (
-                  <div class="prose mt-6">
-                    <c.Content />
-                  </div>
-                )
-              )}
-            </article>
-          </div>
-        ))
-      }
-    </template>
   </div>
 </BaseLayout>
 
@@ -767,26 +662,23 @@ const defaultRendered =
   .tl-simple {
     min-width: 0;
   }
-  .timeline-main {
+  .timeline-feed {
     width: 100%;
     min-width: 0;
     /* 单列时也不要把正文拉成 50+ 字/行；桌面端在该列内居中 */
     max-width: 47rem;
     margin-inline: auto;
-  }
-  .timeline-detail {
-    min-height: 10rem;
-    scroll-margin-top: 6rem;
+    padding-top: 0.5rem;
   }
   @media (min-width: 1024px) {
     .timeline-layout {
       grid-template-columns: minmax(0, 1fr) 20rem;
-      grid-template-areas: "detail rail";
+      grid-template-areas: "feed rail";
       gap: 3rem;
       align-items: start;
     }
-    .timeline-main {
-      grid-area: detail;
+    .timeline-feed {
+      grid-area: feed;
     }
     .timeline-rail {
       grid-area: rail;
@@ -796,52 +688,47 @@ const defaultRendered =
     }
   }
 
-  /* 详情底部：更新 / 更早 一条 */
-  .timeline-nav {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 1rem;
+  /* —— 连续信息流条目：正文直出、连续排布，日记（碎碎念）占位更紧 —— */
+  .tl-entry {
+    padding: 2.25rem 0 2.5rem;
+    scroll-margin-top: 6rem;
+  }
+  /* 同一年内相邻条目之间一条发丝线；跨年由年份标分隔，不再加线 */
+  .tl-entry + .tl-entry {
     border-top: 1px solid var(--color-ed-hairline);
   }
-  .timeline-nav[hidden] {
-    display: none;
-  }
-  .tl-step {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    max-width: 48%;
-    padding: 0.35rem 0.45rem;
-    border: 0;
-    border-radius: 3px;
-    background: none;
-    color: var(--color-ed-fg);
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 160ms ease;
-  }
-  .tl-step--next {
-    margin-left: auto;
-    text-align: right;
-  }
-  .tl-step:hover:not(:disabled) {
-    background: rgba(28, 28, 28, 0.03);
-  }
-  .tl-step:disabled {
-    cursor: default;
-    opacity: 0.55;
-  }
-  .tl-step__dir {
+  .tl-entry__date {
+    display: block;
     font-size: 0.6875rem;
-    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
     color: var(--color-ed-subtle);
+    letter-spacing: 0.06em;
   }
-  .tl-step__title {
+  .tl-entry__title {
+    margin-top: 0.35rem;
     font-family: var(--font-serif);
-    font-size: 0.875rem;
-    line-height: 1.45;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    color: var(--color-ed-fg);
+  }
+  /* 日记：无标题，正文直接跟在日期下 */
+  .tl-entry--diary {
+    padding-block: 1.75rem;
+  }
+  /* 年份标：serif 数字 + 延伸细线，跨年时给出呼吸位 */
+  .tl-year {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-muted);
+  }
+  .tl-year::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--color-ed-rule);
   }
 
   @media (max-width: 1023px) {
@@ -895,16 +782,23 @@ const defaultRendered =
     .timeline-point[data-kind="diary"] .tl-title {
       font-size: 0.8125rem;
     }
-    .tl-step {
-      max-width: 46%;
+    /* 手机端条目占位同步收紧 */
+    .tl-entry {
+      padding-block: 1.75rem;
+    }
+    .tl-entry--diary {
+      padding-block: 1.25rem;
     }
   }
 </style>
 
 <script>
-  // ===== 纪事时间线 =====
-  // 本站启用 View Transitions：脚本只执行一次，换页后 DOM 已替换。
-  // 因此引用一律在事件发生时现查，状态挂在 window 上，并在 astro:page-load 重新初始化。
+  // ===== 纪事连续流 =====
+  // 服务端已直出全部条目；本脚本只负责：
+  //   1. 时间轴（目录）点击/键盘 → 平滑滚动到对应条目并写入 hash
+  //   2. scroll-spy：滚动时高亮当前位置的轴点（rAF 节流，hash 用 replaceState 不污染历史）
+  //   3. 加锁条目解密（见下方锁一节，lock-box 常驻 DOM）
+  // View Transitions：脚本只执行一次，引用在事件发生时现查，状态挂 window 上。
   type TLState = { active: number | null; bound: boolean };
   const tlWindow = window as Window & { __timelineState?: TLState };
   const TL: TLState = (tlWindow.__timelineState ??= {
@@ -918,11 +812,8 @@ const defaultRendered =
 
   const tlPoints = () =>
     Array.from(document.querySelectorAll<HTMLElement>(".timeline-point"));
-  const tlDetail = () => document.getElementById("timeline-detail");
-  const tlTemplate = () =>
-    document.getElementById("content-templates") as HTMLTemplateElement | null;
-  const tlTitleOf = (el?: HTMLElement | null) =>
-    el?.querySelector(".tl-title")?.textContent?.trim() ?? "";
+  const tlEntries = () =>
+    Array.from(document.querySelectorAll<HTMLElement>(".tl-entry"));
 
   function tlHash(): string {
     const raw = location.hash.replace(/^#/, "");
@@ -940,39 +831,6 @@ const defaultRendered =
     else history.replaceState(null, "", url);
   }
 
-  function tlScrollToDetail(force = false) {
-    const detail = tlDetail();
-    if (!detail) return;
-    // 桌面：正文已经可见时不打断；只有滚过正文顶部或深链进入才回顶
-    if (!force && !TL_MOBILE.matches && detail.getBoundingClientRect().top >= 80) {
-      return;
-    }
-    const top = detail.getBoundingClientRect().top + window.scrollY - 84;
-    window.scrollTo({
-      top: Math.max(0, top),
-      behavior: TL_REDUCED ? "auto" : "smooth",
-    });
-  }
-
-  function tlUpdateNav(index: number) {
-    const nav = document.getElementById("timeline-nav");
-    if (!nav) return;
-    const pts = tlPoints();
-    const setBtn = (dir: -1 | 1, empty: string) => {
-      const btn = nav.querySelector<HTMLButtonElement>(
-        `[data-tl-step="${dir}"]`
-      );
-      if (!btn) return;
-      const target = pts[index + dir];
-      btn.disabled = !target;
-      const label = btn.querySelector<HTMLElement>("[data-tl-step-title]");
-      if (label) label.textContent = target ? tlTitleOf(target) : empty;
-    };
-    setBtn(-1, "已经是最新一条");
-    setBtn(1, "已经是最早一条");
-    nav.hidden = false;
-  }
-
   function tlSetActive(index: number) {
     tlPoints().forEach((p, i) => {
       const on = i === index;
@@ -982,30 +840,14 @@ const defaultRendered =
     });
   }
 
-  function tlRender(index: number, scroll = false) {
-    const detail = tlDetail();
-    const template = tlTemplate();
-    const point = tlPoints()[index];
-    if (!detail || !template || !point) return;
-    const body = Array.from(
-      template.content.querySelectorAll<HTMLElement>(".content-body")
-    ).find((b) => b.dataset.contentIndex === String(point.dataset.contentIndex));
-    if (!body) return;
-
-    detail.replaceChildren(body.cloneNode(true) as HTMLElement);
-    tlRestoreLocks(detail);
-
-    if (!TL_REDUCED && typeof detail.animate === "function") {
-      detail.animate(
-        [
-          { opacity: 0, transform: "translateY(4px)" },
-          { opacity: 1, transform: "none" },
-        ],
-        // easing 与全站令牌 --ease-ed 一致
-        { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
-      );
-    }
-    if (scroll) tlScrollToDetail();
+  // 对齐条目顶部（锚点语义）；已在位时不再抽动
+  function tlScrollToEntry(article: HTMLElement) {
+    const top = article.getBoundingClientRect().top + window.scrollY - 84;
+    if (Math.abs(window.scrollY - Math.max(0, top)) < 4) return;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: TL_REDUCED ? "auto" : "smooth",
+    });
   }
 
   // 只滚时间轴自身：桌面向上下、手机向左右，不抢正文的滚动
@@ -1033,98 +875,81 @@ const defaultRendered =
       scroller.scrollTop += p.bottom - box.bottom + 8;
   }
 
-  function tlSelect(
-    index: number,
-    opts: {
-      push?: boolean;
-      scroll?: boolean;
-      force?: boolean;
-      /** 从历史/hash 恢复时不再改写 URL（否则会把后退清掉的 hash 又写回去） */
-      hash?: boolean;
-    } = {}
-  ) {
-    const point = tlPoints()[index];
-    if (!point) return;
-    // 点当前条目不再清空正文（误触会丢内容）；手机上再点一次则滚回正文
-    if (index === TL.active && !opts.force) {
-      if (opts.scroll && TL_MOBILE.matches) tlScrollToDetail();
-      return;
+  // scroll-spy：以「顶部越过导航线下方」的最后一条为当前位置；触底时取最后一条。
+  // 页面顶端不写 hash（保持 /timeline/ 干净），滚进正文后才用 replaceState 同步。
+  // 程序化导航（轴点点击/深链接）的滚动期间暂停 spy——否则起步瞬间 spy 会把
+  // 刚设置的高亮/hash 抢回落点之前的条目（observed：点日记却被改回事件）。
+  let navQuiet = false;
+  let navQuietTimer = 0;
+  function tlBeginNav() {
+    navQuiet = true;
+    window.clearTimeout(navQuietTimer);
+    navQuietTimer = window.setTimeout(() => {
+      navQuiet = false;
+    }, 1200);
+    // scrollend（现代浏览器）在平滑滚动结束时立即解除抑制
+    window.addEventListener(
+      "scrollend",
+      () => {
+        navQuiet = false;
+      },
+      { once: true }
+    );
+  }
+
+  function tlSpy() {
+    if (navQuiet) return;
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    let index = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].getBoundingClientRect().top <= 100) index = i;
     }
+    const doc = document.documentElement;
+    if (window.innerHeight + window.scrollY >= doc.scrollHeight - 4) {
+      index = entries.length - 1;
+    }
+    if (index === TL.active) return;
     TL.active = index;
     tlSetActive(index);
-    tlRender(index, opts.scroll ?? false);
-    tlUpdateNav(index);
-    if (opts.hash !== false) {
-      tlSetHash(point.dataset.anchor ?? "", opts.push ?? true);
+    const point = tlPoints()[index];
+    if (point) {
+      tlRevealPoint(point);
+      if (window.scrollY > 40 || tlHash()) {
+        tlSetHash(point.dataset.anchor ?? "", false);
+      }
     }
+  }
+
+  let spyRaf = 0;
+  function tlOnScroll() {
+    if (spyRaf) return;
+    spyRaf = window.requestAnimationFrame(() => {
+      spyRaf = 0;
+      tlSpy();
+    });
+  }
+
+  // 目录导航：轴点 → 对应条目（点击 push hash，键盘/历史恢复只 replace）
+  function tlGo(point: HTMLElement, push: boolean) {
+    const article = document.getElementById(point.dataset.anchor ?? "");
+    if (!article) return;
+    const idx = Number(point.dataset.index ?? "-1");
+    if (idx >= 0) {
+      TL.active = idx;
+      tlSetActive(idx);
+    }
+    tlSetHash(point.dataset.anchor ?? "", push);
     tlRevealPoint(point);
-  }
-
-  function tlInit() {
-    const detail = tlDetail();
-    const pts = tlPoints();
-    if (!detail || pts.length === 0) {
-      TL.active = null;
-      return;
-    }
-    const hash = tlHash();
-    const byHash = hash
-      ? pts.findIndex((p) => p.dataset.anchor === hash)
-      : -1;
-
-    if (byHash > 0) {
-      TL.active = null;
-      tlSelect(byHash, {
-        push: false,
-        scroll: false,
-        force: true,
-        hash: false,
-      });
-    } else {
-      // 服务端默认渲染最新一条（index 0）；hash 指向它时不需要重渲染
-      TL.active = 0;
-      tlSetActive(0);
-      tlUpdateNav(0);
-      tlRestoreLocks(detail);
-    }
-
-    if (byHash >= 0) {
-      // 浏览器会先滚到锚点（时间轴里的那条），这里再把正文顶到导航下方；
-      // 延迟一次兜底，避免锚点滚动晚于脚本执行。
-      requestAnimationFrame(() => tlScrollToDetail(true));
-      window.setTimeout(() => tlScrollToDetail(true), 180);
-    }
-  }
-
-  function tlHistory() {
-    if (!tlDetail()) return;
-    const hash = tlHash();
-    // 后退到没有 hash 的初始状态时，回到最新一条
-    if (!hash) {
-      if (TL.active !== 0)
-        tlSelect(0, { push: false, force: true, hash: false });
-      return;
-    }
-    const idx = tlPoints().findIndex((p) => p.dataset.anchor === hash);
-    if (idx < 0 || idx === TL.active) return;
-    tlSelect(idx, { push: false, scroll: true, force: true, hash: false });
+    tlBeginNav();
+    tlScrollToEntry(article);
   }
 
   function tlClick(e: MouseEvent) {
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    const point = target.closest<HTMLElement>(".timeline-point");
-    if (point) {
-      const idx = Number(point.dataset.index ?? "-1");
-      if (idx >= 0) tlSelect(idx, { push: true, scroll: true });
-      return;
-    }
-    const step = target.closest<HTMLElement>("[data-tl-step]");
-    if (!step || TL.active === null) return;
-    const next = TL.active + Number(step.dataset.tlStep ?? "0");
-    if (next >= 0 && next < tlPoints().length) {
-      tlSelect(next, { push: true, scroll: true });
-    }
+    const point = (e.target as HTMLElement | null)?.closest?.(
+      ".timeline-point"
+    ) as HTMLElement | null;
+    if (point) tlGo(point, true);
   }
 
   function tlKeydown(e: KeyboardEvent) {
@@ -1136,7 +961,7 @@ const defaultRendered =
 
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      tlSelect(idx, { push: true, scroll: true });
+      tlGo(point, true);
       return;
     }
 
@@ -1151,7 +976,52 @@ const defaultRendered =
 
     e.preventDefault();
     pts[next]?.focus();
-    tlSelect(next, { push: false, scroll: false });
+    if (pts[next]) tlGo(pts[next], false);
+  }
+
+  function tlHistory() {
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    const hash = tlHash();
+    // 后退到没有 hash 的初始状态：回到最新一条（页面顶部）
+    if (!hash) {
+      if (TL.active !== 0) {
+        TL.active = 0;
+        tlSetActive(0);
+      }
+      window.scrollTo({ top: 0, behavior: TL_REDUCED ? "auto" : "smooth" });
+      return;
+    }
+    const target = entries.find((el) => el.id === hash);
+    if (!target) return;
+    const idx = entries.indexOf(target);
+    if (idx !== TL.active) {
+      TL.active = idx;
+      tlSetActive(idx);
+      tlRevealPoint(tlPoints()[idx]);
+    }
+    tlScrollToEntry(target);
+  }
+
+  function tlInit() {
+    TL.active = null;
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    const hash = tlHash();
+    const target = hash ? entries.find((el) => el.id === hash) : undefined;
+    if (target) {
+      // 深链接进入：浏览器原生锚点滚动已落位，这里兜底一次并同步轴点高亮
+      const idx = entries.indexOf(target);
+      TL.active = idx;
+      tlSetActive(idx);
+      tlRevealPoint(tlPoints()[idx]);
+      tlBeginNav();
+      requestAnimationFrame(() => tlScrollToEntry(target));
+      window.setTimeout(() => tlScrollToEntry(target), 180);
+      return;
+    }
+    // 无深链接：默认高亮最新一条（页面顶部）
+    tlSpy();
   }
 
   // ===== 纪事内容解锁（AES-GCM，答案解密）=====
@@ -1292,16 +1162,6 @@ const defaultRendered =
     player?.unlockPlay?.();
   }
 
-  // 克隆详情后用会话记忆恢复已解锁条目
-  function tlRestoreLocks(root: HTMLElement | null) {
-    if (!root) return;
-    const memo = loadLocks();
-    root.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
-      const id = box.dataset.lockId ?? "";
-      if (id && memo[id]) fillLocked(box, memo[id], false);
-    });
-  }
-
   async function tryUnlock(box: HTMLElement) {
     // 已解锁 / 正在解密：忽略重复提交（PBKDF2 120k 有 100–300ms 空窗）
     if (box.dataset.unlocked === "1" || box.dataset.pending === "1") {
@@ -1357,7 +1217,7 @@ const defaultRendered =
     }
   }
 
-  // 事件委托：克隆进详情区的 lock-box 也能触发解锁；Enter 提交
+  // 事件委托：任意条目的 lock-box 都能触发解锁；Enter 提交
   function tlLockClick(e: MouseEvent) {
     const btn = (e.target as HTMLElement | null)?.closest?.(".lock-btn");
     if (!btn) return;
@@ -1390,6 +1250,7 @@ const defaultRendered =
     document.addEventListener("keydown", tlLockKeydown);
     window.addEventListener("popstate", tlHistory);
     window.addEventListener("hashchange", tlHistory);
+    window.addEventListener("scroll", tlOnScroll, { passive: true });
     document.addEventListener("astro:page-load", tlInit);
     document.addEventListener("astro:before-swap", () => {
       TL.active = null;
