@@ -3,6 +3,7 @@ import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 import { encryptContent } from "../utils/lockContent";
+import { SITE_NAME, SITE_AVATAR } from "../consts";
 
 // 纪事（moments）：person / event / diary 连续信息流，全部服务端直出。
 // 右侧时间轴是目录（scroll-spy 高亮当前位置，点击滚动到对应条目）。
@@ -211,12 +212,26 @@ const fmtPoint = (d: Date) =>
                   ]}
                   data-pagefind-ignore={c.kind === "diary" ? "true" : undefined}
                 >
-                  <div class="tl-entry__meta">
-                    <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
-                      {fmtLong(c.entry.data.date)}
-                    </time>
-                    <span class="tl-entry__kind">{railEntries[i].label}</span>
-                  </div>
+                  <header class="tl-entry__head">
+                    <span class="tl-entry__by">
+                      <img
+                        class="tl-entry__avatar"
+                        src={SITE_AVATAR}
+                        alt=""
+                        width="28"
+                        height="28"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span class="tl-entry__name">{SITE_NAME}</span>
+                    </span>
+                    <span class="tl-entry__meta">
+                      <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
+                        {fmtLong(c.entry.data.date)}
+                      </time>
+                      <span class="tl-entry__kind">{railEntries[i].label}</span>
+                    </span>
+                  </header>
                   {/* 有标题才渲染标题；无标题时日期行已带日期，不再兜底重复 */}
                   {c.kind !== "diary" && c.entry.data.title && (
                     <h2 class="tl-entry__title">{c.entry.data.title}</h2>
@@ -261,6 +276,21 @@ const fmtPoint = (d: Date) =>
                       </div>
                     )
                   )}
+                  {/* 互动行：本地点赞（无后端，状态存本机，不做假计数） */}
+                  <footer class="tl-entry__foot">
+                    <button
+                      type="button"
+                      class="tl-like"
+                      data-like={c.anchor}
+                      aria-pressed="false"
+                      title="点赞（本机记忆）"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20.7C7.4 17.4 3.5 14 3.5 9.9 3.5 7 5.7 5 8.2 5c1.6 0 3 .9 3.8 2.2C12.8 5.9 14.2 5 15.8 5c2.5 0 4.7 2 4.7 4.9 0 4.1-3.9 7.5-8.5 10.8z"></path>
+                      </svg>
+                      <span class="sr-only">点赞</span>
+                    </button>
+                  </footer>
                 </article>
               </>
             ))}
@@ -699,11 +729,38 @@ const fmtPoint = (d: Date) =>
   .tl-entry + .tl-entry {
     border-top: 1px dashed var(--color-ed-rule);
   }
+  /* —— 条目头：朋友圈式，头像 + 站名在左，日期 + 类型在右 —— */
+  .tl-entry__head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .tl-entry__by {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+  .tl-entry__avatar {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--color-ed-rule);
+    background: var(--color-ed-bg);
+  }
+  .tl-entry__name {
+    font-family: var(--font-serif);
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    color: var(--color-ed-fg);
+  }
   .tl-entry__meta {
+    margin-left: auto;
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
     gap: 1rem;
+    min-width: 0;
   }
   .tl-entry__date {
     display: block;
@@ -718,6 +775,59 @@ const fmtPoint = (d: Date) =>
     font-size: 0.6875rem;
     letter-spacing: 0.08em;
     color: var(--color-ed-subtle);
+  }
+  /* —— 互动行：本地点赞 —— */
+  .tl-entry__foot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--color-ed-hairline);
+  }
+  .tl-like {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--color-ed-subtle);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease;
+  }
+  .tl-like svg {
+    width: 1rem;
+    height: 1rem;
+    transition: fill 160ms ease;
+  }
+  .tl-like:hover {
+    color: var(--color-ed-accent);
+  }
+  .tl-like[aria-pressed="true"] {
+    color: var(--color-ed-accent);
+  }
+  .tl-like[aria-pressed="true"] svg {
+    fill: currentColor;
+  }
+  /* 点赞瞬间：爱心爆一下（只动 transform） */
+  .tl-like.is-pop svg {
+    animation: tl-like-pop 360ms var(--ease-ed);
+  }
+  @keyframes tl-like-pop {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.35);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tl-like.is-pop svg {
+      animation: none;
+    }
   }
   .tl-entry__title {
     margin-top: 0.35rem;
@@ -945,6 +1055,49 @@ const fmtPoint = (d: Date) =>
     });
   }
 
+  // ===== 互动行：本地点赞（纯静态无后端，状态只存本机 localStorage）=====
+  const LIKE_STORAGE_KEY = "snark_moment_likes";
+
+  function loadLikes(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(LIKE_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  // 首屏/换页后恢复已点赞状态（aria-pressed 驱动样式）
+  function tlRestoreLikes() {
+    const likes = loadLikes();
+    document.querySelectorAll<HTMLButtonElement>(".tl-like").forEach((btn) => {
+      if (btn.dataset.like && likes[btn.dataset.like]) {
+        btn.setAttribute("aria-pressed", "true");
+      }
+    });
+  }
+
+  function tlLikeClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-like"
+    ) as HTMLButtonElement | null;
+    if (!btn || !btn.dataset.like) return;
+    const liked = btn.getAttribute("aria-pressed") === "true";
+    btn.setAttribute("aria-pressed", liked ? "false" : "true");
+    if (!liked && !TL_REDUCED) {
+      btn.classList.remove("is-pop");
+      void btn.offsetWidth;
+      btn.classList.add("is-pop");
+    }
+    const likes = loadLikes();
+    if (liked) delete likes[btn.dataset.like];
+    else likes[btn.dataset.like] = 1;
+    try {
+      localStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(likes));
+    } catch {
+      /* 隐私模式等存不进就当次会话有效 */
+    }
+  }
+
   // 目录导航：轴点 → 对应条目（点击 push hash，键盘/历史恢复只 replace）
   function tlGo(point: HTMLElement, push: boolean) {
     const article = document.getElementById(point.dataset.anchor ?? "");
@@ -1022,6 +1175,7 @@ const fmtPoint = (d: Date) =>
     TL.active = null;
     const entries = tlEntries();
     if (entries.length === 0) return;
+    tlRestoreLikes();
     const hash = tlHash();
     const target = hash ? entries.find((el) => el.id === hash) : undefined;
     if (target) {
@@ -1261,6 +1415,7 @@ const fmtPoint = (d: Date) =>
     TL.bound = true;
     document.addEventListener("click", tlClick);
     document.addEventListener("keydown", tlKeydown);
+    document.addEventListener("click", tlLikeClick);
     document.addEventListener("click", tlLockClick);
     document.addEventListener("keydown", tlLockKeydown);
     window.addEventListener("popstate", tlHistory);
