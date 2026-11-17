@@ -818,6 +818,13 @@ const fmtPoint = (d: Date) =>
     height: 1rem;
     transition: fill 160ms ease;
   }
+  /* ♥ 旁的聚合计数（接口不可用时无数字，退回纯本地） */
+  .tl-like__count {
+    margin-left: 0.05rem;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
   .tl-like:hover,
   .tl-comment:hover {
     color: var(--color-ed-accent);
@@ -1117,6 +1124,67 @@ const fmtPoint = (d: Date) =>
     });
   }
 
+  // ===== 点赞聚合：Worker /api/likes（KV 计数），失败退回纯本地 =====
+  // GET 拉全部聚合数 → ♥ 旁显示真实次数；POST 在点亮时记账（服务端按
+  // IP 哈希 24h 去重，重复点赞返回当前数不重复计）。接口不可用就没有数字，
+  // 红心行为照旧。
+  let likeCounts: Record<string, number> | null = null;
+
+  function updateLikeCount(btn: HTMLButtonElement) {
+    const id = btn.dataset.like ?? "";
+    if (!id) return;
+    const n = likeCounts?.[id] ?? 0;
+    let span = btn.querySelector<HTMLElement>(".tl-like__count");
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "tl-like__count";
+      btn.appendChild(span);
+    }
+    if (n > 0) {
+      span.textContent = String(n);
+      span.hidden = false;
+    } else {
+      span.hidden = true;
+    }
+  }
+
+  function fetchLikeCounts() {
+    fetch("/api/likes")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          data: { ok?: boolean; likes?: Record<string, number> } | null
+        ) => {
+          if (!data?.likes) return;
+          likeCounts = data.likes;
+          document
+            .querySelectorAll<HTMLButtonElement>(".tl-like")
+            .forEach(updateLikeCount);
+        }
+      )
+      .catch(() => {
+        /* 聚合不可用：退回纯本地点赞 */
+      });
+  }
+
+  function postLike(id: string, btn: HTMLButtonElement) {
+    fetch("/api/likes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { ok?: boolean; count?: number } | null) => {
+        if (!data || typeof data.count !== "number") return;
+        likeCounts = likeCounts ?? {};
+        likeCounts[id] = data.count;
+        updateLikeCount(btn);
+      })
+      .catch(() => {
+        /* 记账失败：红心照旧，下次点赞会重试 */
+      });
+  }
+
   function tlLikeClick(e: MouseEvent) {
     const btn = (e.target as HTMLElement | null)?.closest?.(
       ".tl-like"
@@ -1131,7 +1199,10 @@ const fmtPoint = (d: Date) =>
     }
     const likes = loadLikes();
     if (liked) delete likes[btn.dataset.like];
-    else likes[btn.dataset.like] = 1;
+    else {
+      likes[btn.dataset.like] = 1;
+      postLike(btn.dataset.like, btn);
+    }
     try {
       localStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(likes));
     } catch {
@@ -1551,9 +1622,11 @@ const fmtPoint = (d: Date) =>
     );
   }
 
-  // 空闲 1.5s 后再探测评论数（不与首屏资源抢路）；giscus 注入只发生在需要时
+  // 空闲 1.5s 后再探测评论数 / 拉取点赞聚合（不与首屏资源抢路）；
+  // giscus 注入只发生在需要时
   function tlInitComments() {
     window.setTimeout(async () => {
+      fetchLikeCounts();
       const counts = await fetchCommentCounts();
       if (!counts) return;
       document.querySelectorAll<HTMLElement>(".tl-comments").forEach((c) => {
