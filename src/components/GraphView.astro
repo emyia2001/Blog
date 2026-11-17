@@ -937,7 +937,7 @@ const linkCount = links.length;
 
   // 标签最大字数：窄屏更容易顶到画布边缘，截短一点
   const maxLabelChars = (svg.clientWidth || window.innerWidth) < 480 ? 9 : 14;
-  const labelEls: SVGTextElement[] = [];
+  const labelEls: (SVGTextElement | null)[] = [];
   const labelMeta: { sign: number; r: number }[] = [];
 
   const nodeEls = nodes.map((n, ni) => {
@@ -949,7 +949,10 @@ const linkCount = links.length;
     g.dataset.url = n.url;
     g.setAttribute("role", "button");
     g.setAttribute("tabindex", "0");
-    g.setAttribute("aria-label", `${kindLabel(n.kind)}：${n.title}`);
+    g.setAttribute(
+      "aria-label",
+      n.title ? `${kindLabel(n.kind)}：${n.title}` : `${kindLabel(n.kind)}节点（无标题）`
+    );
     // bare 迷你图是导航组件（点击跳转），保持 pointer；全图节点可拖拽走 CSS grab
     if (isBare) g.style.cursor = "pointer";
     g.style.animationDelay = `${80 + ni * 40}ms`;
@@ -1053,21 +1056,28 @@ const linkCount = links.length;
       g.appendChild(shape);
     }
 
-    // 标签上下交错，减少同一水平线上的叠字
+    // 标签上下交错，减少同一水平线上的叠字；
+    // 无标题节点（碎碎念日记/无标题纪事）只显示图标，不渲染名称标签
     const sign = ni % 2 === 0 ? 1 : -1;
-    const label = document.createElementNS(NS, "text");
-    label.setAttribute("class", "graph-label");
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("dominant-baseline", "middle");
-    label.setAttribute("y", String(sign * (r + 13)));
-    if (isSelf) label.style.fontWeight = "600";
-    label.textContent =
-      n.title.length > maxLabelChars
-        ? `${n.title.slice(0, maxLabelChars - 1)}…`
-        : n.title;
-    g.appendChild(label);
-    labelEls.push(label);
-    labelMeta.push({ sign, r });
+    if (n.title) {
+      const label = document.createElementNS(NS, "text");
+      label.setAttribute("class", "graph-label");
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("dominant-baseline", "middle");
+      label.setAttribute("y", String(sign * (r + 13)));
+      if (isSelf) label.style.fontWeight = "600";
+      label.textContent =
+        n.title.length > maxLabelChars
+          ? `${n.title.slice(0, maxLabelChars - 1)}…`
+          : n.title;
+      g.appendChild(label);
+      labelEls.push(label);
+      labelMeta.push({ sign, r });
+    } else {
+      // 无标题节点：占位 null 保持 labelEls[i] 与节点下标对齐
+      labelEls.push(null);
+      labelMeta.push({ sign, r });
+    }
 
     nodesG.appendChild(g);
     return g;
@@ -1091,6 +1101,7 @@ const linkCount = links.length;
   let labelWidths: number[] = [];
   function measureLabels() {
     labelWidths = labelEls.map((l) => {
+      if (!l) return 0; // 无标题节点的占位：无标签宽度
       try {
         return l.getComputedTextLength();
       } catch {
@@ -1979,7 +1990,7 @@ const linkCount = links.length;
     if (imgSrc) {
       const img = document.createElement("img");
       img.src = imgSrc;
-      img.alt = n.title;
+      img.alt = n.title || n.date || "节点";
       img.loading = "lazy";
       img.className = "graph-preview-img";
       wrap.appendChild(img);
@@ -1987,7 +1998,8 @@ const linkCount = links.length;
 
     const h = document.createElement("h3");
     h.className = "graph-preview-title";
-    h.textContent = n.title;
+    // 无标题节点：预览标题用日期兜底（图标节点悬停仍可辨认）
+    h.textContent = n.title || n.date || "";
     wrap.appendChild(h);
 
     if (n.excerpt) {
@@ -2023,8 +2035,8 @@ const linkCount = links.length;
         chip.type = "button";
         chip.className = "graph-rel-chip";
         chip.dataset.goto = id;
-        chip.textContent = target.title;
-        chip.title = `查看「${target.title}」`;
+        chip.textContent = target.title || target.date || "节点";
+        chip.title = `查看「${chip.textContent}」`;
         li.appendChild(chip);
         list.appendChild(li);
       }

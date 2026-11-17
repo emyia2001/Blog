@@ -11,6 +11,8 @@ export interface GraphNode {
   avatar?: string;
   excerpt?: string;
   heroImage?: string;
+  /** 纪事条目的日期（zh-CN 格式）：无标题节点在图谱只显示图标，悬停预览用日期兜底 */
+  date?: string;
 }
 
 export interface GraphLink {
@@ -62,12 +64,9 @@ export function buildGraphData(
   const nodes: GraphNode[] = graphContent.map(({ id, entry }) => ({
     id,
     kind: kindOf(entry),
-    title:
-      entry.data.graph?.name ??
-      entry.data.title ??
-      (entry.collection === "posts"
-        ? entry.data.title
-        : String(entry.data.date ?? "")), // person/event 无标题时用日期兜底（极少见）
+    // 节点显示名 = graph.name ?? title；无标题纪事不兜底日期——
+    // 图谱里只显示图标节点（GraphView 对空 title 跳过名称标签），悬停预览用 date
+    title: entry.data.graph?.name ?? entry.data.title ?? "",
     url: urlOf(id, entry),
     contentIndex: -1,
     avatar: entry.data.graph?.avatar,
@@ -77,6 +76,10 @@ export function buildGraphData(
         ? (entry as PostEntry).data.excerpt
         : undefined,
     heroImage: entry.data.heroImage,
+    date:
+      entry.collection === "moments"
+        ? entry.data.date.toLocaleDateString("zh-CN")
+        : undefined,
   }));
 
   // 反查索引：slug / 标题 / id（去扩展名）都能定位到节点。
