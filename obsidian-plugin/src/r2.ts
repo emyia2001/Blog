@@ -250,3 +250,31 @@ export async function deleteR2Object(cfg: R2Config, key: string): Promise<void> 
   const res = await s3Request("DELETE", cfg, key, null);
   if (res.status >= 400 && res.status !== 404) throw s3Error("删除", res.status);
 }
+
+/** 分页拉全桶对象（ListObjectsV2 + continuation-token，无 delimiter = 递归全量） */
+export async function listAllR2Objects(cfg: R2Config, prefix = ""): Promise<R2ObjectInfo[]> {
+  const all: R2ObjectInfo[] = [];
+  let token: string | undefined;
+  do {
+    const query: Record<string, string> = { "list-type": "2", "max-keys": "1000" };
+    if (prefix) query.prefix = prefix;
+    if (token) query["continuation-token"] = token;
+    const res = await s3Request("GET", cfg, "", null, query);
+    if (res.status >= 300) throw s3Error("列举", res.status);
+    const xml = res.text;
+
+    const contentsRe = /<Contents>([\s\S]*?)<\/Contents>/g;
+    let m: RegExpExecArray | null;
+    while ((m = contentsRe.exec(xml))) {
+      const block = m[1];
+      const pick = (tag: string): string => {
+        const t = block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
+        return t ? decodeXmlEntities(t[1]) : "";
+      };
+      all.push({ key: pick("Key"), size: Number(pick("Size")) || 0, lastModified: pick("LastModified") });
+    }
+    const next = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
+    token = next ? decodeXmlEntities(next[1]) : undefined;
+  } while (token);
+  return all;
+}

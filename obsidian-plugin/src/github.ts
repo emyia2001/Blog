@@ -203,21 +203,26 @@ export class GitHubClient {
   }
 
   /** 递归列出仓库文件树中指定前缀目录下的 mdx 文件路径（单次请求） */
-  async listTree(prefixes: string[]): Promise<string[]> {
+  /** 列出仓库里指定前缀下的文本文件路径（默认 md/mdx；可传自定义扩展名集合） */
+  async listTree(prefixes: string[], exts: string[] = ["md", "mdx"]): Promise<string[]> {
     const url = `${API_ROOT}/repos/${this.cfg.owner}/${this.cfg.repo}/git/trees/${encodeURIComponent(this.cfg.branch)}?recursive=1`;
     const { status, json } = await this.raw("GET", url);
     if (status >= 300) {
       throw new Error(this.friendlyError(status, json?.message ?? "读取文件树失败"));
     }
+    const extRe = new RegExp(`\\.(${exts.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})$`, "i");
     const tree: { path: string; type: string }[] = json?.tree ?? [];
-    return tree
-      .filter(
-        (t) =>
-          t.type === "blob" &&
-          /\.mdx?$/.test(t.path) &&
-          prefixes.some((p) => t.path.startsWith(`${p}/`)),
-      )
-      .map((t) => t.path);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of tree) {
+      if (t.type !== "blob" || !extRe.test(t.path)) continue;
+      if (!prefixes.some((p) => t.path.startsWith(`${p}/`))) continue;
+      if (!seen.has(t.path)) {
+        seen.add(t.path);
+        out.push(t.path);
+      }
+    }
+    return out;
   }
 
   /** 最近一次 Actions 运行（用于构建状态提示） */

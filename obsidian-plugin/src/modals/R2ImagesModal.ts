@@ -3,6 +3,7 @@ import { r2Config, R2ObjectInfo, R2Listing, listR2Objects, deleteR2Object } from
 import { PublishContext } from "../publish";
 import { errorNotice, successNotice } from "../utils";
 import { confirmAsync } from "./ConfirmModal";
+import { R2CleanupModal } from "./R2CleanupModal";
 
 /** 图床图片管理：逐层浏览 R2 桶（文件夹可进入），可复制公网链接或删除对象 */
 export class R2ImagesModal extends Modal {
@@ -23,6 +24,12 @@ export class R2ImagesModal extends Modal {
     this.modalEl.addClass("snark-friends-modal");
     const { contentEl } = this;
     this.statusEl = contentEl.createDiv({ cls: "snark-cms-status", text: "读取桶内对象…" });
+
+    // 工具行：孤儿图清理入口
+    const tools = contentEl.createDiv({ cls: "snark-cms-field" });
+    const cleanupBtn = tools.createEl("button", { text: "🧹 清理未引用图片" });
+    cleanupBtn.title = "拉取全桶对象，与仓库已发布内容比对，列出没有出现的对象供批量删除";
+    cleanupBtn.addEventListener("click", () => new R2CleanupModal(this.app, this.ctx).open());
 
     const filterField = contentEl.createDiv({ cls: "snark-cms-field" });
     filterField.createEl("label", { text: "筛选（名称包含）" });
