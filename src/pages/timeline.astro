@@ -888,7 +888,8 @@ const fmtPoint = (d: Date) =>
     aspect-ratio: 1;
     overflow: hidden;
     border-radius: 3px;
-    background: var(--color-ed-subtle);
+    /* 留白透明：contain 缩略时图片直接浮在纸面上，无深色底框 */
+    background: transparent;
   }
   :global(.tl-cell img) {
     display: block;
