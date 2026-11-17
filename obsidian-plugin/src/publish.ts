@@ -4,7 +4,7 @@ import type { SnarkSettings } from "./settings";
 import { MomentType, NoteProps, buildFrontmatter, flipDraft, readNoteProps, stripFrontmatter } from "./frontmatter";
 import { LinkMap, addToLinkMap, convertBody } from "./converter";
 import { r2Config, R2Config, deleteR2Object, uploadImageToR2 } from "./r2";
-import { BLOG_HASH_PROP, BLOG_PATH_PROP, SLUG_RE, hhmm, sha256Hex, errorNotice, successNotice } from "./utils";
+import { BLOG_HASH_PROP, BLOG_IMAGES_PROP, BLOG_PATH_PROP, SLUG_RE, hhmm, sha256Hex, errorNotice, successNotice } from "./utils";
 
 export interface PublishContext {
   app: App;
@@ -82,6 +82,8 @@ async function uploadNoteEmbeds(
 ): Promise<{
   body: string;
   count: number;
+  /** 本次新上传的对象 key（写回 blog-images 属性，供单篇清理） */
+  keys: string[];
   /** 设置开启时已移入回收站的本地图片数 */
   deleted: number;
   /** 仍被其他笔记引用而保留的图片数 */
@@ -91,6 +93,7 @@ async function uploadNoteEmbeds(
   const embedRe = /!\[\[([^\[\]]+)\]\]/g;
   const targets = new Map<string, string>(); // 附件链接路径 → 上传后的公网 URL
   const fileMap = new Map<string, TFile>(); // 附件链接路径 → vault 内文件（删除用）
+  const keys: string[] = []; // 本次上传的对象 key（写回 blog-images 属性）
   for (const m of body.matchAll(embedRe)) {
     const base = m[1].split("|")[0].trim(); // 去掉 |宽高 提示
     if (!base || targets.has(base)) continue;
@@ -98,10 +101,12 @@ async function uploadNoteEmbeds(
     if (!dest) throw new Error(`附件「${base}」在 vault 中不存在，无法上传 R2（请先确认文件还在）`);
     const bytes = new Uint8Array(await ctx.app.vault.readBinary(dest));
     const ext = dest.extension.toLowerCase().replace("jpeg", "jpg");
-    targets.set(base, await uploadImageToR2(bytes, ext, cfg));
+    const url = await uploadImageToR2(bytes, ext, cfg);
+    targets.set(base, url);
+    keys.push(url.slice(cfg.publicPrefix.length + 1));
     fileMap.set(base, dest);
   }
-  if (!targets.size) return { body, count: 0, deleted: 0, keptByRef: 0, warns: [] };
+  if (!targets.size) return { body, count: 0, keys: [], deleted: 0, keptByRef: 0, warns: [] };
 
   const rewrite = (text: string): string =>
     text.replace(embedRe, (_whole: string, inner: string) => {
@@ -140,7 +145,7 @@ async function uploadNoteEmbeds(
       }
     }
   }
-  return { body: newBody, count: targets.size, deleted, keptByRef, warns };
+  return { body: newBody, count: targets.size, keys, deleted, keptByRef, warns };
 }
 
 /**
@@ -178,10 +183,12 @@ export async function publishNote(
   const noteText = await ctx.app.vault.read(file);
   const r2cfg = r2Config(ctx.settings);
   const uploadWarns: string[] = [];
+  let upKeys: string[] = [];
   let body = stripFrontmatter(noteText);
   if (r2cfg) {
     const up = await uploadNoteEmbeds(ctx, r2cfg, file, body);
     body = up.body;
+    upKeys = up.keys;
     if (up.count) uploadWarns.push(`已上传 ${up.count} 张图片到 R2 并回填外链到笔记`);
     if (up.deleted) uploadWarns.push(`已把 ${up.deleted} 张本地图片移入 Obsidian 回收站`);
     if (up.keptByRef) uploadWarns.push(`${up.keptByRef} 张本地图片仍被其他笔记引用，未删除`);
@@ -286,6 +293,13 @@ export async function publishNote(
     else fm.dropCap = false;
     if (form.graphEnabled) delete fm["graph-enabled"];
     else fm["graph-enabled"] = false;
+    // 记录本篇曾上传到 R2 的对象 key（单篇清理未引用图片的依据；去重合并）
+    if (upKeys.length) {
+      const prev = Array.isArray(fm[BLOG_IMAGES_PROP])
+        ? (fm[BLOG_IMAGES_PROP] as unknown[]).map(String)
+        : [];
+      fm[BLOG_IMAGES_PROP] = [...new Set([...prev, ...upKeys])];
+    }
   });
 
   const warnings = [...uploadWarns, ...conv.warnings];
@@ -295,6 +309,83 @@ export async function publishNote(
     commitUrl: result.commitUrl,
     warnings: renamed ? [...warnings, "已因 slug 更名删除旧文件"] : warnings,
   };
+}
+
+/**
+ * 单篇清理：删除「本篇曾上传到 R2、但现在本地笔记与远端正文都不再引用」的图片。
+ * 依据是笔记属性 blog-images（发布时记录的上传 key 列表）；引用比对取
+ * 本地笔记全文 + 远端已发布正文两份（本地可能还没重新发布）。
+ * 返回可直接展示的中文结果说明。
+ */
+export async function cleanupNoteImages(
+  ctx: PublishContext,
+  file: TFile,
+  confirm: ConfirmFn,
+): Promise<string> {
+  const cfg = r2Config(ctx.settings);
+  if (!cfg) throw new Error("未配置 R2，无需清理");
+
+  const cache = ctx.app.metadataCache.getFileCache(file);
+  const fmRaw = (cache?.frontmatter ?? {}) as Record<string, unknown>;
+  const keys = Array.isArray(fmRaw[BLOG_IMAGES_PROP])
+    ? (fmRaw[BLOG_IMAGES_PROP] as unknown[]).map(String)
+    : [];
+  if (!keys.length) {
+    throw new Error("本文没有 R2 上传记录（blog-images 属性为空）——发布过带本地图的版本后才会出现");
+  }
+
+  // 引用比对：本地全文 + 远端已发布正文，二者任一包含 key 即视为在用
+  const localText = await ctx.app.vault.read(file);
+  const props = readNoteProps(cache?.frontmatter);
+  let remoteText = "";
+  if (props.blogPath) {
+    const remote = await ctx.client.getContent(props.blogPath);
+    if (remote) remoteText = remote.text;
+  }
+  const unused = keys.filter(
+    (key) => !localText.includes(key) && !remoteText.includes(key),
+  );
+  if (!unused.length) {
+    return "本文上传过的图片全部仍被引用，没有可清理的。";
+  }
+
+  const ok = await confirm(
+    `删除 ${unused.length} 张本文不再引用的图片？\n${unused.join("\n")}\n\n删除后不可恢复（本地与远端正文均已不引用它们）。`,
+  );
+  if (!ok) return "已取消：未删除任何图片";
+
+  let done = 0;
+  const failed: string[] = [];
+  for (const key of unused) {
+    try {
+      await deleteR2Object(cfg, key);
+      done++;
+    } catch (e) {
+      failed.push(`${key}：${String((e as Error).message ?? e)}`);
+    }
+  }
+
+  // 成功删除的从 blog-images 里移除；失败的保留以便下次重试
+  const failedSet = new Set(failedKeys(unused, failed));
+  await ctx.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+    const prev = Array.isArray(fm[BLOG_IMAGES_PROP])
+      ? (fm[BLOG_IMAGES_PROP] as unknown[]).map(String)
+      : keys;
+    const next = prev.filter((k) => !unused.includes(k) || failedSet.has(k));
+    if (next.length) fm[BLOG_IMAGES_PROP] = next;
+    else delete fm[BLOG_IMAGES_PROP];
+  });
+
+  if (failed.length) {
+    throw new Error(`已删 ${done} 张，失败 ${failed.length} 张：\n${failed.join("\n")}`);
+  }
+  return `已清理 ${done} 张本文不再引用的图片`;
+}
+
+/** 从失败信息行里还原失败的 key（failed 每行以「key：原因」开头） */
+function failedKeys(all: string[], failedLines: string[]): string[] {
+  const lines = new Set(failedLines);
+  return all.filter((k) => [...lines].some((l) => l.startsWith(`${k}：`)));
 }
 
 /** 撤回 / 恢复草稿：远端翻转 draft 字段并同步本地属性 */

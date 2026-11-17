@@ -25,9 +25,11 @@ export class R2ImagesModal extends Modal {
     const { contentEl } = this;
     this.statusEl = contentEl.createDiv({ cls: "snark-cms-status", text: "读取桶内对象…" });
 
-    // 工具行：孤儿图清理入口
+    // 工具行：孤儿图清理入口（SVG 图标 + 文字，不用 emoji）
     const tools = contentEl.createDiv({ cls: "snark-cms-field" });
-    const cleanupBtn = tools.createEl("button", { text: "🧹 清理未引用图片" });
+    const cleanupBtn = tools.createEl("button", { cls: "snark-cms-cleanup-btn" });
+    setIcon(cleanupBtn, "eraser");
+    cleanupBtn.createSpan({ text: "清理未引用图片" });
     cleanupBtn.title = "拉取全桶对象，与仓库已发布内容比对，列出没有出现的对象供批量删除";
     cleanupBtn.addEventListener("click", () => new R2CleanupModal(this.app, this.ctx).open());
 

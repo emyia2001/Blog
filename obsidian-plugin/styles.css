@@ -216,3 +216,14 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* 图床管理弹窗：清理按钮（SVG 图标 + 文字对齐） */
+.snark-cms-cleanup-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.snark-cms-cleanup-btn svg {
+  width: 14px;
+  height: 14px;
+}

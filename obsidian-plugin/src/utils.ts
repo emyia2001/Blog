@@ -9,6 +9,9 @@ export const BLOG_PATH_PROP = "blog-path";
 /** 笔记属性里记录上次同步/发布内容指纹的属性名（同步时识别远端是否被其他端改过） */
 export const BLOG_HASH_PROP = "blog-hash";
 
+/** 笔记属性里记录本篇曾上传到 R2 的对象 key 列表（单篇清理未引用图片的依据） */
+export const BLOG_IMAGES_PROP = "blog-images";
+
 /** SHA-256 hex（crypto.subtle 在 Obsidian 渲染进程可用） */
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));

@@ -1,6 +1,6 @@
 import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { MOMENT_TYPES, MomentType, readNoteProps, stripFrontmatter } from "./frontmatter";
-import { PublishContext, PublishForm, PublishOutcome, publishNote } from "./publish";
+import { PublishContext, PublishForm, PublishOutcome, cleanupNoteImages, publishNote } from "./publish";
 import { SLUG_RE, firstParagraph, successNotice, todayISO } from "./utils";
 import { confirmAsync } from "./modals/ConfirmModal";
 import type SnarkBlogCmsPlugin from "./main";
@@ -209,6 +209,10 @@ export class PublishView extends ItemView {
     const actions = contentEl.createDiv({ cls: "snark-cms-modal-actions" });
     this.publishBtn = actions.createEl("button", { text: "发布", cls: "mod-cta" });
     this.publishBtn.addEventListener("click", () => void this.doPublish());
+    // 单篇清理：删掉本篇曾上传、但本地与远端正文都不再引用的 R2 图片
+    const cleanupBtn = actions.createEl("button", { text: "清理未引用图片" });
+    cleanupBtn.title = "删除本篇曾上传到 R2、但现在正文（本地与远端）都不再引用的图片（依据 blog-images 属性）";
+    cleanupBtn.addEventListener("click", () => void this.doCleanupNote(cleanupBtn));
 
     this.refreshKindFields();
 
@@ -265,6 +269,28 @@ export class PublishView extends ItemView {
     }
     if (!form.date.trim()) issues.push("缺少日期");
     return issues;
+  }
+
+  private async doCleanupNote(btn: HTMLButtonElement): Promise<void> {
+    if (!this.targetFile) {
+      this.setStatus("先打开一篇要清理的笔记", true);
+      return;
+    }
+    btn.disabled = true;
+    this.setStatus("正在比对本文图片引用…");
+    try {
+      const msg = await cleanupNoteImages(this.ctx(), this.targetFile, (m) =>
+        confirmAsync(this.app, m),
+      );
+      this.setStatus(msg);
+      successNotice(msg);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      this.setStatus(msg, true);
+      new Notice(msg, 10000);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   private async doPublish(): Promise<void> {
