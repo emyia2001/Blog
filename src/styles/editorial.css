@@ -756,6 +756,10 @@ html.ed-ready .ed-progress {
 body:has(.prose) .ed-progress {
   visibility: visible;
 }
+/* 纪事页（连续信息流）不是「文章阅读」：不显示进度条 */
+body:has(.timeline-feed) .ed-progress {
+  visibility: hidden;
+}
 /* 导航收起：进度条随导航一起淡出（200ms），不再滑到视口顶停留 */
 html.nav-hidden .ed-progress {
   opacity: 0;
