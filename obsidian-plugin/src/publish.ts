@@ -331,7 +331,9 @@ export async function cleanupNoteImages(
     ? (fmRaw[BLOG_IMAGES_PROP] as unknown[]).map(String)
     : [];
   if (!keys.length) {
-    throw new Error("本文没有 R2 上传记录（blog-images 属性为空）——发布过带本地图的版本后才会出现");
+    throw new Error(
+      "本文没有 R2 上传记录（blog-images 属性为空——1.4.0 之前发布的笔记没有这个属性）。请改用图床图片管理弹窗里的「清理未引用图片」做全桶清理。",
+    );
   }
 
   // 引用比对：本地全文 + 远端已发布正文，二者任一包含 key 即视为在用

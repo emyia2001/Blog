@@ -25,8 +25,8 @@ export class R2ImagesModal extends Modal {
     const { contentEl } = this;
     this.statusEl = contentEl.createDiv({ cls: "snark-cms-status", text: "读取桶内对象…" });
 
-    // 工具行：孤儿图清理入口（SVG 图标 + 文字，不用 emoji）
-    const tools = contentEl.createDiv({ cls: "snark-cms-field" });
+    // 工具行：孤儿图清理入口（右对齐；SVG 图标 + 文字，不用 emoji）
+    const tools = contentEl.createDiv({ cls: "snark-cms-tools-row" });
     const cleanupBtn = tools.createEl("button", { cls: "snark-cms-cleanup-btn" });
     setIcon(cleanupBtn, "eraser");
     cleanupBtn.createSpan({ text: "清理未引用图片" });

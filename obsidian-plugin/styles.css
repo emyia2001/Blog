@@ -227,3 +227,9 @@
   width: 14px;
   height: 14px;
 }
+
+/* 工具行：按钮靠右 */
+.snark-cms-tools-row {
+  display: flex;
+  justify-content: flex-end;
+}
