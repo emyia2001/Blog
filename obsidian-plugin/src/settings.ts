@@ -154,6 +154,10 @@ export class SnarkSettingTab extends PluginSettingTab {
           }),
       );
     new Setting(containerEl)
+      .setName("上传后删除本地图片")
+      .setDesc("发布时图片上传 R2 并回填外链后，把对应本地附件移入 Obsidian 回收站（.trash），可恢复；仍被其他笔记引用的图片会保留并提示。默认关闭。")
+      .addToggle((t) => t.setValue(s.r2DeleteLocal).onChange((v) => { s.r2DeleteLocal = v; save(); }));
+    new Setting(containerEl)
       .setName("R2 Access Key ID")
       .addText((t) => t.setValue(s.r2AccessKey).onChange((v) => { s.r2AccessKey = v.trim(); save(); }));
     new Setting(containerEl)
@@ -174,9 +178,5 @@ export class SnarkSettingTab extends PluginSettingTab {
       .setName("对象键前缀")
       .setDesc("上传对象的前缀，如 blog（按 年/月/日 归档）")
       .addText((t) => t.setValue(s.r2KeyPrefix).onChange((v) => { s.r2KeyPrefix = v.trim().replace(/^\/+|\/+$/g, ""); save(); }));
-    new Setting(containerEl)
-      .setName("上传后删除本地图片")
-      .setDesc("发布时图片上传 R2 并回填外链后，把对应本地附件移入 Obsidian 回收站（.trash），可恢复；仍被其他笔记引用的图片会保留并提示。默认关闭。")
-      .addToggle((t) => t.setValue(s.r2DeleteLocal).onChange((v) => { s.r2DeleteLocal = v; save(); }));
   }
 }
