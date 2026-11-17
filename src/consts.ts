@@ -33,3 +33,6 @@ export const GITHUB_REPO = "emyia2001/Blog";
 // Giscus 评论所挂的 GitHub 仓库（与博客源码仓库分开）。换仓库时要同步更新
 // repo-id / category / category-id，见 src/components/Giscus.astro。
 export const GISCUS_REPO = "emyia2001/comment";
+export const GISCUS_REPO_ID = "R_kgDOT0CTSw";
+export const GISCUS_CATEGORY = "Announcements";
+export const GISCUS_CATEGORY_ID = "DIC_kwDOT0CTS84DDDuA";

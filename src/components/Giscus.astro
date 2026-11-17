@@ -1,5 +1,5 @@
 ---
-import { GISCUS_REPO, SITE_URL } from "../consts";
+import { GISCUS_REPO, GISCUS_REPO_ID, GISCUS_CATEGORY, GISCUS_CATEGORY_ID, SITE_URL } from "../consts";
 
 interface Props {
   class?: string;
@@ -58,13 +58,13 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
   }
 </style>
 
-<script define:vars={{ themeUrl, repo: GISCUS_REPO }}>
+<script define:vars={{ themeUrl, repo: GISCUS_REPO, repoId: GISCUS_REPO_ID, category: GISCUS_CATEGORY, categoryId: GISCUS_CATEGORY_ID }}>
   const GISCUS_CONFIG = {
     src: "https://giscus.app/client.js",
     "data-repo": repo,
-    "data-repo-id": "R_kgDOT0CTSw",
-    "data-category": "Announcements",
-    "data-category-id": "DIC_kwDOT0CTS84DDDuA",
+    "data-repo-id": repoId,
+    "data-category": category,
+    "data-category-id": categoryId,
     "data-mapping": "pathname",
     "data-strict": "0",
     "data-reactions-enabled": "0",

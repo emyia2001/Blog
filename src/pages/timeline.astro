@@ -290,7 +290,21 @@ const fmtPoint = (d: Date) =>
                       </svg>
                       <span class="sr-only">点赞</span>
                     </button>
+                    <button
+                      type="button"
+                      class="tl-comment"
+                      data-comment={c.anchor}
+                      aria-expanded="false"
+                      aria-controls={`tl-comments-${c.anchor}`}
+                      title="评论"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 11.5c0 4.1-4 7.5-9 7.5-1 0-2-.1-2.9-.4L4 20l1.2-3.6C3.8 15 3 13.3 3 11.5 3 7.4 7 4 12 4s9 3.4 9 7.5z"></path>
+                      </svg>
+                      <span class="sr-only">评论</span>
+                    </button>
                   </footer>
+                  <div class="tl-comments" id={`tl-comments-${c.anchor}`} data-term={c.anchor} data-pagefind-ignore hidden></div>
                 </article>
               </>
             ))}
@@ -776,15 +790,18 @@ const fmtPoint = (d: Date) =>
     letter-spacing: 0.08em;
     color: var(--color-ed-subtle);
   }
-  /* —— 互动行：本地点赞 —— */
+  /* —— 互动行：本地点赞 + 评论 —— */
   .tl-entry__foot {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 0.25rem;
     margin-top: 1.25rem;
     padding-top: 0.4rem;
     border-top: 1px solid var(--color-ed-hairline);
   }
-  .tl-like {
+  .tl-like,
+  .tl-comment {
     display: inline-flex;
     align-items: center;
     padding: 0.25rem 0.4rem;
@@ -795,12 +812,18 @@ const fmtPoint = (d: Date) =>
     -webkit-tap-highlight-color: transparent;
     transition: color 160ms ease;
   }
-  .tl-like svg {
+  .tl-like svg,
+  .tl-comment svg {
     width: 1rem;
     height: 1rem;
     transition: fill 160ms ease;
   }
-  .tl-like:hover {
+  .tl-like:hover,
+  .tl-comment:hover {
+    color: var(--color-ed-accent);
+  }
+  /* 评论按钮：评论区展开时保持点亮 */
+  .tl-comment[aria-expanded="true"] {
     color: var(--color-ed-accent);
   }
   .tl-like[aria-pressed="true"] {
@@ -828,6 +851,17 @@ const fmtPoint = (d: Date) =>
     .tl-like.is-pop svg {
       animation: none;
     }
+  }
+
+  /* —— 条目评论区：每条一个 giscus 讨论串，虚线顶线与分隔线同语言 —— */
+  .tl-comments {
+    margin-top: 1.25rem;
+    border-top: 1px dashed var(--color-ed-rule);
+    padding-top: 0.75rem;
+    min-height: 3rem;
+  }
+  .tl-comments[hidden] {
+    display: none;
   }
   .tl-entry__title {
     margin-top: 0.35rem;
@@ -918,6 +952,13 @@ const fmtPoint = (d: Date) =>
 </style>
 
 <script>
+  import {
+    GISCUS_REPO,
+    GISCUS_REPO_ID,
+    GISCUS_CATEGORY,
+    GISCUS_CATEGORY_ID,
+  } from "../consts";
+
   // ===== 纪事连续流 =====
   // 服务端已直出全部条目；本脚本只负责：
   //   1. 时间轴（目录）点击/键盘 → 平滑滚动到对应条目并写入 hash
@@ -1176,6 +1217,7 @@ const fmtPoint = (d: Date) =>
     const entries = tlEntries();
     if (entries.length === 0) return;
     tlRestoreLikes();
+    tlInitComments();
     const hash = tlHash();
     const target = hash ? entries.find((el) => el.id === hash) : undefined;
     if (target) {
@@ -1410,12 +1452,124 @@ const fmtPoint = (d: Date) =>
     if (id && locks[id]) fillLocked(box, locks[id], false);
   });
 
+  // ===== 条目评论：每条一个 giscus 讨论串（specific 映射，term=条目锚点）=====
+  // 「有没有评论」用免鉴权 GitHub Discussions REST 探测（60 次/小时/IP，
+  // sessionStorage 缓存 10 分钟）：有评论的条目直接展开，没有的点互动行按钮
+  // 才注入 giscus（沿用全站「不点不请求 giscus.app」的首屏策略）。
+  // 探测失败（限流/离线）则降级为全部「点按钮才加载」。
+  const COMMENTS_CACHE_KEY = "snark_giscus_counts";
+  const COMMENTS_CACHE_MS = 10 * 60 * 1000;
+
+  async function fetchCommentCounts(): Promise<Record<string, number> | null> {
+    try {
+      const raw = sessionStorage.getItem(COMMENTS_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw) as { t?: number; d?: Record<string, number> };
+        if (cached?.t && Date.now() - cached.t < COMMENTS_CACHE_MS && cached.d) {
+          return cached.d;
+        }
+      }
+    } catch {
+      /* 缓存读不到就走网络 */
+    }
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${GISCUS_REPO}/discussions?per_page=100`,
+        { headers: { Accept: "application/vnd.github+json" } }
+      );
+      if (!res.ok) return null;
+      const list = (await res.json()) as { title?: unknown; comments?: unknown }[];
+      if (!Array.isArray(list)) return null;
+      const counts: Record<string, number> = {};
+      for (const d of list) {
+        // giscus 的 specific 映射创建的讨论串，标题就是 term（条目锚点）
+        if (typeof d.title === "string" && typeof d.comments === "number") {
+          counts[d.title] = d.comments;
+        }
+      }
+      try {
+        sessionStorage.setItem(
+          COMMENTS_CACHE_KEY,
+          JSON.stringify({ t: Date.now(), d: counts })
+        );
+      } catch {
+        /* 隐私模式存不进就每次现拉 */
+      }
+      return counts;
+    } catch {
+      return null;
+    }
+  }
+
+  function loadEntryGiscus(container: HTMLElement) {
+    if (container.dataset.loaded === "1") return;
+    container.dataset.loaded = "1";
+    // 主题走同源 endpoint /giscus-theme.css（与文章页评论同一套皮肤）
+    const themeUrl = new URL("/giscus-theme.css", location.origin).href;
+    const script = document.createElement("script");
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    const attrs: Record<string, string> = {
+      "data-repo": GISCUS_REPO,
+      "data-repo-id": GISCUS_REPO_ID,
+      "data-category": GISCUS_CATEGORY,
+      "data-category-id": GISCUS_CATEGORY_ID,
+      "data-mapping": "specific",
+      "data-term": container.dataset.term ?? "",
+      "data-strict": "0",
+      "data-reactions-enabled": "0",
+      "data-emit-metadata": "0",
+      "data-input-position": "bottom",
+      "data-lang": "zh-CN",
+      "data-loading": "lazy",
+    };
+    for (const [k, v] of Object.entries(attrs)) script.setAttribute(k, v);
+    script.setAttribute("data-theme", themeUrl);
+    script.src = "https://giscus.app/client.js";
+    container.appendChild(script);
+  }
+
+  function showEntryComments(anchor: string, expand: boolean) {
+    const container = document.getElementById(`tl-comments-${anchor}`);
+    const btn = document.querySelector<HTMLButtonElement>(
+      `.tl-comment[data-comment="${CSS.escape(anchor)}"]`
+    );
+    if (!container) return;
+    container.hidden = !expand;
+    if (expand) loadEntryGiscus(container);
+    btn?.setAttribute("aria-expanded", expand ? "true" : "false");
+  }
+
+  function tlCommentClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-comment"
+    ) as HTMLButtonElement | null;
+    if (!btn?.dataset.comment) return;
+    showEntryComments(
+      btn.dataset.comment,
+      btn.getAttribute("aria-expanded") !== "true"
+    );
+  }
+
+  // 空闲 1.5s 后再探测评论数（不与首屏资源抢路）；giscus 注入只发生在需要时
+  function tlInitComments() {
+    window.setTimeout(async () => {
+      const counts = await fetchCommentCounts();
+      if (!counts) return;
+      document.querySelectorAll<HTMLElement>(".tl-comments").forEach((c) => {
+        const term = c.dataset.term ?? "";
+        if (term && (counts[term] ?? 0) > 0) showEntryComments(term, true);
+      });
+    }, 1500);
+  }
+
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
   if (!TL.bound) {
     TL.bound = true;
     document.addEventListener("click", tlClick);
     document.addEventListener("keydown", tlKeydown);
     document.addEventListener("click", tlLikeClick);
+    document.addEventListener("click", tlCommentClick);
     document.addEventListener("click", tlLockClick);
     document.addEventListener("keydown", tlLockKeydown);
     window.addEventListener("popstate", tlHistory);
