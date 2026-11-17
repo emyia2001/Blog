@@ -5,7 +5,7 @@
 
 ## 1. 项目速览
 
-- **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），纯静态站点，产物 `dist/` 以 **Cloudflare Workers 静态资源**（`wrangler.jsonc` 的 `assets`，无 `main`）方式部署到 `snarkm.com`。
+- **项目**：Snark —— 基于 **Astro 5** 的个人博客（编辑风 Editorial 排版），产物 `dist/` 部署到 `snarkm.com`（**Cloudflare Workers**）：`wrangler.jsonc` 的 `main` 指向 `src/worker.ts`（API Worker）+ `assets`（静态资源，直接命中的资源不计 Worker 请求）。Worker 现有两个端点：`/api/bark`（友链申请 Bark 推送，secret `BARK_KEY`，`BARK_LIMIT` KV 做每日限次）与 `/api/likes`（纪事点赞聚合，KV 复用 `BARK_LIMIT` 命名空间，`likes:counts` 单键计数 + `like:*` 去重；IP 只存 SHA-256 哈希）。改 Worker 后可用 `npx wrangler deploy --dry-run` 验证打包。
 - **线上地址**：`https://snarkm.com`（`astro.config.mjs` 的 `site` 从 `src/consts.ts` 的 `SITE_URL` 导入，唯一真源；不要再硬编码域名）。
 - **技术栈**：Astro 5（`output: static`）+ MDX + Tailwind CSS v4（`@tailwindcss/vite`）+ Pagefind（全文搜索，构建后生成索引）+ astro-icon + d3-force（关系图谱）+ Giscus（评论）。
 - **Git 远程仓库**：`emyia2001/Blog`（GitHub）。部署由 `.github/workflows/deploy-worker.yml` 负责：
@@ -60,6 +60,7 @@ src/
 │                          / contributions.ts（GitHub 热力图取数）/ graphSnake.ts（归档页书虫彩蛋）
 │                          / editorialShikiTheme.ts
 │                          / rehype-code-block.ts / rehype-image-attrs.ts
+├── worker.ts              API Worker（/api/bark 友链申请推送、/api/likes 点赞聚合；其余透传 ASSETS）
 public/                    fonts/（本地 woff2）、images/（头像/OG 图）、_headers（响应头，Workers 静态资源同样读取）
 scripts/                   materialize-noto-serif-sc.mjs（字体物化）、prune-pagefind.mjs（产物裁剪）
 .pages.yml                 Pages CMS 配置（posts + moments 集合）
@@ -144,7 +145,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - [ ] 换过 `src/consts.ts` 站点信息后：站名/URL/社交链接在各处一致（无残留旧值）
 - [ ] 站内链接一律带尾斜杠（统一走 `src/utils/urls.ts`；`href="/blog/x"` 会被 Cloudflare 307 到 `/blog/x/`，多一次往返）
 - [ ] 改过 `public/_headers` 后：线上 `curl -sI` 能看到 HSTS / nosniff / Referrer-Policy，且 `/_astro/*` 为 `immutable` 长缓存
-- [ ] 改过 `.github/workflows/*` 或 `wrangler.jsonc` 后：push 后 *Deploy worker* 跑绿（部署在 Actions 里看，注解会带 wrangler 报错末几行），且线上 `curl -sI https://snarkm.com/` 返回 200
+- [ ] 改过 `src/worker.ts`、`.github/workflows/*` 或 `wrangler.jsonc` 后：push 后 *Deploy worker* 跑绿（部署在 Actions 里看，注解会带 wrangler 报错末几行），且线上 `curl -sI https://snarkm.com/` 返回 200；动过 `/api/*` 端点时用 curl 抽验该端点（如 `GET /api/likes`）
 - [ ] 改过字体加载方式后：首屏渲染不被 Noto 分片 CSS 阻塞（Network 里 `/fonts/noto-serif-sc/*.css` 出现在主 CSS 之后）
 
 **升级依赖 / 重构 / 改构建配置（astro.config、package.json、Vite/Tailwind/Pagefind 版本）**
