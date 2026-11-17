@@ -879,14 +879,8 @@ const fmtPoint = (d: Date) =>
     display: grid;
     gap: 2px;
     margin: 1rem 0;
-  }
-  :global(.tl-grid[data-cols="1"]),
-  :global(.tl-grid[data-cols="2"]),
-  :global(.tl-grid[data-cols="3"]) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  :global(.tl-grid[data-cols="4"]) {
-    grid-template-columns: repeat(2, 1fr);
+    /* 方格定宽 160px，按行自动换列（手机端自然降为每行两枚） */
+    grid-template-columns: repeat(auto-fill, 160px);
   }
   :global(.tl-cell) {
     display: block;
