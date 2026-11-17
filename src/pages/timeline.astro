@@ -2,6 +2,7 @@
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
+import ImageLightbox from "../components/ImageLightbox.astro";
 import { encryptContent } from "../utils/lockContent";
 import { SITE_NAME, SITE_AVATAR } from "../consts";
 
@@ -315,6 +316,7 @@ const fmtPoint = (d: Date) =>
       )}
     </section>
   </div>
+  <ImageLightbox />
 </BaseLayout>
 
 <style>
@@ -818,8 +820,8 @@ const fmtPoint = (d: Date) =>
     height: 1rem;
     transition: fill 160ms ease;
   }
-  /* ♥ 旁的聚合计数（接口不可用时无数字，退回纯本地） */
-  .tl-like__count {
+  /* ♥ 旁的聚合计数（运行时创建，同样 :global；接口不可用时无数字） */
+  :global(.tl-like__count) {
     margin-left: 0.05rem;
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
@@ -869,6 +871,41 @@ const fmtPoint = (d: Date) =>
   }
   .tl-comments[hidden] {
     display: none;
+  }
+
+  /* —— 九宫格缩略图：朋友圈式方格，点击放大走全站 lightbox ——
+     （.tl-grid/.tl-cell 由运行时脚本生成，没有 astro-cid，必须 :global）—— */
+  :global(.tl-grid) {
+    display: grid;
+    gap: 2px;
+    margin: 1rem 0;
+  }
+  :global(.tl-grid[data-cols="1"]),
+  :global(.tl-grid[data-cols="2"]),
+  :global(.tl-grid[data-cols="3"]) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  :global(.tl-grid[data-cols="4"]) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* 1 图：占 2/3 宽的单方格 */
+  :global(.tl-grid[data-cols="1"] .tl-cell) {
+    grid-column: span 2;
+  }
+  :global(.tl-cell) {
+    display: block;
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--color-ed-subtle);
+  }
+  :global(.tl-cell img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: zoom-in;
   }
   .tl-entry__title {
     margin-top: 0.35rem;
@@ -1288,6 +1325,7 @@ const fmtPoint = (d: Date) =>
     const entries = tlEntries();
     if (entries.length === 0) return;
     tlRestoreLikes();
+    tlBuildImageGrids();
     tlInitComments();
     const hash = tlHash();
     const target = hash ? entries.find((el) => el.id === hash) : undefined;
@@ -1634,6 +1672,72 @@ const fmtPoint = (d: Date) =>
         if (term && (counts[term] ?? 0) > 0) showEntryComments(term, true);
       });
     }, 1500);
+  }
+
+  // ===== 九宫格：条目内连续图片重排为方格缩略图（点击走全站 lightbox）=====
+  // 朋友圈式排版：同一 <p> 或相邻 <p> 的图片归为一组；1 图占 2/3 宽，
+  // 2~3 图一行三列，4 图两行两列，5 图起一行三列。散落的单图保持原位不动。
+  function tlBuildImageGrids() {
+    document.querySelectorAll<HTMLElement>(".tl-entry .prose").forEach((prose) => {
+      if (prose.dataset.gridDone === "1") return;
+      prose.dataset.gridDone = "1";
+
+      const isImgNode = (n: Node): n is HTMLImageElement =>
+        n.nodeType === 1 && (n as HTMLElement).tagName === "IMG";
+      // <p> 仅含一张图（其余是空白）→ 以 <p> 为组员；否则以 img 自身为组员
+      const groupAnchor = (n: Node): Node | null => {
+        if (isImgNode(n)) return n;
+        if (n.nodeType !== 1) return null;
+        const el = n as HTMLElement;
+        if (el.tagName !== "P") return null;
+        const children = Array.from(el.childNodes).filter(
+          (c) => !(c.nodeType === 3 && !c.textContent?.trim())
+        );
+        return children.length === 1 && isImgNode(children[0]) ? el : null;
+      };
+
+      // 扫描子节点：连续的图片组员归为一组，中间遇到其他内容即断组
+      type Group = { start: ChildNode; members: Node[]; imgs: HTMLImageElement[] };
+      const groups: Group[] = [];
+      let cur: Group | null = null;
+      for (const child of Array.from(prose.childNodes)) {
+        if (child.nodeType === 3 && !child.textContent?.trim()) continue; // 空白不断组
+        const anchor = groupAnchor(child);
+        if (anchor) {
+          if (!cur) cur = { start: child, members: [], imgs: [] };
+          cur.members.push(child);
+          if (isImgNode(anchor)) cur.imgs.push(anchor);
+          else anchor.childNodes.forEach((c) => isImgNode(c) && cur!.imgs.push(c));
+        } else if (cur) {
+          groups.push(cur);
+          cur = null;
+        }
+      }
+      if (cur) groups.push(cur);
+      if (!groups.length) return;
+
+      for (const g of groups) {
+        if (g.imgs.length === 0) continue;
+        const cols = g.imgs.length === 1 ? 1 : g.imgs.length === 4 ? 4 : 3;
+        const grid = document.createElement("div");
+        grid.className = "tl-grid";
+        grid.dataset.cols = String(cols);
+        g.start.parentElement!.insertBefore(grid, g.start);
+        for (const img of g.imgs) {
+          const cell = document.createElement("span");
+          cell.className = "tl-cell";
+          grid.appendChild(cell);
+          cell.appendChild(img); // img 从 <p> 原位挪进方格
+        }
+        // 组员节点内容已搬空：删掉残留的空 <p>
+        g.members.forEach((m) => {
+          const el = m as HTMLElement;
+          if (el.tagName === "P" && !el.textContent?.trim() && !el.querySelector("img")) {
+            el.remove();
+          }
+        });
+      }
+    });
   }
 
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
