@@ -21,6 +21,8 @@ export interface SnarkSettings {
   r2Bucket: string;
   r2PublicPrefix: string;
   r2KeyPrefix: string;
+  /** 上传成功并回填外链后，把本地附件移入 Obsidian 回收站（仍被其他笔记引用的不删） */
+  r2DeleteLocal: boolean;
 }
 
 export const DEFAULT_SETTINGS: SnarkSettings = {
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: SnarkSettings = {
   r2Bucket: "",
   r2PublicPrefix: "https://img.snarkm.com",
   r2KeyPrefix: "blog",
+  r2DeleteLocal: false,
 };
 
 export class SnarkSettingTab extends PluginSettingTab {
@@ -171,5 +174,9 @@ export class SnarkSettingTab extends PluginSettingTab {
       .setName("对象键前缀")
       .setDesc("上传对象的前缀，如 blog（按 年/月/日 归档）")
       .addText((t) => t.setValue(s.r2KeyPrefix).onChange((v) => { s.r2KeyPrefix = v.trim().replace(/^\/+|\/+$/g, ""); save(); }));
+    new Setting(containerEl)
+      .setName("上传后删除本地图片")
+      .setDesc("发布时图片上传 R2 并回填外链后，把对应本地附件移入 Obsidian 回收站（.trash），可恢复；仍被其他笔记引用的图片会保留并提示。默认关闭。")
+      .addToggle((t) => t.setValue(s.r2DeleteLocal).onChange((v) => { s.r2DeleteLocal = v; save(); }));
   }
 }

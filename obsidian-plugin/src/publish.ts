@@ -79,9 +79,18 @@ async function uploadNoteEmbeds(
   cfg: R2Config,
   file: TFile,
   body: string,
-): Promise<{ body: string; count: number }> {
+): Promise<{
+  body: string;
+  count: number;
+  /** 设置开启时已移入回收站的本地图片数 */
+  deleted: number;
+  /** 仍被其他笔记引用而保留的图片数 */
+  keptByRef: number;
+  warns: string[];
+}> {
   const embedRe = /!\[\[([^\[\]]+)\]\]/g;
   const targets = new Map<string, string>(); // 附件链接路径 → 上传后的公网 URL
+  const fileMap = new Map<string, TFile>(); // 附件链接路径 → vault 内文件（删除用）
   for (const m of body.matchAll(embedRe)) {
     const base = m[1].split("|")[0].trim(); // 去掉 |宽高 提示
     if (!base || targets.has(base)) continue;
@@ -90,8 +99,9 @@ async function uploadNoteEmbeds(
     const bytes = new Uint8Array(await ctx.app.vault.readBinary(dest));
     const ext = dest.extension.toLowerCase().replace("jpeg", "jpg");
     targets.set(base, await uploadImageToR2(bytes, ext, cfg));
+    fileMap.set(base, dest);
   }
-  if (!targets.size) return { body, count: 0 };
+  if (!targets.size) return { body, count: 0, deleted: 0, keptByRef: 0, warns: [] };
 
   const rewrite = (text: string): string =>
     text.replace(embedRe, (_whole: string, inner: string) => {
@@ -104,7 +114,33 @@ async function uploadNoteEmbeds(
   const newBody = rewrite(body);
   // 回填到笔记本体（frontmatter 不受影响），保持笔记与仓库一致
   if (newBody !== body) await ctx.app.vault.process(file, (data: string) => rewrite(data));
-  return { body: newBody, count: targets.size };
+
+  // 可选：上传成功并回填外链后，把本地附件移入 Obsidian 回收站（.trash，可恢复）。
+  // 保护规则：仍被其他笔记引用的附件保留本地（避免删掉别人的图）；
+  // 本篇笔记刚回填完外链、已不再引用它们，故排除自身。
+  const warns: string[] = [];
+  let deleted = 0;
+  let keptByRef = 0;
+  if (ctx.settings.r2DeleteLocal) {
+    const resolved = ctx.app.metadataCache.resolvedLinks;
+    for (const [base, dest] of fileMap) {
+      const usedElsewhere = Object.entries(resolved).some(
+        ([src, links]) =>
+          src !== file.path && !!links && dest.path in (links as Record<string, number>),
+      );
+      if (usedElsewhere) {
+        keptByRef++;
+        continue;
+      }
+      try {
+        await ctx.app.vault.trash(dest, false);
+        deleted++;
+      } catch (err) {
+        warns.push(`本地图片「${base}」移入回收站失败：${String((err as Error).message ?? err)}`);
+      }
+    }
+  }
+  return { body: newBody, count: targets.size, deleted, keptByRef, warns };
 }
 
 /**
@@ -147,6 +183,9 @@ export async function publishNote(
     const up = await uploadNoteEmbeds(ctx, r2cfg, file, body);
     body = up.body;
     if (up.count) uploadWarns.push(`已上传 ${up.count} 张图片到 R2 并回填外链到笔记`);
+    if (up.deleted) uploadWarns.push(`已把 ${up.deleted} 张本地图片移入 Obsidian 回收站`);
+    if (up.keptByRef) uploadWarns.push(`${up.keptByRef} 张本地图片仍被其他笔记引用，未删除`);
+    uploadWarns.push(...up.warns);
   }
   const conv = convertBody(body, buildLinkMap(ctx));
   if (conv.errors.length) throw new Error(conv.errors.join("\n"));
