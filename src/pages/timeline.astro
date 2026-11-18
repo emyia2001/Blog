@@ -266,12 +266,7 @@ const fmtPoint = (d: Date) =>
                   </header>
                   {/* 长文：标题+引文构成入口卡（整卡可点展开）；普通条目直接出标题 */}
                   {c.long ? (
-                    <a
-                      class="tl-long-head"
-                      href={`/chronicle/${c.anchor}/`}
-                      data-bgm={c.entry.data.bgm?.src ? "1" : undefined}
-                      data-bgm-title={c.entry.data.bgm?.title ?? ""}
-                    >
+                    <a class="tl-long-head" href={`/chronicle/${c.anchor}/`}>
                       <span class="tl-long-text">
                         {c.entry.data.title && (
                           <h2 class="tl-entry__title">{c.entry.data.title}</h2>
@@ -336,6 +331,17 @@ const fmtPoint = (d: Date) =>
                       {fmtLong(c.entry.data.date)}
                     </time>
                     <span class="tl-entry__actions">
+                    {/* 音乐标记：长文配乐归详情页，这里只做提示（短条目已有曲目行） */}
+                    {c.long && c.entry.data.bgm?.src && (
+                      <span class="tl-mark" title="含背景音乐">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M9 18V5l11-2v13"></path>
+                          <circle cx="6" cy="18" r="3"></circle>
+                          <circle cx="17" cy="16" r="3"></circle>
+                        </svg>
+                        <span class="sr-only">含背景音乐</span>
+                      </span>
+                    )}
                     <button
                       type="button"
                       class="tl-like"
@@ -369,13 +375,6 @@ const fmtPoint = (d: Date) =>
             ))}
           </div>
 
-          <!-- 长文配乐提示弹窗：首访点击入口卡时出现，强制停留 2s 后自动跳转 -->
-          <div id="tl-bgm-modal" class="tl-bgm-modal" hidden>
-            <div class="tl-bgm-modal__card">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="17" cy="16" r="3"></circle></svg>
-              <span>这篇有背景音乐：<b data-bgm-title></b></span>
-            </div>
-          </div>
         </div>
       ) : (
         <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
@@ -976,40 +975,6 @@ const fmtPoint = (d: Date) =>
     background: linear-gradient(to right, transparent, var(--color-ed-bg));
     pointer-events: none;
   }
-  /* 长文配乐提示弹窗：居中纸卡 + 轻蒙层，2s 内无任何关闭途径 */
-  .tl-bgm-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 110;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(28, 28, 28, 0.18);
-  }
-  .tl-bgm-modal[hidden] {
-    display: none;
-  }
-  .tl-bgm-modal__card {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.8rem 1.25rem;
-    background: var(--color-ed-bg);
-    border: 1px solid var(--color-ed-rule);
-    font-size: 0.875rem;
-    color: var(--color-ed-muted);
-    box-shadow: 0 12px 40px rgba(28, 28, 28, 0.12);
-  }
-  .tl-bgm-modal__card svg {
-    width: 0.875rem;
-    height: 0.875rem;
-    color: var(--color-ed-accent);
-  }
-  .tl-bgm-modal__card b {
-    font-weight: 600;
-    color: var(--color-ed-fg);
-  }
-
   /* 末行渐隐：比省略号更明确的「未完」信号 */
   .tl-long-quote::after {
     content: '';
@@ -1413,31 +1378,6 @@ const fmtPoint = (d: Date) =>
     tlRevealPoint(point);
     tlBeginNav();
     tlScrollToEntry(article);
-  }
-
-  // ===== 长文入口卡：首访带 BGM 时弹窗提示、强制停留 2s 后再进入详情页 =====
-  const BGM_HINT_KEY = "snark_bgm_hint_shown";
-
-  function tlLongCardClick(e: MouseEvent) {
-    const head = (e.target as HTMLElement | null)?.closest?.(
-      ".tl-long-head"
-    ) as HTMLAnchorElement | null;
-    if (!head || head.dataset.bgm !== "1") return;
-    if (localStorage.getItem(BGM_HINT_KEY)) return; // 只提示一次，之后直接跳
-    e.preventDefault();
-    const modal = document.getElementById("tl-bgm-modal");
-    if (!modal) return;
-    modal.querySelector("[data-bgm-title]").textContent =
-      head.dataset.bgmTitle || "";
-    modal.hidden = false;
-    window.setTimeout(() => {
-      localStorage.setItem(BGM_HINT_KEY, "1");
-      modal.hidden = true;
-      // 二次点击：flag 已置，拦截处理器放行，交由 Astro 路由接管跳转
-      // （astro:transitions 的 navigate 在打包脚本里不可靠，实测静默失败）
-      if (head.isConnected) head.click();
-      else window.location.assign(head.getAttribute("href")!);
-    }, 2000);
   }
 
   function tlClick(e: MouseEvent) {
@@ -1921,9 +1861,6 @@ const fmtPoint = (d: Date) =>
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
   if (!TL.bound) {
     TL.bound = true;
-    // 捕获阶段：必须先于 Astro 路由的 bubble 监听 preventDefault，
-    // 否则真实用户的点击会被 VT 先行导航、弹窗来不及出现
-    document.addEventListener("click", tlLongCardClick, true);
     document.addEventListener("click", tlClick);
     document.addEventListener("keydown", tlKeydown);
     document.addEventListener("click", tlLikeClick);
