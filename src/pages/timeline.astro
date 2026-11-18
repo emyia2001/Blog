@@ -286,7 +286,8 @@ const fmtPoint = (d: Date) =>
                       <h2 class="tl-entry__title">{c.entry.data.title}</h2>
                     )
                   )}
-                  {c.entry.data.bgm?.src && (
+                  {/* BGM 曲目行仅在短条目显示；长文的配乐归详情页（悬浮播放器） */}
+                  {!c.long && c.entry.data.bgm?.src && (
                     <div class="mt-4">
                       <MiniPlayer
                         src={c.entry.data.bgm.src}
