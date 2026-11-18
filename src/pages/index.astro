@@ -133,7 +133,7 @@ const fmtYearMonth = (d: Date) =>
             </div>
             <div class="home-stat">
               <span class="home-stat__num" data-count-to={moments.length}>{moments.length}</span>
-              <span class="home-stat__label">纪事</span>
+              <span class="home-stat__label">日常</span>
             </div>
             <div class="home-stat">
               <span class="home-stat__num" data-count-to={daysNum}>{daysNum}</span>
@@ -162,10 +162,10 @@ const fmtYearMonth = (d: Date) =>
           </div>
         </div>
 
-        <!-- 纪事 -->
+        <!-- 日常 -->
         {moments.length > 0 && (
           <div class="home-side-card reveal" style="--reveal-delay: 80ms">
-            <h2 class="home-side-label">纪事</h2>
+            <h2 class="home-side-label">日常</h2>
             {moments.slice(0, 4).map((m) => (
               <a href="/timeline/" class="home-moment-line">
                 <span class="home-moment-dot" aria-hidden="true"></span>

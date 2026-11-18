@@ -14,12 +14,19 @@ const publishedMoments = allMoments
   .filter((m) => !m.data.draft)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
-// 长文不入纪事页（feed 与时间轴整体排除；仍在图谱/归档，按 type 行为）：
-// 碎碎念都在阈值之下，长文之后往哪放用户再定。阈值可调（构建期判定）。
+// 长文条目：feed 里只显示入口卡（标题 + 引文），点击原位展开完整阅读。
+// 阈值可调（构建期判定）。
 const LONG_BODY_LIMIT = 800;
-const feedMoments = publishedMoments.filter(
-  (m) => (m.body?.length ?? 0) <= LONG_BODY_LIMIT,
-);
+
+// 引文：正文首个非空行，去 markdown 记号后截断
+const longQuote = (body: string | undefined) => {
+  const firstLine = (body ?? "")
+    .split("\n")
+    .map((s) => s.replace(/[#>*`\[\]!]|^- /g, "").trim())
+    .find(Boolean);
+  if (!firstLine) return "";
+  return firstLine.length > 100 ? `${firstLine.slice(0, 100)}…` : firstLine;
+};
 
 type RenderedContent = Awaited<
   ReturnType<CollectionEntry<"posts">["render"]>
@@ -51,6 +58,10 @@ interface FeedItem {
   kind: Kind;
   entry: CollectionEntry<"moments">;
   Content?: RenderedContent; // 未加密才有明文 Content
+  /** 长文条目：feed 只显示入口卡，点击原位展开 */
+  long?: boolean;
+  /** 长文引文（正文首行截断） */
+  quote?: string;
   lock?: {
     question: string;
     ciphertext: string;
@@ -60,12 +71,15 @@ interface FeedItem {
 }
 
 const feed: FeedItem[] = await Promise.all(
-  feedMoments.map(async (m) => {
+  publishedMoments.map(async (m) => {
+    const long = (m.body?.length ?? 0) > LONG_BODY_LIMIT;
     const base = {
       id: m.id,
       anchor: m.id.replace(/\.mdx?$/, ""),
       kind: m.data.type as Kind,
       entry: m,
+      long,
+      quote: long ? longQuote(m.body) : undefined,
     };
     if (m.data.lock?.answer) {
       // 加密正文（构建期）；明文不进产物
@@ -98,8 +112,8 @@ interface RailEntry {
   showYear: boolean;
 }
 
-// 时间轴目录条目：feedMoments 已排序，与 feed 同序一一对应
-const railEntries: RailEntry[] = feedMoments.map((m) => ({
+// 时间轴目录条目：publishedMoments 已排序，与 feed 同序一一对应
+const railEntries: RailEntry[] = publishedMoments.map((m) => ({
   anchor: m.id.replace(/\.mdx?$/, ""),
   date: m.data.date,
   kind: m.data.type as Kind,
@@ -130,19 +144,19 @@ const fmtPoint = (d: Date) =>
   `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 ---
 
-<BaseLayout title="纪事" description="纪事：人物、事件与日常碎念，按时间从近到远连续排列。">
+<BaseLayout title="日常" description="日常：碎碎念与生活流，按时间从近到远连续排列。">
   <div class="page-shell">
     <section>
       <header class="page-head">
         <div class="page-head__row">
-          <h1 class="page-head__title">纪事</h1>
+          <h1 class="page-head__title">日常</h1>
         </div>
       </header>
 
       {railEntries.length > 0 ? (
         <div class="timeline-layout">
           <!-- 时间轴：手机端在正文上方横向滑动，桌面端是右侧竖轴 -->
-          <aside id="view-timeline" class="timeline-rail" aria-label="纪事时间线">
+          <aside id="view-timeline" class="timeline-rail" aria-label="日常时间线">
             <div class="tl-title-row">时间线</div>
             <ol class="tl-simple">
               {railEntries.map((entry, i) => (
@@ -217,6 +231,7 @@ const fmtPoint = (d: Date) =>
                     "tl-entry",
                     "reveal",
                     c.kind === "diary" && "tl-entry--diary",
+                    c.long && "tl-entry--long",
                   ]}
                   data-pagefind-ignore={c.kind === "diary" ? "true" : undefined}
                 >
@@ -242,9 +257,25 @@ const fmtPoint = (d: Date) =>
                       )}
                     </span>
                   </header>
-                  {/* 有标题才渲染标题；无标题时日期行已带日期，不再兜底重复 */}
-                  {c.kind !== "diary" && c.entry.data.title && (
-                    <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                  {/* 长文：标题+引文构成入口卡（整卡可点展开）；普通条目直接出标题 */}
+                  {c.long ? (
+                    <div
+                      class="tl-long-head"
+                      role="button"
+                      tabindex="0"
+                      aria-expanded="false"
+                      aria-controls={`tl-long-${c.anchor}`}
+                    >
+                      {c.entry.data.title && (
+                        <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                      )}
+                      {c.quote && <p class="tl-long-quote">{c.quote}</p>}
+                    </div>
+                  ) : (
+                    c.kind !== "diary" &&
+                    c.entry.data.title && (
+                      <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                    )
                   )}
                   {c.entry.data.bgm?.src && (
                     <div class="mt-4">
@@ -256,6 +287,8 @@ const fmtPoint = (d: Date) =>
                       />
                     </div>
                   )}
+                  <div class:list={["tl-long-body", !c.long && "is-open"]} id={c.long ? `tl-long-${c.anchor}` : undefined}>
+                    <div class="tl-long-body-inner">
                   {c.lock ? (
                     <div
                       class="lock-box mt-6"
@@ -286,6 +319,8 @@ const fmtPoint = (d: Date) =>
                       </div>
                     )
                   )}
+                    </div>
+                  </div>
                   {/* 互动行：本地点赞（无后端，状态存本机，不做假计数） */}
                   <footer class="tl-entry__foot">
                     <time class="tl-entry__foot-date" datetime={c.entry.data.date.toISOString()}>
@@ -880,6 +915,51 @@ const fmtPoint = (d: Date) =>
     }
   }
 
+  /* —— 长文入口卡：标题+引文整卡可点，正文原位展开 —— */
+  .tl-entry--long .tl-long-head {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tl-long-head:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: -2px;
+  }
+  .tl-entry--long:hover .tl-entry__title {
+    color: var(--color-ed-accent);
+  }
+  .tl-long-quote {
+    margin: 0.9rem 0 0;
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--color-ed-muted);
+  }
+  /* 展开/收起：grid-template-rows 0fr→1fr 过渡（内容 overflow hidden） */
+  .tl-long-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 360ms var(--ease-ed);
+  }
+  .tl-long-body.is-open {
+    grid-template-rows: 1fr;
+  }
+  .tl-long-body-inner {
+    overflow: hidden;
+    min-height: 0;
+    visibility: hidden;
+    transition: visibility 0s linear 360ms;
+  }
+  .tl-long-body.is-open .tl-long-body-inner {
+    visibility: visible;
+    transition: visibility 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tl-long-body,
+    .tl-long-body-inner {
+      transition: none;
+    }
+  }
+
   /* —— 条目评论区：每条一个 giscus 讨论串，虚线顶线与分隔线同语言 —— */
   .tl-comments {
     margin-top: 1.25rem;
@@ -1346,6 +1426,7 @@ const fmtPoint = (d: Date) =>
       TL.active = idx;
       tlSetActive(idx);
       tlRevealPoint(tlPoints()[idx]);
+      tlExpandLong(target);
       tlBeginNav();
       requestAnimationFrame(() => tlScrollToEntry(target));
       window.setTimeout(() => tlScrollToEntry(target), 180);
@@ -1751,6 +1832,44 @@ const fmtPoint = (d: Date) =>
     });
   }
 
+  // ===== 长文入口卡：整卡（标题+引文）点击原位展开/收起 =====
+  function tlLongToggle(head: HTMLElement) {
+    const body = document.getElementById(head.getAttribute("aria-controls") ?? "");
+    if (!body) return;
+    const open = head.getAttribute("aria-expanded") === "true";
+    head.setAttribute("aria-expanded", open ? "false" : "true");
+    body.classList.toggle("is-open", !open);
+  }
+
+  function tlLongClick(e: MouseEvent) {
+    const head = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-long-head"
+    ) as HTMLElement | null;
+    if (head) tlLongToggle(head);
+  }
+
+  function tlLongKeydown(e: KeyboardEvent) {
+    const head = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-long-head"
+    ) as HTMLElement | null;
+    if (!head) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      tlLongToggle(head);
+    }
+  }
+
+  /** 深链接直达长文条目时自动展开（落到一张收起的卡上没有意义） */
+  function tlExpandLong(article: HTMLElement) {
+    if (!article.classList.contains("tl-entry--long")) return;
+    const head = article.querySelector<HTMLElement>(".tl-long-head");
+    if (head) {
+      head.setAttribute("aria-expanded", "true");
+      const body = document.getElementById(head.getAttribute("aria-controls") ?? "");
+      body?.classList.add("is-open");
+    }
+  }
+
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
   if (!TL.bound) {
     TL.bound = true;
@@ -1758,6 +1877,8 @@ const fmtPoint = (d: Date) =>
     document.addEventListener("keydown", tlKeydown);
     document.addEventListener("click", tlLikeClick);
     document.addEventListener("click", tlCommentClick);
+    document.addEventListener("click", tlLongClick);
+    document.addEventListener("keydown", tlLongKeydown);
     document.addEventListener("click", tlLockClick);
     document.addEventListener("keydown", tlLockKeydown);
     window.addEventListener("popstate", tlHistory);
