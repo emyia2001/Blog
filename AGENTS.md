@@ -80,10 +80,10 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 ### moments（纪事）
 - 字段：`type: person|event|diary`（默认 event，**内部行为开关**——图谱节点/日记不入图/归档过滤，feed 不再展示）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`tags?`（自由标签，展示在纪事右上角，类似文章标签）、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。**纪事无 `excerpt`**（摘要是 posts 专属；归档图谱节点悬停预览对纪事只出标题/头像）。
-- **长文不入纪事页**：正文 >800 字（`timeline.astro` 的 `LONG_BODY_LIMIT`，构建期判定）的条目整体排除出纪事页 feed 与时间轴（图谱/归档仍按 type 行为）；阈值可调。长文最终去哪用户尚未定。
+- **长文入口卡**：正文 >800 字（`timeline.astro` 的 `LONG_BODY_LIMIT`，构建期判定）的条目在「日常」页不直出全文，以入口卡呈现（引文自动取正文首段首行截断——展开后与正文首段重复是已知表现，属预期）；阈值可调。
 - **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进归档页关系图谱与归档列表（/archive）。
 - **diary**（日记）：日常流水，`title`/`excerpt` 可留空——**不进图谱 / 归档 / RSS / 搜索**，只在纪事页时间线展示（轴上为方点、标签「日记」）。
-- 无独立页面；纪事页是**连续信息流**（全部条目服务端直出、按年分组，右侧时间轴是 scroll-spy 目录，点击滚动定位；`#锚点` 深链接可用），diary 在流中无标题、占位更紧。
+- 页面更名：**「日常」页**（路由暂留 /timeline）= 碎碎念连续信息流（全部条目服务端直出、按年分组，右侧时间轴是 scroll-spy 目录，点击滚动定位；`#锚点` 深链接可用），diary 在流中无标题、占位更紧。**长文条目（正文 >800 字）只显示入口卡**（标题 + 首段引文，整卡可点原位展开/收起，深链接自动展开），展开后即完整阅读排版；「纪事」长文集合页暂未建（入口刻意低调，用户后议）。
 - **lock 内容加密（三类都可用）**：`{ question, answer }`——构建期用 `src/utils/lockContent.ts` 把**正文** AES-GCM 加密成密文写入产物（**明文绝不进源码**），浏览器端输对 `answer` 经 PBKDF2(120000, SHA-256) 派生密钥解密，解密结果会话记忆。**安全边界**：密文+谜面都在页面里，懂技术且耐心者可离线破解，故 `answer` 必须长且唯一（勿用单词/生日/姓名）。解密后为 markdown 原文、以纯文本分段展示（不重新编译 MDX 排版）。客户端逻辑在 `timeline.astro` 的 `<script>` 中（`tryUnlock`/`decryptBlock`），事件委托处理各条目常驻的 `.lock-box`。**BGM 与锁联动**：同一条目既配 `bgm` 又配 `lock` 时，`MiniPlayer` 会收到 `gated`——播放器先隐藏、不自动播放、也不注册「首次交互即播放」，解锁成功后由 `fillLocked()` 调 `player.unlockPlay()` 才显示并播放（会话记忆恢复走同一路径）。
 
 ### 内容新增/修改后的提交要求
@@ -116,7 +116,7 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 
 - **设计令牌集中在 `src/styles/editorial.css` 顶部 `@theme`**：纸张底 `--color-ed-bg: #F9F8F6`、墨色 `--color-ed-fg: #1C1C1C`、砖红点缀 `--color-ed-accent: #A63A2B`，另有 `--color-ed-muted/subtle/faint`。字体：标题衬线 `--font-serif`（Playfair Display + Noto Serif SC），正文无衬线 `--font-sans`（Source Sans 3）。
 - 视觉基调是**期刊/杂志编辑风**：大屏四周边框 + 顶部砖红强调线 + 左侧竖排刊名；改外观优先动 `@theme` 令牌，而不是散落各处硬编码颜色。
-- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/纪事/归档/拾集/友链，无「关于」、也无「图谱」——个人信息并入首页右栏关于卡，随感与独立日记板块已移除、日记作为纪事的 diary 类型混排进纪事页时间线），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；**CORS 头必须由 `public/_headers` 的 `/giscus-theme.css` 规则提供**（`output: static` 会丢掉 endpoint 的 Response 头，缺 ACAO 时 giscus 回退默认 light 主题、评论区整块发白）；评论区默认只渲染「加载评论」按钮，**点击后才拉 giscus**（giscus.app 在国内首屏开销大，不点不请求）。
+- 站点信息改 `src/consts.ts`（站名/描述/URL/头像/创站日/社交链接/GitHub 仓库）；导航在 `Nav.astro`（首页/日常/归档/拾集/友链，无「关于」、也无「图谱」——个人信息并入首页右栏关于卡；**「日常」即原纪事页**（路由暂留 /timeline，碎碎念连续流，2026-11-18 更名），diary 类型混排其中），社交图标在首页右栏（`astro-icon` + mdi，见 `SITE_SOCIAL`）；Giscus 指向 `emyia2001/comment`（仓库名在 `src/consts.ts` 的 `GISCUS_REPO`，换仓库还要同步 `data-repo-id`/`category-id`）；评论主题 CSS 由同源 endpoint `/giscus-theme.css` 输出（`src/pages/giscus-theme.css.ts`），**不要改回 jsDelivr**——国内线路实测连不上 cdn.jsdelivr.net，评论会掉回默认主题；**CORS 头必须由 `public/_headers` 的 `/giscus-theme.css` 规则提供**（`output: static` 会丢掉 endpoint 的 Response 头，缺 ACAO 时 giscus 回退默认 light 主题、评论区整块发白）；评论区默认只渲染「加载评论」按钮，**点击后才拉 giscus**（giscus.app 在国内首屏开销大，不点不请求）。
 - 客户端动画/交互注意：`.reveal` 淡入、`.mask-reveal` 擦除、ViewTransitions 站内无刷新、MiniPlayer 是 Web Component。**改动涉及 ViewTransitions / 移动端抽屉 / 搜索交互时，务必手动验证跳转后行为**（历史上修过「站内跳转后移动端菜单/目录/搜索点击无反应」这类回归）。
 
 ## 7. 改动验证与回归清单（升级/重构/大改动必读）
