@@ -260,10 +260,12 @@ const fmtPoint = (d: Date) =>
                   {/* 长文：标题+引文构成入口卡（整卡可点展开）；普通条目直接出标题 */}
                   {c.long ? (
                     <a class="tl-long-head" href={`/chronicle/${c.anchor}/`}>
-                      {c.entry.data.title && (
-                        <h2 class="tl-entry__title">{c.entry.data.title}</h2>
-                      )}
-                      {c.quote && <p class="tl-long-quote">{c.quote}</p>}
+                      <span class="tl-long-text">
+                        {c.entry.data.title && (
+                          <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                        )}
+                        {c.quote && <p class="tl-long-quote">{c.quote}</p>}
+                      </span>
                       <span class="tl-long-more" aria-hidden="true">
                         阅读全文
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
@@ -915,7 +917,10 @@ const fmtPoint = (d: Date) =>
 
   /* —— 长文入口卡：标题+引文整卡可点，正文原位展开 —— */
   .tl-long-head {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
   }
@@ -926,6 +931,9 @@ const fmtPoint = (d: Date) =>
   .tl-entry--long:hover .tl-entry__title {
     color: var(--color-ed-accent);
   }
+  .tl-long-text {
+    min-width: 0;
+  }
   .tl-long-quote {
     margin: 0.9rem 0 0;
     font-family: var(--font-serif);
@@ -933,11 +941,12 @@ const fmtPoint = (d: Date) =>
     line-height: 1.7;
     color: var(--color-ed-muted);
   }
+  /* 「阅读全文」固定在卡片右侧，垂直居中（应用列表式箭头位） */
   .tl-long-more {
+    flex: none;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    margin-top: 0.75rem;
     font-size: 0.75rem;
     letter-spacing: 0.08em;
     color: var(--color-ed-subtle);
