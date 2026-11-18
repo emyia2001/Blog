@@ -227,10 +227,10 @@ const fmtPoint = (d: Date) =>
                       <span class="tl-entry__name">{SITE_NAME}</span>
                     </span>
                     <span class="tl-entry__meta">
-                      <time class="tl-entry__date" datetime={c.entry.data.date.toISOString()}>
-                        {fmtLong(c.entry.data.date)}
-                      </time>
-                      <span class="tl-entry__kind">{railEntries[i].label}</span>
+                      {/* 类型只标有区分意义的：日记是流中常态，不再每条固定标 */}
+                      {c.kind !== "diary" && (
+                        <span class="tl-entry__kind">{railEntries[i].label}</span>
+                      )}
                     </span>
                   </header>
                   {/* 有标题才渲染标题；无标题时日期行已带日期，不再兜底重复 */}
@@ -279,6 +279,10 @@ const fmtPoint = (d: Date) =>
                   )}
                   {/* 互动行：本地点赞（无后端，状态存本机，不做假计数） */}
                   <footer class="tl-entry__foot">
+                    <time class="tl-entry__foot-date" datetime={c.entry.data.date.toISOString()}>
+                      {fmtLong(c.entry.data.date)}
+                    </time>
+                    <span class="tl-entry__actions">
                     <button
                       type="button"
                       class="tl-like"
@@ -304,6 +308,7 @@ const fmtPoint = (d: Date) =>
                       </svg>
                       <span class="sr-only">评论</span>
                     </button>
+                    </span>
                   </footer>
                   <div class="tl-comments" id={`tl-comments-${c.anchor}`} data-term={c.anchor} data-pagefind-ignore hidden></div>
                 </article>
@@ -778,13 +783,6 @@ const fmtPoint = (d: Date) =>
     gap: 1rem;
     min-width: 0;
   }
-  .tl-entry__date {
-    display: block;
-    font-size: 0.6875rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-ed-subtle);
-    letter-spacing: 0.06em;
-  }
   /* 类型：日期行右对齐小字（人物 / 事件 / 日记） */
   .tl-entry__kind {
     flex: none;
@@ -792,15 +790,26 @@ const fmtPoint = (d: Date) =>
     letter-spacing: 0.08em;
     color: var(--color-ed-subtle);
   }
-  /* —— 互动行：本地点赞 + 评论 —— */
+  /* —— 互动行：日期在左，点赞/评论在右 —— */
   .tl-entry__foot {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
-    gap: 0.25rem;
+    gap: 1rem;
     margin-top: 1.25rem;
     padding-top: 0.4rem;
     border-top: 1px solid var(--color-ed-hairline);
+  }
+  .tl-entry__foot-date {
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ed-subtle);
+    letter-spacing: 0.06em;
+  }
+  .tl-entry__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
   .tl-like,
   .tl-comment {
