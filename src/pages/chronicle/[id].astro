@@ -60,13 +60,6 @@ const title = entry.data.title ?? fmtLong(entry.data.date);
 
       {entry.data.bgm?.src && <MiniPlayer src={entry.data.bgm.src} title={entry.data.bgm.title} />}
 
-      {entry.data.bgm?.src && (
-        <div class="bgm-hint" id="bgm-hint" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="17" cy="16" r="3"></circle></svg>
-          <span>这篇有背景音乐{entry.data.bgm.title ? `：${entry.data.bgm.title}` : ""}</span>
-        </div>
-      )}
-
       <footer class="chronicle__foot">
         <button type="button" class="chronicle-like" data-like={anchor} aria-pressed="false" title="点赞（本机记忆）">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -180,33 +173,7 @@ const title = entry.data.title ?? fmtLong(entry.data.date);
     border-top: 1px solid var(--color-ed-rule);
     padding-top: 1rem;
   }
-  /* 配乐一次性提示：固定顶部，强制停留 2s（无关闭钮），之后淡出且本机不再出现 */
-  .bgm-hint {
-    position: fixed;
-    top: calc(var(--nav-h, 64px) + 12px);
-    left: 50%;
-    translate: -50% 0;
-    z-index: 80;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1rem;
-    background: var(--color-ed-bg);
-    border: 1px solid var(--color-ed-rule);
-    font-size: 0.8125rem;
-    color: var(--color-ed-muted);
-    box-shadow: 0 8px 30px rgba(28, 28, 28, 0.08);
-    opacity: 0;
-    transition: opacity 240ms var(--ease-ed);
-  }
-  .bgm-hint svg {
-    width: 0.875rem;
-    height: 0.875rem;
-    color: var(--color-ed-accent);
-  }
-  .bgm-hint.is-shown {
-    opacity: 1;
-  }
+
 </style>
 
 <script>
@@ -230,23 +197,6 @@ const title = entry.data.title ?? fmtLong(entry.data.date);
       return JSON.parse(localStorage.getItem(LIKE_STORAGE_KEY) || "{}");
     } catch {
       return {};
-    }
-  }
-
-  // 配乐一次性提示：只在第一次进入带 BGM 的详情页时出现，停留 2s 后淡出
-  const hint = document.getElementById("bgm-hint");
-  if (hint) {
-    const HINT_KEY = "snark_bgm_hint_shown";
-    if (!localStorage.getItem(HINT_KEY)) {
-      window.setTimeout(() => {
-        hint.hidden = false;
-        hint.classList.add("is-shown");
-        localStorage.setItem(HINT_KEY, "1");
-        window.setTimeout(() => {
-          hint.classList.remove("is-shown");
-          window.setTimeout(() => (hint.hidden = true), 300);
-        }, 2000);
-      }, 800);
     }
   }
 
