@@ -12,6 +12,27 @@ export const BLOG_HASH_PROP = "blog-hash";
 /** 笔记属性里记录本篇曾上传到 R2 的对象 key 列表（单篇清理未引用图片的依据） */
 export const BLOG_IMAGES_PROP = "blog-images";
 
+/** vault 内同步目录的固定分层名（与 sync.ts 的目录拼装保持一致） */
+export const POSTS_DIR_NAME = "文章";
+export const MOMENTS_DIR_NAME = "纪事";
+
+/**
+ * 按笔记在 vault 里的位置推断集合：syncFolder/文章/ → posts，syncFolder/纪事/ → moments。
+ * 不在这两个目录下（如根目录散笔记）返回 null，由调用方决定默认值。
+ */
+export function kindFromVaultPath(
+  path: string,
+  syncFolder: string,
+): "posts" | "moments" | null {
+  const base = syncFolder.trim().replace(/^\/+|\/+$/g, "");
+  const p = path.replace(/\\/g, "/");
+  const under = (seg: string) =>
+    p.includes(`/${seg}/`) && (!base || p.includes(`/${base}/${seg}/`));
+  if (under(POSTS_DIR_NAME)) return "posts";
+  if (under(MOMENTS_DIR_NAME)) return "moments";
+  return null;
+}
+
 /** SHA-256 hex（crypto.subtle 在 Obsidian 渲染进程可用） */
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));

@@ -1,7 +1,7 @@
 import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { MOMENT_TYPES, MomentType, readNoteProps, stripFrontmatter } from "./frontmatter";
 import { PublishContext, PublishForm, PublishOutcome, cleanupNoteImages, publishNote } from "./publish";
-import { SLUG_RE, firstParagraph, successNotice, todayISO } from "./utils";
+import { SLUG_RE, firstParagraph, kindFromVaultPath, successNotice, todayISO } from "./utils";
 import { confirmAsync } from "./modals/ConfirmModal";
 import type SnarkBlogCmsPlugin from "./main";
 
@@ -75,8 +75,11 @@ export class PublishView extends ItemView {
     }
 
     const props = readNoteProps(this.app.metadataCache.getFileCache(this.targetFile)?.frontmatter);
+    // 集合自动选择：frontmatter 带 type → 纪事；否则按文件位置推断（文章/ → 文章，纪事/ → 纪事）；
+    // 都不命中（如根目录散笔记）默认文章。段按钮仍可手动切换。
+    const pathKind = kindFromVaultPath(this.targetFile.path, this.plugin.settings.syncFolder);
     this.form = {
-      kind: props.type ? "moments" : "posts",
+      kind: props.type ? "moments" : (pathKind ?? "posts"),
       title: props.title ?? this.targetFile.basename,
       date: props.date ?? todayISO(),
       excerpt: props.excerpt ?? "",

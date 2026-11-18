@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 import { noteFrontmatterFromFlat, parseFrontmatter, readNoteProps, remoteToNoteProperties } from "./frontmatter";
 import { PublishContext } from "./publish";
-import { BLOG_HASH_PROP, BLOG_PATH_PROP, sha256Hex } from "./utils";
+import { BLOG_HASH_PROP, BLOG_PATH_PROP, MOMENTS_DIR_NAME, POSTS_DIR_NAME, sha256Hex } from "./utils";
 
 export type SyncStatus = "remote-only" | "synced" | "remote-changed" | "remote-deleted";
 
@@ -133,7 +133,7 @@ export async function pullIntoVault(ctx: PublishContext, entry: SyncEntry): Prom
   const base = folderPath(ctx.settings.syncFolder);
   // 文章与纪事分开放（博客/文章、博客/纪事），并按笔记日期细分为月份子文件夹：
   // 博客/文章/2026-11/xxx.md（无日期的回退平铺，不加月份）
-  const kindDir = entry.kind === "posts" ? "文章" : "纪事";
+  const kindDir = entry.kind === "posts" ? POSTS_DIR_NAME : MOMENTS_DIR_NAME;
   const noteDate = typeof props.date === "string" ? props.date : undefined;
   const month = noteDate?.match(/^(\d{4}-\d{2})/)?.[1];
   const dir = [base, kindDir, month].filter(Boolean).join("/");
