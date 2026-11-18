@@ -18,14 +18,21 @@ const publishedMoments = allMoments
 // 阈值可调（构建期判定）。
 const LONG_BODY_LIMIT = 800;
 
-// 引文：正文首个非空行，去 markdown 记号后截断
+// 引文：正文前两个非空段落合并（去 markdown 记号）——保证两行 clamp 永远
+// 有溢出内容，渐隐截断的「未完」信号对所有长文稳定成立
 const longQuote = (body: string | undefined) => {
-  const firstLine = (body ?? "")
-    .split("\n")
-    .map((s) => s.replace(/[#>*`\[\]!]|^- /g, "").trim())
-    .find(Boolean);
-  if (!firstLine) return "";
-  return firstLine.length > 100 ? `${firstLine.slice(0, 100)}…` : firstLine;
+  const paras = (body ?? "")
+    .split(/\n\s*\n/)
+    .map((b) =>
+      b
+        .split("\n")
+        .map((l) => l.replace(/[#>*`\[\]!]|^- /g, "").trim())
+        .filter(Boolean)
+        .join(" "),
+    )
+    .filter(Boolean);
+  const text = paras.slice(0, 2).join(" ");
+  return text.length > 400 ? `${text.slice(0, 400)}…` : text;
 };
 
 type RenderedContent = Awaited<
@@ -265,10 +272,6 @@ const fmtPoint = (d: Date) =>
                           <h2 class="tl-entry__title">{c.entry.data.title}</h2>
                         )}
                         {c.quote && <p class="tl-long-quote">{c.quote}</p>}
-                      </span>
-                      <span class="tl-long-more" aria-hidden="true">
-                        阅读全文
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
                       </span>
                     </a>
                   ) : (
@@ -940,24 +943,23 @@ const fmtPoint = (d: Date) =>
     font-size: 1.0625rem;
     line-height: 1.7;
     color: var(--color-ed-muted);
+    /* 两行截断：一眼看出内容未完，需点进详情页 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    position: relative;
   }
-  /* 「阅读全文」固定在卡片右侧，垂直居中（应用列表式箭头位） */
-  .tl-long-more {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    color: var(--color-ed-subtle);
-    transition: color 160ms ease;
-  }
-  .tl-long-more svg {
-    width: 0.75rem;
-    height: 0.75rem;
-  }
-  .tl-long-head:hover .tl-long-more {
-    color: var(--color-ed-accent);
+  /* 末行渐隐：比省略号更明确的「未完」信号 */
+  .tl-long-quote::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 6rem;
+    height: 1.7em;
+    background: linear-gradient(to right, transparent, var(--color-ed-bg));
+    pointer-events: none;
   }
 
   /* —— 条目评论区：每条一个 giscus 讨论串，虚线顶线与分隔线同语言 —— */
