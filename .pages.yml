@@ -108,7 +108,7 @@ content:
       order: desc
     fields:
       - name: type
-        label: 类型
+        label: 类型（内部行为：图谱/归档用，页面不展示）
         type: select
         required: false
         default: event
@@ -116,6 +116,10 @@ content:
           values: [person, event, diary]
           labels: [人物, 事件, 日记]
         help: "人物/事件为回顾型节点（进图谱与归档）；日记为日常流水（只进时间线）"
+      - name: tags
+        label: 标签（自由填写，展示在纪事右上角）
+        type: string
+        list: true
       - name: title
         label: 标题（日记可留空，缺省用日期）
         type: string

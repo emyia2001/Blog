@@ -145,8 +145,16 @@ export class PublishView extends ItemView {
     this.excerptArea.addEventListener("input", () => (this.form!.excerpt = this.excerptArea.value));
     this.postsFields.push(excerptField);
 
+    // 标签：两集合共用、主区可见（纪事的自由标签展示在 feed 右上角）
+    const tagsField = this.textField(contentEl, "标签（逗号分隔）", this.form.tags.join(", "), (v) => {
+      this.form!.tags = v.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    });
+    this.postsFields.push(tagsField);
+    this.momentFields.push(tagsField);
+
+    // 类型：内部行为（图谱/归档用，feed 不再展示）——收进「全部属性」折叠区
     const typeField = contentEl.createDiv({ cls: "snark-cms-field" });
-    typeField.createEl("label", { text: "类型" });
+    typeField.createEl("label", { text: "类型（内部：图谱/归档用）" });
     const typeSelect = typeField.createEl("select");
     for (const t of MOMENT_TYPES) {
       const opt = typeSelect.createEl("option", { text: t.label });
@@ -165,7 +173,6 @@ export class PublishView extends ItemView {
 
     // 全部属性（可折叠区；有值时默认展开）
     const hasSecondary =
-      this.form.tags.length > 0 ||
       !!this.form.heroImage ||
       this.form.featured ||
       !this.form.dropCap ||
@@ -181,10 +188,6 @@ export class PublishView extends ItemView {
     details.createEl("summary", { text: "全部属性" });
     const grid = details.createDiv({ cls: "snark-cms-more-body" });
 
-    const tagsField = this.textField(grid, "标签（仅文章，逗号分隔）", this.form.tags.join(", "), (v) => {
-      this.form!.tags = v.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
-    });
-    this.postsFields.push(tagsField);
     this.textField(grid, "封面图 URL（分享卡与图谱头像用）", this.form.heroImage, (v) => (this.form!.heroImage = v));
     this.textField(grid, "BGM 链接", this.form.bgmSrc, (v) => (this.form!.bgmSrc = v));
     this.textField(grid, "BGM 名称", this.form.bgmTitle, (v) => (this.form!.bgmTitle = v));

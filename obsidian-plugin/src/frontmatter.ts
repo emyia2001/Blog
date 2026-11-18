@@ -132,8 +132,8 @@ export function buildFrontmatter(kind: "posts" | "moments", p: NoteProps): strin
   // excerpt 仅 posts（纪事 schema 已去掉摘要字段）
   if (kind === "posts") entries.push(scalar("excerpt", p.excerpt ?? ""));
   if (kind === "posts") entries.push(scalar("slug", p.slug ?? ""));
-  // tags 仅 posts（纪事 schema 无 tags，右侧展示的是类型而非标签）
-  if (kind === "posts" && tags.length) entries.push(blockList("tags", tags));
+  // tags 两集合通用（纪事的自由标签展示在 feed 右上角；posts 为文章标签）
+  if (tags.length) entries.push(blockList("tags", tags));
   if (p.heroImage) entries.push(scalar("heroImage", p.heroImage));
   entries.push(scalar("draft", p.draft ?? false));
   if (p.featured === true) entries.push(scalar("featured", true));

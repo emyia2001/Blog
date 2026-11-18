@@ -14,6 +14,13 @@ const publishedMoments = allMoments
   .filter((m) => !m.data.draft)
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
+// 长文不入纪事页（feed 与时间轴整体排除；仍在图谱/归档，按 type 行为）：
+// 碎碎念都在阈值之下，长文之后往哪放用户再定。阈值可调（构建期判定）。
+const LONG_BODY_LIMIT = 800;
+const feedMoments = publishedMoments.filter(
+  (m) => (m.body?.length ?? 0) <= LONG_BODY_LIMIT,
+);
+
 type RenderedContent = Awaited<
   ReturnType<CollectionEntry<"posts">["render"]>
 >["Content"];
@@ -53,7 +60,7 @@ interface FeedItem {
 }
 
 const feed: FeedItem[] = await Promise.all(
-  publishedMoments.map(async (m) => {
+  feedMoments.map(async (m) => {
     const base = {
       id: m.id,
       anchor: m.id.replace(/\.mdx?$/, ""),
@@ -91,8 +98,8 @@ interface RailEntry {
   showYear: boolean;
 }
 
-// 时间轴目录条目：publishedMoments 已排序，与 feed 同序一一对应
-const railEntries: RailEntry[] = publishedMoments.map((m) => ({
+// 时间轴目录条目：feedMoments 已排序，与 feed 同序一一对应
+const railEntries: RailEntry[] = feedMoments.map((m) => ({
   anchor: m.id.replace(/\.mdx?$/, ""),
   date: m.data.date,
   kind: m.data.type as Kind,
@@ -227,9 +234,11 @@ const fmtPoint = (d: Date) =>
                       <span class="tl-entry__name">{SITE_NAME}</span>
                     </span>
                     <span class="tl-entry__meta">
-                      {/* 类型只标有区分意义的：日记是流中常态，不再每条固定标 */}
-                      {c.kind !== "diary" && (
-                        <span class="tl-entry__kind">{railEntries[i].label}</span>
+                      {/* 右上角：自由标签（类似文章 tags）；固定类型不再上 feed */}
+                      {(c.entry.data.tags?.length ?? 0) > 0 && (
+                        <span class="tl-entry__kind">
+                          {c.entry.data.tags!.join(" · ")}
+                        </span>
                       )}
                     </span>
                   </header>

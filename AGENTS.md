@@ -79,7 +79,8 @@ scripts/                   materialize-noto-serif-sc.mjs（字体物化）、pru
 - 示例模板：`src/content/posts/example-post.mdx`（复制改字段即可）。
 
 ### moments（纪事）
-- 字段：`type: person|event|diary`（默认 event）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。**纪事无 `excerpt`**（摘要是 posts 专属；归档图谱节点悬停预览对纪事只出标题/头像）。
+- 字段：`type: person|event|diary`（默认 event，**内部行为开关**——图谱节点/日记不入图/归档过滤，feed 不再展示）、`date`（必填，记录当天）、`title?`（可选，日记常缺省，展示用日期兜底）、`tags?`（自由标签，展示在纪事右上角，类似文章标签）、可选 `heroImage`、`draft`、`bgm`、`graph`、`lock?`。**纪事无 `excerpt`**（摘要是 posts 专属；归档图谱节点悬停预览对纪事只出标题/头像）。
+- **长文不入纪事页**：正文 >800 字（`timeline.astro` 的 `LONG_BODY_LIMIT`，构建期判定）的条目整体排除出纪事页 feed 与时间轴（图谱/归档仍按 type 行为）；阈值可调。长文最终去哪用户尚未定。
 - **person/event**（人物/事件）：回顾型人生节点，有 `title` 通常也带 `excerpt` 与 `graph`——进归档页关系图谱与归档列表（/archive）。
 - **diary**（日记）：日常流水，`title`/`excerpt` 可留空——**不进图谱 / 归档 / RSS / 搜索**，只在纪事页时间线展示（轴上为方点、标签「日记」）。
 - 无独立页面；纪事页是**连续信息流**（全部条目服务端直出、按年分组，右侧时间轴是 scroll-spy 目录，点击滚动定位；`#锚点` 深链接可用），diary 在流中无标题、占位更紧。

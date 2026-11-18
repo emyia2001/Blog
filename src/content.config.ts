@@ -41,7 +41,8 @@ const moments = defineCollection({
     title: z.string().optional(), // 可选：person/event 通常有；diary 不用标题（碎碎念，轴点显示正文首行）
     date: z.date(),
     // 纪事无摘要字段：摘要（excerpt）是 posts 专属
-    type: z.enum(["person", "event", "diary"]).default("event"),
+    tags: z.array(z.string()).optional().default([]), // 自由标签（feed 右上角展示），替代固定类型标注
+    type: z.enum(["person", "event", "diary"]).default("event"), // 内部行为开关：图谱节点/日记不入图/归档过滤；feed 不再展示
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
     // 内容加密（构建时 AES-GCM 加密正文，浏览器端用答案解密）：
