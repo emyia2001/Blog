@@ -1,6 +1,5 @@
 ---
 import { getCollection, type CollectionEntry } from "astro:content";
-import { navigate } from "astro:transitions";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MiniPlayer from "../components/MiniPlayer.astro";
 import ImageLightbox from "../components/ImageLightbox.astro";
@@ -954,9 +953,10 @@ const fmtPoint = (d: Date) =>
   }
   .tl-long-quote {
     margin: 0.9rem 0 0;
-    font-family: var(--font-serif);
-    font-size: 1.0625rem;
-    line-height: 1.7;
+    /* 与正文排版统一：无衬线、同字号、2em 首行缩进 */
+    font-size: 1rem;
+    line-height: 1.8;
+    text-indent: 2em;
     color: var(--color-ed-muted);
     /* 两行截断：一眼看出内容未完，需点进详情页 */
     display: -webkit-box;
@@ -964,6 +964,17 @@ const fmtPoint = (d: Date) =>
     -webkit-line-clamp: 2;
     overflow: hidden;
     position: relative;
+  }
+  /* 末行渐隐：比省略号更明确的「未完」信号 */
+  .tl-long-quote::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 6rem;
+    height: 1.8em;
+    background: linear-gradient(to right, transparent, var(--color-ed-bg));
+    pointer-events: none;
   }
   /* 长文配乐提示弹窗：居中纸卡 + 轻蒙层，2s 内无任何关闭途径 */
   .tl-bgm-modal {
@@ -1422,8 +1433,10 @@ const fmtPoint = (d: Date) =>
     window.setTimeout(() => {
       localStorage.setItem(BGM_HINT_KEY, "1");
       modal.hidden = true;
-      // 编程式导航走 View Transitions（与站内点击跳转同观感）
-      navigate(head.getAttribute("href")!);
+      // 二次点击：flag 已置，拦截处理器放行，交由 Astro 路由接管跳转
+      // （astro:transitions 的 navigate 在打包脚本里不可靠，实测静默失败）
+      if (head.isConnected) head.click();
+      else window.location.assign(head.getAttribute("href")!);
     }, 2000);
   }
 
@@ -1908,9 +1921,11 @@ const fmtPoint = (d: Date) =>
   // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
   if (!TL.bound) {
     TL.bound = true;
+    // 捕获阶段：必须先于 Astro 路由的 bubble 监听 preventDefault，
+    // 否则真实用户的点击会被 VT 先行导航、弹窗来不及出现
+    document.addEventListener("click", tlLongCardClick, true);
     document.addEventListener("click", tlClick);
     document.addEventListener("keydown", tlKeydown);
-    document.addEventListener("click", tlLongCardClick);
     document.addEventListener("click", tlLikeClick);
     document.addEventListener("click", tlCommentClick);
     document.addEventListener("click", tlLockClick);
