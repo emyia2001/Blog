@@ -131,8 +131,12 @@ export async function pullIntoVault(ctx: PublishContext, entry: SyncEntry): Prom
   }
 
   const base = folderPath(ctx.settings.syncFolder);
-  // 文章与纪事分开放：博客/文章、博客/纪事（syncFolder 为空时直接用 文章/纪事）
-  const dir = base ? `${base}/${entry.kind === "posts" ? "文章" : "纪事"}` : entry.kind === "posts" ? "文章" : "纪事";
+  // 文章与纪事分开放（博客/文章、博客/纪事），并按笔记日期细分为月份子文件夹：
+  // 博客/文章/2026-11/xxx.md（无日期的回退平铺，不加月份）
+  const kindDir = entry.kind === "posts" ? "文章" : "纪事";
+  const noteDate = typeof props.date === "string" ? props.date : undefined;
+  const month = noteDate?.match(/^(\d{4}-\d{2})/)?.[1];
+  const dir = [base, kindDir, month].filter(Boolean).join("/");
   if (!ctx.app.vault.getAbstractFileByPath(dir)) {
     try {
       await ctx.app.vault.createFolder(dir);
