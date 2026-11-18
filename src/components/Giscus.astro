@@ -3,9 +3,11 @@ import { GISCUS_REPO, GISCUS_REPO_ID, GISCUS_CATEGORY, GISCUS_CATEGORY_ID, SITE_
 
 interface Props {
   class?: string;
+  /** specific 映射的 term（纪事详情页用，与动态流条目的评论共用同一讨论串）；缺省 pathname 映射 */
+  term?: string;
 }
 
-const { class: className = "" } = Astro.props;
+const { class: className = "", term } = Astro.props;
 
 // 自定义主题改为同源 URL：由 src/pages/giscus-theme.css.ts 这个 endpoint 输出，
 // 带 Access-Control-Allow-Origin: *（giscus 在 giscus.app iframe 里以 CORS 模式拉取）。
@@ -58,14 +60,15 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
   }
 </style>
 
-<script define:vars={{ themeUrl, repo: GISCUS_REPO, repoId: GISCUS_REPO_ID, category: GISCUS_CATEGORY, categoryId: GISCUS_CATEGORY_ID }}>
+<script define:vars={{ themeUrl, repo: GISCUS_REPO, repoId: GISCUS_REPO_ID, category: GISCUS_CATEGORY, categoryId: GISCUS_CATEGORY_ID, term }}>
   const GISCUS_CONFIG = {
     src: "https://giscus.app/client.js",
     "data-repo": repo,
     "data-repo-id": repoId,
     "data-category": category,
     "data-category-id": categoryId,
-    "data-mapping": "pathname",
+    // 有 term：specific 映射（动态流条目评论与详情页共用）；无 term：pathname（文章页）
+    "data-mapping": term ? "specific" : "pathname",
     "data-strict": "0",
     "data-reactions-enabled": "0",
     "data-emit-metadata": "0",
@@ -145,6 +148,7 @@ const themeUrl = new URL("/giscus-theme.css", SITE_URL).href;
       }
     }
     script.setAttribute("data-theme", themeUrl);
+    if (term) script.setAttribute("data-term", term);
     script.src = GISCUS_CONFIG.src;
     container.appendChild(script);
     container.dataset.loaded = "1";

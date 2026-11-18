@@ -1,0 +1,224 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Giscus from "../../components/Giscus.astro";
+import ImageLightbox from "../../components/ImageLightbox.astro";
+
+// 纪事长文详情页：动态流里长文入口卡的落点，独立页面沉浸阅读。
+// 路由 /chronicle/<锚点>/，锚点 = 内容 id 去掉扩展名（与动态流条目一致，
+// 点赞/评论按锚点记账，两处数据互通）。
+export async function getStaticPaths() {
+  const moments = await getCollection("moments", ({ data }) => !data.draft);
+  return moments.map((m) => ({ params: { id: m.id.replace(/\.mdx?$/, "") } }));
+}
+
+const { id } = Astro.params;
+const moments = await getCollection("moments", ({ data }) => !data.draft);
+const entry = moments.find((m) => m.id.replace(/\.mdx?$/, "") === id);
+if (!entry) {
+  return Astro.redirect("/timeline/");
+}
+
+const { Content } = await entry.render();
+const kindLabel = { person: "人物", event: "事件", diary: "日记" }[entry.data.type as string] ?? "";
+const fmtLong = (d: Date) =>
+  d.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+const anchor = entry.id.replace(/\.mdx?$/, "");
+const title = entry.data.title ?? fmtLong(entry.data.date);
+---
+
+<BaseLayout title={`${title}`} description={entry.data.title ? `纪事：${title}` : `纪事：${fmtLong(entry.data.date)}`}>
+  <div class="page-shell">
+    <article class="chronicle" data-pagefind-body>
+      <header class="chronicle__head">
+        <a class="chronicle__back" href="/timeline/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"></path></svg>
+          返回动态
+        </a>
+        {entry.data.tags && entry.data.tags.length > 0 && (
+          <p class="chronicle__tags">{entry.data.tags.join(" · ")}</p>
+        )}
+        <h1 class="chronicle__title">{title}</h1>
+        {/* 无标题条目：标题已用日期兜底，日期行不再重复 */}
+        {entry.data.title && (
+          <p class="chronicle__date">
+            {fmtLong(entry.data.date)}
+            {kindLabel && <span class="chronicle__kind">{kindLabel}</span>}
+          </p>
+        )}
+      </header>
+
+      <div class="chronicle__content prose">
+        <Content />
+      </div>
+
+      <footer class="chronicle__foot">
+        <button type="button" class="chronicle-like" data-like={anchor} aria-pressed="false" title="点赞（本机记忆）">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20.7C7.4 17.4 3.5 14 3.5 9.9 3.5 7 5.7 5 8.2 5c1.6 0 3 .9 3.8 2.2C12.8 5.9 14.2 5 15.8 5c2.5 0 4.7 2 4.7 4.9 0 4.1-3.9 7.5-8.5 10.8z"></path>
+          </svg>
+          <span class="chronicle-like__count" hidden></span>
+          <span class="sr-only">点赞</span>
+        </button>
+      </footer>
+
+      <div class="chronicle__comments">
+        <Giscus term={anchor} />
+      </div>
+    </article>
+  </div>
+  <ImageLightbox />
+</BaseLayout>
+
+<style>
+  .chronicle {
+    max-width: 42rem;
+    margin-inline: auto;
+    padding-top: 1rem;
+  }
+  .chronicle__head {
+    margin-bottom: 2rem;
+  }
+  .chronicle__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8125rem;
+    color: var(--color-ed-subtle);
+    text-decoration: none;
+    transition: color 160ms ease;
+  }
+  .chronicle__back svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+  .chronicle__back:hover {
+    color: var(--color-ed-accent);
+  }
+  .chronicle__tags {
+    margin: 1.75rem 0 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    color: var(--color-ed-subtle);
+  }
+  .chronicle__title {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    line-height: 1.35;
+    color: var(--color-ed-fg);
+  }
+  .chronicle__date {
+    margin: 0.9rem 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ed-subtle);
+  }
+  .chronicle__kind {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+  }
+  .chronicle__content {
+    padding-bottom: 1rem;
+  }
+  .chronicle__foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 0 1rem;
+    border-top: 1px solid var(--color-ed-hairline);
+  }
+  .chronicle-like {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--color-ed-subtle);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease;
+  }
+  .chronicle-like svg {
+    width: 1rem;
+    height: 1rem;
+    transition: fill 160ms ease;
+  }
+  .chronicle-like:hover {
+    color: var(--color-ed-accent);
+  }
+  .chronicle-like[aria-pressed="true"] {
+    color: var(--color-ed-accent);
+  }
+  .chronicle-like[aria-pressed="true"] svg {
+    fill: currentColor;
+  }
+  .chronicle-like__count {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .chronicle__comments {
+    border-top: 1px solid var(--color-ed-rule);
+    padding-top: 1rem;
+  }
+</style>
+
+<script>
+  // 点赞：与动态流共用 /api/likes 与本地记忆（按锚点记账，两处状态一致）
+  const LIKE_STORAGE_KEY = "snark_moment_likes";
+  const btn = document.querySelector<HTMLButtonElement>(".chronicle-like");
+  const countEl = btn?.querySelector<HTMLElement>(".chronicle-like__count");
+  const anchor = btn?.dataset.like ?? "";
+
+  function paintCount(n: number) {
+    if (!countEl) return;
+    if (n > 0) {
+      countEl.textContent = String(n);
+      countEl.hidden = false;
+    } else {
+      countEl.hidden = true;
+    }
+  }
+  function loadLikes(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(LIKE_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  if (btn && anchor) {
+    // 恢复本地点赞状态 + 拉聚合数
+    if (loadLikes()[anchor]) btn.setAttribute("aria-pressed", "true");
+    fetch("/api/likes")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { ok?: boolean; likes?: Record<string, number> } | null) => {
+        if (data?.likes) paintCount(data.likes[anchor] ?? 0);
+      })
+      .catch(() => {});
+    btn.addEventListener("click", () => {
+      const liked = btn.getAttribute("aria-pressed") === "true";
+      btn.setAttribute("aria-pressed", liked ? "false" : "true");
+      if (liked) return; // 本地取消不回退服务端计数（与动态流一致）
+      fetch("/api/likes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: anchor }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { ok?: boolean; count?: number } | null) => {
+          if (data && typeof data.count === "number") paintCount(data.count);
+        })
+        .catch(() => {});
+    });
+  }
+</script>
