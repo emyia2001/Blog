@@ -78,9 +78,11 @@ export class PublishView extends ItemView {
     // 集合自动选择：frontmatter 带 type → 纪事；否则按文件位置推断（文章/ → 文章，纪事/ → 纪事）；
     // 都不命中（如根目录散笔记）默认文章。段按钮仍可手动切换。
     const pathKind = kindFromVaultPath(this.targetFile.path, this.plugin.settings.syncFolder);
+    const kind = props.type ? "moments" : (pathKind ?? "posts");
     this.form = {
-      kind: props.type ? "moments" : (pathKind ?? "posts"),
-      title: props.title ?? this.targetFile.basename,
+      kind,
+      // 标题：纪事默认无标题（不自动填充文件名）；仅保留已有 frontmatter title
+      title: props.title ?? (kind === "moments" ? "" : this.targetFile.basename),
       date: props.date ?? todayISO(),
       excerpt: props.excerpt ?? "",
       slug: props.slug ?? "",
@@ -127,7 +129,9 @@ export class PublishView extends ItemView {
     });
     paintSeg();
 
-    this.textField(contentEl, "标题", this.form.title, (v) => (this.form!.title = v));
+    // 标题：仅文章有（纪事默认无标题，标题字段不出现；已有 frontmatter title 的纪事原样保留）
+    const titleField = this.textField(contentEl, "标题", this.form.title, (v) => (this.form!.title = v));
+    this.postsFields.push(titleField);
     this.textField(contentEl, "日期", this.form.date, (v) => (this.form!.date = v), "date");
 
     const slugField = this.textField(
