@@ -107,7 +107,7 @@
 
 .snark-cms-list .snark-cms-item-actions {
   display: flex;
-  gap: 2px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
