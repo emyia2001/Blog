@@ -228,8 +228,9 @@
   height: 14px;
 }
 
-/* 工具行：按钮靠右 */
+/* 工具行：按钮靠右，多个按钮之间留间隔 */
 .snark-cms-tools-row {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
