@@ -158,9 +158,14 @@ async function s3Request(
   return { status: res.status, text };
 }
 
-/** 上传一张图片到 R2，返回公网 URL（publicPrefix + 对象键） */
-export async function uploadImageToR2(bytes: Uint8Array, ext: string, cfg: R2Config): Promise<string> {
-  const key = buildObjectKey(cfg.keyPrefix, ext);
+/** 上传一张图片到 R2，返回公网 URL（publicPrefix + 对象键）；prefix 缺省用博客上传目录（keyPrefix） */
+export async function uploadImageToR2(
+  bytes: Uint8Array,
+  ext: string,
+  cfg: R2Config,
+  prefix?: string,
+): Promise<string> {
+  const key = buildObjectKey(prefix ?? cfg.keyPrefix, ext);
   const res = await s3Request("PUT", cfg, key, bytes);
   if (res.status >= 300) throw s3Error("上传", res.status);
   return `${cfg.publicPrefix}/${key}`;

@@ -4,10 +4,12 @@ import { PublishContext, buildStatusLine } from "./publish";
 import { DEFAULT_SETTINGS, SnarkSettings, SnarkSettingTab } from "./settings";
 import { FriendsModal } from "./modals/FriendsModal";
 import { ManagerModal } from "./modals/ManagerModal";
+import { MemeModal } from "./modals/MemeModal";
 import { R2ImagesModal } from "./modals/R2ImagesModal";
 import { SyncModal } from "./modals/SyncModal";
 import { PublishView, VIEW_TYPE_SNARK_BLOG } from "./panel";
 import { errorNotice } from "./utils";
+import { r2Config } from "./r2";
 
 export default class SnarkBlogCmsPlugin extends Plugin {
   settings: SnarkSettings = { ...DEFAULT_SETTINGS };
@@ -31,6 +33,7 @@ export default class SnarkBlogCmsPlugin extends Plugin {
     this.addCommand({ id: "sync-content", name: "同步博客内容（拉取远端）", callback: () => this.openSync() });
     this.addCommand({ id: "manage-friends", name: "管理友链", callback: () => this.openFriends() });
     this.addCommand({ id: "manage-images", name: "图床图片管理", callback: () => this.openR2Images() });
+    this.addCommand({ id: "manage-memes", name: "Meme 图床", callback: () => this.openMemes() });
     this.addCommand({ id: "check-build", name: "查看最近构建", callback: () => void this.checkBuild() });
   }
 
@@ -41,6 +44,7 @@ export default class SnarkBlogCmsPlugin extends Plugin {
     menu.addItem((item) => item.setTitle("管理已发布内容").setIcon("list").onClick(() => this.openManager()));
     menu.addItem((item) => item.setTitle("管理友链").setIcon("link").onClick(() => this.openFriends()));
     menu.addItem((item) => item.setTitle("图床图片管理").setIcon("image").onClick(() => this.openR2Images()));
+    menu.addItem((item) => item.setTitle("Meme 图床").setIcon("smile").onClick(() => this.openMemes()));
     menu.addItem((item) => item.setTitle("查看最近构建").setIcon("activity").onClick(() => void this.checkBuild()));
     menu.addSeparator();
     menu.addItem((item) => item.setTitle("插件设置").setIcon("settings").onClick(() => this.openSettings()));
@@ -126,6 +130,16 @@ export default class SnarkBlogCmsPlugin extends Plugin {
   private openR2Images(): void {
     if (!this.configured()) return;
     new R2ImagesModal(this.app, this.ctx()).open();
+  }
+
+  private openMemes(): void {
+    if (!this.configured()) return;
+    if (!r2Config(this.settings)) {
+      errorNotice("先在设置里填齐 R2 各项（Meme 图床走 R2 直传）");
+      this.openSettings();
+      return;
+    }
+    new MemeModal(this.app, this.ctx()).open();
   }
 
   private async checkBuild(): Promise<void> {

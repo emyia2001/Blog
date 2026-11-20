@@ -23,6 +23,8 @@ export interface SnarkSettings {
   r2KeyPrefix: string;
   /** 上传成功并回填外链后，把本地附件移入 Obsidian 回收站（仍被其他笔记引用的不删） */
   r2DeleteLocal: boolean;
+  /** Meme 图床上传后自动把 URL 追加进远端 src/data/memes.ts 并提交（关 = 只传图床 + 复制 URL） */
+  memeAppendRemote: boolean;
 }
 
 export const DEFAULT_SETTINGS: SnarkSettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: SnarkSettings = {
   r2PublicPrefix: "https://img.snarkm.com",
   r2KeyPrefix: "blog",
   r2DeleteLocal: false,
+  memeAppendRemote: true,
 };
 
 export class SnarkSettingTab extends PluginSettingTab {
@@ -178,5 +181,11 @@ export class SnarkSettingTab extends PluginSettingTab {
       .setName("对象键前缀")
       .setDesc("上传对象的前缀，如 blog（按 年/月/日 归档）")
       .addText((t) => t.setValue(s.r2KeyPrefix).onChange((v) => { s.r2KeyPrefix = v.trim().replace(/^\/+|\/+$/g, ""); save(); }));
+
+    // ---- Meme 图床（页脚彩蛋） ----
+    new Setting(containerEl)
+      .setName("Meme 上传后自动更新图单")
+      .setDesc("「Meme 图床」上传成功后，自动把图片 URL 追加进远端 src/data/memes.ts 并提交（Actions 部署后页脚彩蛋生效，本地仓库需 git pull）。关闭则只上传图床并把 URL 复制到剪贴板，不动 GitHub。默认开启。")
+      .addToggle((t) => t.setValue(s.memeAppendRemote).onChange((v) => { s.memeAppendRemote = v; save(); }));
   }
 }

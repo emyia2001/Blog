@@ -1,6 +1,6 @@
 {
   "name": "snark-blog-cms",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "把 Obsidian 笔记发布到 Snark 博客（Astro + GitHub Actions）：文章 / 纪事 / 友链",
   "main": "dist/main.js",
   "scripts": {
