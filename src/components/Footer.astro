@@ -1,5 +1,7 @@
 ---
 import { SITE_NAME } from "../consts";
+import { Icon } from "astro-icon/components";
+import { MEMES } from "../data/memes";
 const year = new Date().getFullYear();
 // 博客联盟 / 友链接力链接：以后加入新联盟，在此追加一项即可。
 // 开往（Travellings）入口仅保留在页脚。
@@ -20,6 +22,19 @@ const allianceLinks = [
       </span>
       <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
       <a href="/rss.xml" class="hover-underline no-underline hit-24">RSS</a>
+      {MEMES.length > 0 && (
+        <>
+          <span class="text-[var(--color-ed-sep)]" aria-hidden="true">&middot;</span>
+          <button
+            type="button"
+            class="meme-trigger hit-24"
+            data-meme-trigger
+            aria-label="随机一张 meme"
+          >
+            <Icon name="mdi:emoticon-outline" class="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </>
+      )}
     </div>
 
     {allianceLinks.length > 0 && (
@@ -41,3 +56,216 @@ const allianceLinks = [
     )}
   </div>
 </footer>
+
+<dialog class="meme" data-meme-dialog tabindex="-1" aria-label="随机 meme">
+  <img class="meme__img" data-meme-img alt="" draggable="false" decoding="async" />
+</dialog>
+
+<script>
+  import { MEMES } from "../data/memes";
+
+  /**
+   * Meme 彩蛋：页脚小图标 → 弹层随机一张，点图换下一张，背板/Esc 关闭。
+   * 站内跳转会整块替换 DOM，监听一律 document 级委托、元素引用现查；
+   * 洗牌袋是模块级状态，天然跨 View Transitions 存活。
+   */
+  // 洗牌袋：一轮之内不重复，抽完自动重洗
+  let deck: string[] = [];
+  let lastShown: string | null = null;
+
+  function draw(): string {
+    if (deck.length === 0) {
+      deck = [...MEMES];
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      // 跨轮也别撞脸：重洗后第一张若与上一张相同，和队首对调
+      if (deck.length > 1 && deck[deck.length - 1] === lastShown) {
+        [deck[deck.length - 1], deck[0]] = [deck[0], deck[deck.length - 1]];
+      }
+    }
+    const next = deck.pop()!;
+    lastShown = next;
+    return next;
+  }
+
+  const refs = () => ({
+    dialog: document.querySelector<HTMLDialogElement>("[data-meme-dialog]"),
+    img: document.querySelector<HTMLImageElement>("[data-meme-img]"),
+  });
+
+  let trigger: HTMLElement | null = null;
+
+  function showNext() {
+    const { img } = refs();
+    if (!img) return;
+    // 先隐后换：新图 onload 再淡入，避免半加载的旧图占位
+    img.classList.add("is-loading");
+    img.onload = () => img.classList.remove("is-loading");
+    img.onerror = () => img.classList.remove("is-loading");
+    img.src = draw();
+  }
+
+  function openMeme(from: HTMLElement | null) {
+    const { dialog } = refs();
+    if (!dialog || dialog.open) return;
+    trigger = from;
+    showNext();
+    dialog.classList.remove("is-closing");
+    dialog.showModal();
+    dialog.focus();
+  }
+
+  function closeMeme(instant = false) {
+    const { dialog } = refs();
+    if (!dialog?.open || dialog.classList.contains("is-closing")) return;
+    if (instant || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      dialog.close();
+      return;
+    }
+    dialog.classList.add("is-closing");
+    // 退场过渡收尾用定时器，Esc 连按 / 后台标签页都不会卡住
+    window.setTimeout(() => {
+      if (!dialog.open || !dialog.classList.contains("is-closing")) return;
+      dialog.classList.remove("is-closing");
+      dialog.close();
+    }, 160);
+  }
+
+  // click 会冒泡，委托到 document 天然跨 VT 存活
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const triggerEl = target.closest<HTMLElement>("[data-meme-trigger]");
+    if (triggerEl) {
+      openMeme(triggerEl);
+      return;
+    }
+    const { dialog, img } = refs();
+    if (!dialog?.open) return;
+    if (target === img) {
+      showNext(); // 点图本身换下一张
+      return;
+    }
+    if (target === dialog) closeMeme(); // 背板关闭
+  });
+
+  // cancel / close 事件不冒泡，只能绑在当前 dialog 上 → 随换页重挂
+  let cleanup: null | (() => void) = null;
+  let boundDialog: Element | null = null;
+
+  function boot() {
+    const dialog = document.querySelector("[data-meme-dialog]");
+    if (!dialog || dialog === boundDialog) return;
+    boundDialog = dialog;
+    const onCancel = (e: Event) => {
+      e.preventDefault();
+      closeMeme();
+    };
+    const onClose = () => {
+      dialog.classList.remove("is-closing");
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+    dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("close", onClose);
+    cleanup = () => {
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("close", onClose);
+      if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+    };
+  }
+
+  document.addEventListener("astro:page-load", boot);
+  document.addEventListener("astro:before-swap", () => {
+    cleanup?.();
+    cleanup = null;
+    boundDialog = null;
+  });
+  boot();
+</script>
+
+<style>
+  /* 极小彩蛋按钮：平时几乎隐形，hover / 聚焦才浮出一档 */
+  .meme-trigger {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-ed-faint);
+    transition: color 180ms ease;
+  }
+  .meme-trigger:hover,
+  .meme-trigger:focus-visible {
+    color: var(--color-ed-muted);
+  }
+
+  /* 铺满视口当 flex 容器，居中交给 UA 之外的样式（preflight 会清掉 dialog margin） */
+  .meme {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .meme[open] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .meme::backdrop {
+    background: rgba(20, 20, 20, 0.92);
+  }
+  .meme[open]::backdrop {
+    animation: meme-backdrop-in 200ms ease-out both;
+  }
+  @keyframes meme-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .meme.is-closing::backdrop {
+    animation: meme-backdrop-out 160ms var(--ease-ed) both;
+  }
+  @keyframes meme-backdrop-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .meme__img {
+    display: block;
+    max-width: min(92vw, 1200px);
+    max-height: 80vh;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 2px;
+    cursor: pointer;
+    opacity: 1;
+    transition: opacity 160ms ease-out;
+  }
+  .meme__img.is-loading,
+  .meme.is-closing .meme__img {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* 减少动态：只留快速淡入淡出，背板动画禁用（关闭瞬现由 JS 兜底） */
+    .meme__img {
+      transition: opacity 150ms linear;
+    }
+    .meme[open]::backdrop,
+    .meme.is-closing::backdrop {
+      animation: none;
+    }
+  }
+</style>
