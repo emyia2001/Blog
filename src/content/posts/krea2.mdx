@@ -1,0 +1,91 @@
+---
+title: "krea2文生图"
+date: 2026-11-22
+excerpt: "最近看到一个文生图模型krea2生成效果非常不错，再配置要求不高，部署一个来试试效果"
+slug: "krea2"
+draft: false
+---
+
+## 写在前面
+
+折腾过程踩了一个大坑，不知道为什么我ssh一直连接不上，排除一切配置问题后，一度怀疑是我密码输入错误的问题。于是重新创建虚拟机后发现仍然ssh连接不上去，这一次我肯定我的密码没有任何问题。ubuntu一直拒绝连接。后来发现每台新主机只能连接一次，连接一次断开后就无法连接，我折腾了两个小时仍然没有解决。直接选择换新镜像重新安装，这里我也推荐使用新镜像26.10，旧镜像24.04.03除了这个问题还有一个安装显卡驱动后控制台花屏显示问题。
+
+![Pasted image 20261122173821](https://img.snarkm.com/blog/2026/11/24-ui5g59.png)
+
+## 配置虚拟机
+
+PVE配置
+
+![Pasted image 20261122150939](https://img.snarkm.com/blog/2026/11/24-iimgth.png)
+
+磁盘空间
+
+![Pasted image 20261122151431](https://img.snarkm.com/blog/2026/11/24-3wc73b.png)
+
+内存和磁盘都比较紧张，为了能给LLM更多内存，只能先把我的hermes关闭，FnOS内存降到4g。istoreOS内存只占1个g，暂时不影响。其余虚拟机和LXC不常用就默认不启动
+
+先来创建一台给a3000使用的虚拟机，内存分20g，磁盘先分50g。机型设置q35，bios设置未OVMF，同时开启**丢弃 (Discard)**
+
+![Pasted image 20261122155348](https://img.snarkm.com/blog/2026/11/24-mjbayy.png)
+
+![Pasted image 20261122155216](https://img.snarkm.com/blog/2026/11/24-xznfm9.png)
+
+![Pasted image 20261122155502](https://img.snarkm.com/blog/2026/11/24-iltrig.png)
+
+
+添加虚拟机硬件，直通显卡，并开启ROM-Bar和PCI-Express
+
+
+![Pasted image 20261122154355](https://img.snarkm.com/blog/2026/11/24-r74iw2.png)
+
+创建成功后优化swap，避免常用swap导致降速
+
+```bash
+sudo sysctl vm.swappiness=10
+
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+```
+
+检查是否直通成功
+
+```bash
+lspci -nn | grep -i nvidia
+```
+
+![Pasted image 20261122161108](https://img.snarkm.com/blog/2026/11/24-1yr8t8.png)
+
+更新源，安装n卡驱动并重启
+
+```bash
+sudo apt update
+
+# 旧版ubuntu使用这个命令安装推荐驱动
+sudo ubuntu-drivers autoinstall
+
+# 新版Ubuntu
+sudo ubuntu-drivers install
+
+sudo reboot
+```
+
+验证驱动是否安装成功
+
+![Pasted image 20261122193136](https://img.snarkm.com/blog/2026/11/24-h1rw8g.png)
+
+## krea 2文生图
+
+接下来就是让zcode上场给我安装comfyui和krea2。安装完成后去b站找了一个工作流开始抽卡
+
+显卡功耗和内存、cpu占用：
+
+![Pasted image 20261123150943](https://img.snarkm.com/blog/2026/11/24-43hbet.png)
+
+成品效果图也是非常可以，虽然少了两个lora节点
+
+![Tutorial_00028_ 1](https://img.snarkm.com/blog/2026/11/24-rzchbe.png)
+
+![Tutorial_00033_](https://img.snarkm.com/blog/2026/11/24-i7hjdq.png)
+
+![Tutorial_00024_](https://img.snarkm.com/blog/2026/11/24-ke2xdv.png)
+
+![Tutorial_00017_](https://img.snarkm.com/blog/2026/11/24-afi1v6.png)
