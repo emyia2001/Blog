@@ -140,7 +140,7 @@ const linkCount = links.length;
         <li>
           <span class="graph-legend-glyph" aria-hidden="true">
             <svg viewBox="0 0 16 16">
-              <polygon points="8,2.8 13.2,8 8,13.2 2.8,8" fill="none" stroke="var(--color-ed-fg)" stroke-width="1.4"></polygon>
+              <path d="M8 2.2 Q9.28 6.72 13.8 8 Q9.28 9.28 8 13.8 Q6.72 9.28 2.2 8 Q6.72 6.72 8 2.2 Z" fill="var(--color-ed-fg)" opacity="0.68"></path>
             </svg>
           </span>
           事件
@@ -877,14 +877,14 @@ const linkCount = links.length;
     0.8,
     Math.min(1, 1 - (nodes.length - 6) * 0.012)
   );
-  // 半径（事件的菱形按 L1 半径计）
+  // 半径（事件/动态 = 三粒碎点簇，按外接圆近似）
   const R = {
     self: 6 * nodeScale, // 相关文章图谱的中心（当前文章，与环绕文章点等大）
     avatarSelf: 12 * nodeScale,
     avatar: 12 * nodeScale, // 头像节点
     node: 6 * nodeScale, // 文章
     person: 7 * nodeScale,
-    event: 8 * nodeScale,
+    event: 4.5 * nodeScale,
     hit: 20 * nodeScale,
     collide: 34 * nodeScale,
   };
@@ -1017,18 +1017,19 @@ const linkCount = links.length;
         g.appendChild(ring);
       }
     } else if (isEvent) {
+      // 事件/动态：四角小星（✦）——细碎、低透明度，像纸面上的一个小闪光；
+      // 与文章实心圆点 / 人物空心环在形态上区分开
       const er = R.event;
-      const shape = document.createElementNS(NS, "polygon");
-      shape.setAttribute("class", "graph-node-shape");
-      shape.setAttribute(
-        "points",
-        `0,${-er} ${er},0 0,${er} ${-er},0`
+      const inn = er * 0.22;
+      const star = document.createElementNS(NS, "path");
+      star.setAttribute("class", "graph-node-shape");
+      star.setAttribute(
+        "d",
+        `M0,${-er} Q${inn},${-inn} ${er},0 Q${inn},${inn} 0,${er} Q${-inn},${inn} ${-er},0 Q${-inn},${-inn} 0,${-er} Z`
       );
-      shape.setAttribute("fill", "var(--color-ed-bg)");
-      shape.setAttribute("stroke", "var(--color-ed-fg)");
-      shape.setAttribute("stroke-width", "1.6");
-      shape.setAttribute("stroke-linejoin", "round");
-      g.appendChild(shape);
+      star.setAttribute("fill", "var(--color-ed-fg)");
+      star.setAttribute("opacity", "0.68");
+      g.appendChild(star);
     } else if (isSelf) {
       const shape = document.createElementNS(NS, "circle");
       shape.setAttribute("class", "graph-node-shape");
@@ -1207,11 +1208,10 @@ const linkCount = links.length;
   }
 
   // Distance from a node center to its shape edge along a unit direction.
-  // Circles are constant-radius; the diamond is an L1 ball.
+  // 所有节点形状按圆形近似（事件 = 碎点簇，外接圆半径）
   function radial(n: GraphNode, ux: number, uy: number): number {
-    if (n.kind === "event" && !n.avatar) {
-      return R.event / (Math.abs(ux) + Math.abs(uy) || 1);
-    }
+    void ux;
+    void uy;
     return radiusOf(n);
   }
 
@@ -1747,6 +1747,10 @@ const linkCount = links.length;
   // body overflow。展开分支在 FLIP 起跳前调用；还原分支延迟到飞回结束的
   // 定时器里调用——overflow 在整个还原动画期间保持 hidden，落地才解冻。
   function finishExpandToggle(on: boolean) {
+    // 展开/还原都复位平移缩放：全屏里缩放过再收回时，残留的 zoom 变换会把
+    // 小图内容推出画布（小图 viewBox 只有缩略条大小，看起来就像没节点）
+    zoom = { k: 1, tx: 0, ty: 0 };
+    applyZoom();
     if (expandBtn) {
       expandBtn.setAttribute(
         "aria-label",
@@ -1829,6 +1833,9 @@ const linkCount = links.length;
         expanding = false;
         return;
       }
+      // 收回前先复位 zoom：FLIP 飞行与落地后的小图都基于 1:1 视图
+      zoom = { k: 1, tx: 0, ty: 0 };
+      applyZoom();
       if (reduced) {
         const { parent, next } = layoutOrigin;
         if (next && next.parentNode === parent) {
