@@ -12,6 +12,12 @@ import { SITE_URL } from "./src/consts";
 export default defineConfig({
   site: SITE_URL,
   output: "static",
+  // /timeline 已并入关于页的动态区、/collection 已并入关于页的拾集区
+  // （src/pages/about.astro）：静态产物生成 meta-refresh 页，旧外链与已收录 URL 不丢
+  redirects: {
+    "/timeline": "/about/#feed",
+    "/collection": "/about/#collection",
+  },
   // 静态站点全量预取：hover 时拉取目标页，导航点击近乎即时换页（配合 <ClientRouter />）
   prefetch: { prefetchAll: true, defaultStrategy: "hover" },
   server: {

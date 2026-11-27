@@ -8,7 +8,7 @@ import { postPath } from "../utils/urls";
 const allPosts = await getCollection("posts");
 const allMoments = await getCollection("moments");
 const publishedPosts = allPosts.filter((p) => !p.data.draft);
-// 归档收「回顾型」纪事（person/event）；日记流水（diary）只在 /timeline 看
+// 归档收「回顾型」纪事（person/event）；日记流水（diary）只在关于页的动态区看
 const publishedMoments = allMoments.filter(
   (m) => !m.data.draft && m.data.type !== "diary"
 );
@@ -20,8 +20,16 @@ type Entry = {
   url: string;
 };
 
-const fmtShort = (d: Date) =>
-  d.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+// 无标题纪事在归档行里用正文首行兜底（照 feed 的思路），
+// 否则整排只剩日期，读者看不出这是一条什么「动态」
+const momentSnippet = (body: string | undefined) => {
+  const firstLine = (body ?? "")
+    .split("\n")
+    .map((s) => s.replace(/[#>*`[\]!]|^- /g, "").trim())
+    .find(Boolean);
+  if (!firstLine) return "纪事";
+  return firstLine.length > 24 ? `${firstLine.slice(0, 24)}…` : firstLine;
+};
 
 const entries: Entry[] = [
   ...publishedPosts.map((p) => ({
@@ -32,9 +40,10 @@ const entries: Entry[] = [
   })),
   ...publishedMoments.map((m) => ({
     kind: m.data.type as "person" | "event",
-    title: m.data.title ?? fmtShort(m.data.date),
+    title: m.data.title ?? momentSnippet(m.body),
     date: m.data.date,
-    url: "/timeline/",
+    // 直达关于页动态视图里的该条目（feed 深链接 + 视图切换都支持）
+    url: `/about/#${m.id.replace(/\.mdx?$/, "")}`,
   })),
 ].sort((a, b) => b.date.getTime() - a.date.getTime());
 

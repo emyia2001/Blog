@@ -1,0 +1,3928 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import MiniPlayer from "../components/MiniPlayer.astro";
+import ImageLightbox from "../components/ImageLightbox.astro";
+import { Icon } from "astro-icon/components";
+import { encryptContent } from "../utils/lockContent";
+import {
+  SITE_NAME,
+  SITE_AVATAR,
+  SITE_DESCRIPTION,
+  SITE_SOCIAL,
+  SITE_CREATED,
+  SITE_STORY,
+} from "../consts";
+import { COLLECTION, COLLECTION_TOTAL } from "../data/collection";
+
+// 关于视图「站点档案」数字（与首页关于卡同源）
+const publishedPosts = (await getCollection("posts")).filter((p) => !p.data.draft);
+const now = new Date();
+const daysNum = Math.floor((now.getTime() - SITE_CREATED.getTime()) / 86400000) + 1;
+const createdYm = `${SITE_CREATED.getFullYear()}.${String(SITE_CREATED.getMonth() + 1).padStart(2, "0")}`;
+
+// 纪事（moments）：person / event / diary 连续信息流，全部服务端直出。
+// 右侧时间轴是目录（scroll-spy 高亮当前位置，点击滚动到对应条目）。
+const allMoments = await getCollection("moments");
+
+const publishedMoments = allMoments
+  .filter((m) => !m.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+// 长文条目：feed 里只显示入口卡（标题 + 引文），点击原位展开完整阅读。
+// 阈值可调（构建期判定）。
+const LONG_BODY_LIMIT = 800;
+
+// 引文：正文前两个非空段落合并（去 markdown 记号）——保证两行 clamp 永远
+// 有溢出内容，渐隐截断的「未完」信号对所有长文稳定成立
+const longQuote = (body: string | undefined) => {
+  const paras = (body ?? "")
+    .split(/\n\s*\n/)
+    .map((b) =>
+      b
+        .split("\n")
+        .map((l) => l.replace(/[#>*`\[\]!]|^- /g, "").trim())
+        .filter(Boolean)
+        .join(" "),
+    )
+    .filter(Boolean);
+  const text = paras.slice(0, 2).join(" ");
+  return text.length > 400 ? `${text.slice(0, 400)}…` : text;
+};
+
+type RenderedContent = Awaited<
+  ReturnType<CollectionEntry<"posts">["render"]>
+>["Content"];
+
+type Kind = "person" | "event" | "diary";
+
+const KIND_LABEL: Record<Kind, string> = {
+  person: "人物",
+  event: "事件",
+  diary: "日记",
+};
+
+  // 无标题条目的轴点文本：正文首行截断（碎碎念日记、无标题事件通用）
+  const diaryTeaser = (body: string | undefined) => {
+  const firstLine = (body ?? "")
+    .split("\n")
+    .map((s) => s.replace(/[#>*`[\]!]|^- /g, "").trim())
+    .find(Boolean);
+  if (!firstLine) return "";
+  return firstLine.length > 22 ? `${firstLine.slice(0, 22)}…` : firstLine;
+};
+
+// 所有内容统一预渲染全文；带 lock 的文章构建期加密正文，浏览器端用答案解密
+interface FeedItem {
+  id: string;
+  /** 深链接锚点：由内容 id 去掉扩展名（稳定、可分享） */
+  anchor: string;
+  kind: Kind;
+  entry: CollectionEntry<"moments">;
+  Content?: RenderedContent; // 未加密才有明文 Content
+  /** 长文条目：feed 只显示入口卡，点击原位展开 */
+  long?: boolean;
+  /** 长文引文（正文首行截断） */
+  quote?: string;
+  lock?: {
+    question: string;
+    ciphertext: string;
+    salt: string;
+    iv: string;
+  };
+}
+
+const feed: FeedItem[] = await Promise.all(
+  publishedMoments.map(async (m) => {
+    const long = (m.body?.length ?? 0) > LONG_BODY_LIMIT;
+    const base = {
+      id: m.id,
+      anchor: m.id.replace(/\.mdx?$/, ""),
+      kind: m.data.type as Kind,
+      entry: m,
+      long,
+      quote: long ? longQuote(m.body) : undefined,
+    };
+    if (m.data.lock?.answer) {
+      // 加密正文（构建期）；明文不进产物
+      const enc = encryptContent(String(m.body ?? ""), m.data.lock.answer);
+      return {
+        ...base,
+        lock: {
+          question: m.data.lock.question,
+          ciphertext: enc.ciphertext,
+          salt: enc.salt,
+          iv: enc.iv,
+        },
+      };
+    }
+    return { ...base, Content: (await m.render()).Content };
+  })
+);
+
+interface RailEntry {
+  anchor: string;
+  date: Date;
+  kind: Kind;
+  title: string;
+  /** 无标题时轴点显示正文首行截断；person/event 恒为空 */
+  teaser: string;
+  label: string; // 轴点小标签：人物 / 事件 / 日记
+  locked: boolean;
+  hasBgm: boolean;
+  /** 只在年月切换（或第一条）时显示月份标题，避免重复 */
+  showMonth: boolean;
+}
+
+// 时间轴目录条目：publishedMoments 已排序，与 feed 同序一一对应
+const railEntries: RailEntry[] = publishedMoments.map((m) => ({
+  anchor: m.id.replace(/\.mdx?$/, ""),
+  date: m.data.date,
+  kind: m.data.type as Kind,
+  title: m.data.title ?? "",
+  teaser: diaryTeaser(m.body),
+  label: KIND_LABEL[m.data.type as Kind],
+  locked: Boolean(m.data.lock?.answer),
+  hasBgm: Boolean(m.data.bgm?.src),
+  showMonth: false,
+}));
+
+// 月份分组：降序排列时，第一条和每次跨年或跨月才出月标题
+railEntries.forEach((entry, i) => {
+  const prev = railEntries[i - 1];
+  entry.showMonth =
+    i === 0 ||
+    entry.date.getFullYear() !== prev.date.getFullYear() ||
+    entry.date.getMonth() !== prev.date.getMonth();
+});
+
+// 月标题的英文小字（参考 flowersink /life 的年月标题版式）
+const MONTH_EN = [
+  "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+  "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+];
+
+const fmtLong = (d: Date) =>
+  d.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+
+
+// ===== 拾集数据助手（原 collection.astro 迁入）=====
+// 本地封面（/images/covers/ 下）→ 构建期派生 WebP（scripts/gen-cover-variants.mjs
+// 生成 480w/960w，见 .gitignore）。1080px 原图直接缩到 ~150px 卡片时，Chrome 对
+// lazy 大图走低分辨率解码路径，分数缩放屏上发糊；贴近显示尺寸的派生图解码接近
+// 1:1，任何 DSF 都清晰。外链图（网易云封面等）原样返回。
+// 注意：这里刻意用字符串拼接而不是模板字面量——正则字面量（$/i 结尾）+ 带 ${}
+// 插值的模板字面量同现于 frontmatter 时，astro 编译器的栅栏扫描会失效（泄漏 ---）。
+const isLocalCover = (p: string) => p.startsWith("/images/covers/") && /\.(jpe?g|png)$/i.test(p);
+const coverSrc = (path: string, width: number) => {
+  if (!isLocalCover(path)) return path;
+  return path.replace(/^(.*\/)([^/]+)\.(jpe?g|png)$/i, "$1gen/$2-" + width + "w.webp");
+};
+const coverSrcSet = (path: string) =>
+  isLocalCover(path) ? coverSrc(path, 480) + " 480w, " + coverSrc(path, 960) + " 960w" : undefined;
+
+// 与 Wenku8_Flutter 一致：奶白档案色 + 等距投影
+const PAPER = [
+  { cover: "#FEFDF8", ink: "#2A2620" }, // 奶白
+  { cover: "#F4F1E8", ink: "#2A2620" }, // 象牙
+  { cover: "#E9E2D2", ink: "#2A2620" }, // 沙
+  { cover: "#D8CDB9", ink: "#241F18" }, // 石
+  { cover: "#38342E", ink: "#EDE7D8" }, // 墨（少量）
+];
+const SHELF_KINDS = new Set(["books", "music"]);
+const FILTERS = [
+  { id: "all", label: "全部" },
+  ...COLLECTION.map((c) => ({ id: c.id, label: c.label })),
+];
+---
+
+<BaseLayout title="关于" description={SITE_DESCRIPTION}>
+  <div class="page-shell">
+    <section>
+      <header class="page-head">
+        <div class="page-head__row">
+          <h1 class="page-head__title" data-view-title>关于</h1>
+          <span class="page-head__aside" data-view-aside hidden>{COLLECTION_TOTAL} 件收藏</span>
+        </div>
+      </header>
+
+      <!-- 左侧 dock（桌面端，macOS 风格）= 视图切换器：关于 / 动态 / 拾集——一次只显示一个区，
+           贴近视口左缘。首屏视图由紧跟其后的内联脚本按 hash 预置（重定向/深链接落点正确） -->
+      <div class="about-layout" data-view="about">
+        <aside class="about-dock" aria-label="页面视图切换">
+          <button
+            type="button"
+            class="about-dock__item"
+            data-dock-view="about"
+            aria-label="关于视图"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.5"></circle>
+              <path d="M5 19.5c1.3-3.3 3.9-5 7-5s5.7 1.7 7 5"></path>
+            </svg>
+            <span class="about-dock__label" aria-hidden="true">关于</span>
+          </button>
+          <button
+            type="button"
+            class="about-dock__item"
+            data-dock-view="feed"
+            aria-label="动态视图"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 9c2.5-3.5 6-3.5 9 0s6.5 3.5 9 0"></path>
+              <path d="M3 15c2.5-3.5 6-3.5 9 0s6.5 3.5 9 0"></path>
+            </svg>
+            <span class="about-dock__label" aria-hidden="true">动态</span>
+          </button>
+          <button
+            type="button"
+            class="about-dock__item"
+            data-dock-view="collection"
+            aria-label="拾集视图"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19h16"></path>
+              <path d="M7 19V6.5h4V19"></path>
+              <path d="M14 19V10h3.5v9"></path>
+            </svg>
+            <span class="about-dock__label" aria-hidden="true">拾集</span>
+          </button>
+        </aside>
+
+        <!-- 首屏视图预置：必须在模块脚本执行前按 hash 定好 data-view，
+             否则动态条目深链接（#moment-xxx）会在隐藏视图里算错滚动位置 -->
+        <script is:inline>
+          (function () {
+            var h = decodeURIComponent(location.hash.replace(/^#/, ""));
+            var v = h === "collection" ? "collection" : h ? "feed" : "about";
+            var layout = document.querySelector(".about-layout");
+            if (layout) layout.setAttribute("data-view", v);
+            document.querySelectorAll("[data-dock-view]").forEach(function (b) {
+              b.classList.toggle("is-active", b.getAttribute("data-dock-view") === v);
+            });
+            // 移动端无 dock、三块堆叠：页头固定「关于」
+            var mobile = window.matchMedia("(max-width: 767px)").matches;
+            var title = document.querySelector("[data-view-title]");
+            if (title) {
+              title.textContent = mobile
+                ? "关于"
+                : v === "collection" ? "拾集" : v === "feed" ? "动态" : "关于";
+            }
+            var aside = document.querySelector("[data-view-aside]");
+            if (aside) aside.hidden = mobile || v !== "collection";
+          })();
+        </script>
+
+        <div class="about-main">
+          <!-- 关于视图：双栏（主列 = 身份带 + 自述 | 右窄栏 = 站点档案） -->
+          <div class="about-view about-view--about">
+          <div class="about-about-grid">
+          <div class="about-about-main">
+          <div class="about-hero reveal">
+            <img
+              class="about-hero__avatar"
+              src={SITE_AVATAR}
+              alt={SITE_NAME}
+              width="256"
+              height="256"
+            />
+            <div class="about-hero__text">
+              <p class="about-hero__name">{SITE_NAME}</p>
+              <p class="about-hero__bio">{SITE_DESCRIPTION}</p>
+              <div class="about-hero__socials">
+                {SITE_SOCIAL.map((s) => (
+                  <a
+                    class="about-soc"
+                    href={s.href}
+                    target={s.href.startsWith("#") ? undefined : "_blank"}
+                    rel={s.href.startsWith("#") ? undefined : "noopener noreferrer"}
+                    aria-label={s.label}
+                    title={s.label}
+                  >
+                    <Icon name={s.icon} class="w-4 h-4" aria-hidden="true" />
+                  </a>
+                ))}
+                <a class="about-soc" href="/rss.xml" aria-label="RSS" title="RSS">
+                  <Icon name="mdi:rss" class="w-4 h-4" aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {SITE_STORY.trim().length > 0 && (
+            <p class="about-story reveal">{SITE_STORY}</p>
+          )}
+          </div>
+
+          <aside class="about-about-rail reveal" aria-label="站点档案">
+            <p class="about-rail-title">站点档案</p>
+            <dl class="about-facts">
+              <div class="about-facts__row">
+                <dt>创站</dt>
+                <dd>{createdYm}</dd>
+              </div>
+              <div class="about-facts__row">
+                <dt>运行</dt>
+                <dd>{daysNum} 天</dd>
+              </div>
+              <div class="about-facts__row">
+                <dt>文章</dt>
+                <dd>{publishedPosts.length} 篇</dd>
+              </div>
+              <div class="about-facts__row">
+                <dt>动态</dt>
+                <dd>{publishedMoments.length} 条</dd>
+              </div>
+              <div class="about-facts__row">
+                <dt>收藏</dt>
+                <dd>{COLLECTION_TOTAL} 件</dd>
+              </div>
+            </dl>
+          </aside>
+          </div>
+          </div>
+
+      <!-- 动态视图：原 /timeline 连续信息流整体迁入（id=feed 供重定向与深链接） -->
+      <section id="feed" class="about-feed-sec about-view about-view--feed" aria-label="动态">
+
+      {railEntries.length > 0 ? (
+                <div class="timeline-layout">
+
+          <!-- 连续信息流：全部条目服务端直出，日记是无标题的碎碎念（占位更紧）。
+               data-pagefind-body 让搜索只索引这个区域；日记按约定不进索引，
+               加锁条目只有谜面与密文，也一并跳过。 -->
+          <div id="timeline-feed" class="timeline-feed" data-pagefind-body>
+            {feed.map((c, i) => (
+              <>
+                {railEntries[i].showMonth && (
+                  <div class="tl-month" aria-hidden="true">
+                    <span class="tl-month__label">
+                      {railEntries[i].date.getFullYear()}年{railEntries[i].date.getMonth() + 1}月
+                    </span>
+                    <span class="tl-month__en">{MONTH_EN[railEntries[i].date.getMonth()]}</span>
+                  </div>
+                )}
+                <article
+                  id={c.anchor}
+                  class:list={[
+                    "tl-entry",
+                    "reveal",
+                    c.kind === "diary" && "tl-entry--diary",
+                    c.long && "tl-entry--long",
+                  ]}
+                  data-pagefind-ignore={c.kind === "diary" ? "true" : undefined}
+                >
+                  <header class="tl-entry__head">
+                    <span class="tl-entry__by">
+                      <img
+                        class="tl-entry__avatar"
+                        src={SITE_AVATAR}
+                        alt=""
+                        width="28"
+                        height="28"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span class="tl-entry__name">{SITE_NAME}</span>
+                    </span>
+                    <span class="tl-entry__meta">
+                      {/* 右上角：自由标签（类似文章 tags）；固定类型不再上 feed */}
+                      {(c.entry.data.tags?.length ?? 0) > 0 && (
+                        <span class="tl-entry__kind">
+                          {c.entry.data.tags!.join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                  </header>
+                  {/* 长文：标题+引文构成入口卡（整卡可点展开）；普通条目直接出标题 */}
+                  {c.long ? (
+                    <a class="tl-long-head" href={`/chronicle/${c.anchor}/`}>
+                      <span class="tl-long-text">
+                        {c.entry.data.title && (
+                          <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                        )}
+                        {c.quote && <p class="tl-long-quote">{c.quote}</p>}
+                      </span>
+                    </a>
+                  ) : (
+                    c.kind !== "diary" &&
+                    c.entry.data.title && (
+                      <h2 class="tl-entry__title">{c.entry.data.title}</h2>
+                    )
+                  )}
+                  {/* BGM 曲目行仅在短条目显示；长文的配乐归详情页（悬浮播放器） */}
+                  {!c.long && c.entry.data.bgm?.src && (
+                    <div class="mt-4">
+                      <MiniPlayer
+                        src={c.entry.data.bgm.src}
+                        title={c.entry.data.bgm.title}
+                        gated={Boolean(c.lock)}
+                        inline
+                      />
+                    </div>
+                  )}
+                  {!c.long && (
+                    <>
+                    {c.lock ? (
+                    <div
+                      class="lock-box mt-6"
+                      data-lock-id={c.id}
+                      data-ciphertext={c.lock.ciphertext}
+                      data-salt={c.lock.salt}
+                      data-iv={c.lock.iv}
+                      data-pagefind-ignore="true"
+                    >
+                      <p class="lock-question">{c.lock.question}</p>
+                      <div class="lock-row">
+                        <input
+                          type="text"
+                          class="lock-input"
+                          placeholder="输入答案解锁"
+                          autocomplete="off"
+                          aria-label="答案"
+                        />
+                        <button type="button" class="lock-btn">解锁</button>
+                      </div>
+                      <p class="lock-error" hidden>答案不对，再试试。</p>
+                      <div class="lock-content prose mt-4" hidden></div>
+                    </div>
+                  ) : (
+                    c.Content && (
+                      <div class="prose mt-6">
+                        <c.Content />
+                      </div>
+                    )
+                  )}
+                    </>
+                  )}
+                  {/* 互动行：本地点赞（无后端，状态存本机，不做假计数） */}
+                  <footer class="tl-entry__foot">
+                    <time class="tl-entry__foot-date" datetime={c.entry.data.date.toISOString()}>
+                      {fmtLong(c.entry.data.date)}
+                    </time>
+                    <span class="tl-entry__actions">
+                    {/* 音乐标记：长文配乐归详情页，这里只做提示（短条目已有曲目行） */}
+                    {c.long && c.entry.data.bgm?.src && (
+                      <span class="tl-mark" title="含背景音乐">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M9 18V5l11-2v13"></path>
+                          <circle cx="6" cy="18" r="3"></circle>
+                          <circle cx="17" cy="16" r="3"></circle>
+                        </svg>
+                        <span class="sr-only">含背景音乐</span>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      class="tl-like"
+                      data-like={c.anchor}
+                      aria-pressed="false"
+                      title="点赞（本机记忆）"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20.7C7.4 17.4 3.5 14 3.5 9.9 3.5 7 5.7 5 8.2 5c1.6 0 3 .9 3.8 2.2C12.8 5.9 14.2 5 15.8 5c2.5 0 4.7 2 4.7 4.9 0 4.1-3.9 7.5-8.5 10.8z"></path>
+                      </svg>
+                      <span class="sr-only">点赞</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="tl-comment"
+                      data-comment={c.anchor}
+                      aria-expanded="false"
+                      aria-controls={`tl-comments-${c.anchor}`}
+                      title="评论"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 11.5c0 4.1-4 7.5-9 7.5-1 0-2-.1-2.9-.4L4 20l1.2-3.6C3.8 15 3 13.3 3 11.5 3 7.4 7 4 12 4s9 3.4 9 7.5z"></path>
+                      </svg>
+                      <span class="sr-only">评论</span>
+                    </button>
+                    </span>
+                  </footer>
+                  <div class="tl-comments" id={`tl-comments-${c.anchor}`} data-term={c.anchor} data-pagefind-ignore hidden></div>
+                </article>
+              </>
+            ))}
+          </div>
+
+        </div>
+      ) : (
+        <p class="text-[var(--color-ed-muted)]">暂无内容。</p>
+      )}
+      </section>
+
+        <!-- 拾集视图：原 /collection 页整体迁入（id=collection 供重定向与深链接） -->
+        <section id="collection" class="about-feed-sec about-collection-sec about-view about-view--collection" aria-label="拾集">
+
+    <div class="col-filter reveal" style="--reveal-delay: 60ms" role="tablist" aria-label="筛选收藏">
+      {FILTERS.map((f) => (
+        <button type="button" class={`col-chip ${f.id === "all" ? "is-active" : ""}`} data-filter={f.id} role="tab" aria-selected={f.id === "all" ? "true" : "false"}>
+          {f.label}
+        </button>
+      ))}
+    </div>
+
+    {COLLECTION.map((cat, ci) => {
+      const isShelf = SHELF_KINDS.has(cat.id);
+      const isAlbum = cat.id === "music";
+      const ar = cat.id === "movies" || cat.id === "tv" ? "2 / 3" : "3 / 4";
+      return (
+        <section class="col-shelf reveal" data-section data-cat={cat.id} style={`--reveal-delay:${Math.min(ci * 60, 300)}ms`}>
+          <div class="col-shelf__head">
+            <span class="col-shelf__code">WK-{String(ci + 1).padStart(2, "0")}</span>
+            <h2 class="col-shelf__label">{cat.label}</h2>
+            <span class="col-shelf__rule" aria-hidden="true" />
+            <span class="col-shelf__mark" aria-hidden="true" />
+            <span class="col-shelf__count">{String(cat.items.length).padStart(2, "0")}</span>
+          </div>
+
+          {isShelf ? (
+            <div class="col-bank" data-bank data-mode={cat.id === "music" ? "album" : "book"}>
+              <button type="button" class="col-bank__nav col-bank__nav--prev" data-banknav="-1" aria-label="上一本">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7" /></svg>
+              </button>
+              <div class="col-bank__stage" data-stage>
+                {cat.items.map((item, i) => {
+                  const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                  const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                  return (
+                    <>
+                      <span class="vshadow" aria-hidden="true" />
+                      <button
+                        type="button"
+                        class="vol"
+                        style={`--paper:${paper.cover};--ink:${paper.ink}`}
+                        data-cover data-cat={cat.label} data-title={item.title}
+                        data-creator={item.creator} data-year={String(item.year)}
+                        data-note={item.note} data-cover-color={paper.cover}
+                        data-ink={paper.ink} data-code={fileNo} data-image={item.cover ?? ""}
+                        data-kind={cat.id === "music" ? "album" : "book"}
+                        data-desc-source={item.descSource ?? ""}
+                        data-ref={item.link ?? ""}
+                        data-desc={item.desc ?? ""}
+                        data-tracks={JSON.stringify(item.tracks ?? [])}
+                        data-en={cat.en}
+                        data-rating={item.rating != null ? String(item.rating) : ""}
+                        data-rating-count={item.ratingCount != null ? String(item.ratingCount) : ""}
+                        data-rating-source={item.ratingSource ?? ""}
+                        data-press={item.press ?? ""}
+                        data-pubdate={item.pubdate ?? ""}
+                        data-pages={item.pages != null ? String(item.pages) : ""}
+                        aria-label={`${item.title}，${item.creator}，${item.year}${cat.id === "music" ? "，在网易云播放" : ""}`}
+                      >
+                        {cat.id !== "music" && (
+                          <span class="vol__spine" aria-hidden="true">
+                            <span class="vol__num">{String(i + 1).padStart(2, "0")}</span>
+                            <span class="vol__stitle">{item.title}</span>
+                            <span class="vol__dot" />
+                          </span>
+                        )}
+                        <span class="vol__cover" aria-hidden="true">
+                          {item.cover ? (
+                            <img class="vol__img" src={coverSrc(item.cover, 480)} alt="" loading="lazy" />
+                          ) : (
+                            <span class="vol__text">
+                              <span class="vol__ctitle">{item.title}</span>
+                              <span class="vol__cby">{item.creator}</span>
+                            </span>
+                          )}
+                          {item.cover && (
+                            <>
+                              <span class="vol__scrim" />
+                              <span class="vol__albumtag">{fileNo}</span>
+                              <span class="vol__ticks" />
+                              <span class="vol__caption">
+                                <span class="vol__cap-title">{item.title}</span>
+                                <span class="vol__cap-by">{item.creator}{item.year ? ` · ${item.year}` : ""}{item.tracks && item.tracks.length > 1 ? ` · ${item.tracks.length} 首` : ""}</span>
+                              </span>
+                            </>
+                          )}
+                          <span class="vol__no">NO.{String(i + 1).padStart(3, "0")}</span>
+                          <span class="vol__code">{fileNo}</span>
+                        </span>
+                      </button>
+                    </>
+                  );
+                })}
+              </div>
+              <div class="col-bank__foot" data-bankfoot aria-live="polite"></div>
+              <button type="button" class="col-bank__nav col-bank__nav--next" data-banknav="1" aria-label="下一本">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          ) : isAlbum ? (
+            <div class="col-albums" data-albums>
+              <button type="button" class="col-albums__nav col-albums__nav--prev" data-albumnav="-1" aria-label="上一张专辑">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7" /></svg>
+              </button>
+              <div class="col-albums__track" data-albumtrack>
+                {cat.items.map((item, i) => {
+                  const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                  const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                  return (
+                    <button type="button" class="album" style={`--cover:${paper.cover};--ink:${paper.ink}`}
+                      data-cover data-cat={cat.label} data-title={item.title} data-creator={item.creator}
+                      data-year={String(item.year)} data-note={item.note} data-cover-color={paper.cover}
+                      data-ink={paper.ink} data-code={fileNo} data-image={item.cover ?? ""} aria-label={`${item.title}，${item.creator}，${item.year}`}>
+                      <span class="album__cover">
+                        {item.cover ? (
+                            <img class="album__img" src={coverSrc(item.cover, 480)} srcset={coverSrcSet(item.cover)} sizes="(min-width: 768px) 150px, 40vw" alt="" loading="lazy" />
+                        ) : (
+                          <span class="album__fallback">{item.title}</span>
+                        )}
+                        <span class="album__code">{fileNo}</span>
+                      </span>
+                      <span class="album__meta">
+                        <span class="album__title">{item.title}</span>
+                        <span class="album__by">{item.creator}{item.year ? ` · ${item.year}` : ""}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" class="col-albums__nav col-albums__nav--next" data-albumnav="1" aria-label="下一张专辑">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          ) : (
+            <ul class="col-wall" data-wall data-kind={cat.id} style={`--ar:${ar}`}>
+              {cat.items.map((item, i) => {
+                const paper = PAPER[(ci * 2 + i) % PAPER.length];
+                const fileNo = `WK-${String(ci * 100 + i + 1).padStart(5, "0")}`;
+                return (
+                  <li class="col-wallitem">
+                    <button type="button" class="col-wallcard" style={`--cover:${paper.cover};--ink:${paper.ink}`}
+                      data-cover data-cat={cat.label} data-title={item.title} data-creator={item.creator}
+                      data-year={String(item.year)} data-note={item.note} data-cover-color={paper.cover}
+                      data-ink={paper.ink} data-code={fileNo}
+                      data-kind={cat.id === "movies" ? "film" : cat.id === "tv" ? "tv" : "book"}
+                      data-en={cat.en} data-ref={item.link ?? ""} data-desc={item.desc ?? ""}
+                      data-desc-source={item.descSource ?? ""}
+                      data-rating={item.rating != null ? String(item.rating) : ""}
+                      data-rating-count={item.ratingCount != null ? String(item.ratingCount) : ""}
+                      data-rating-source={item.ratingSource ?? ""}
+                      data-press={item.press ?? ""} data-pubdate={item.pubdate ?? ""} data-pages={item.pages ?? ""}
+                      data-image={item.cover ?? ""}
+                      aria-label={`${item.title}，${item.creator}，${item.year}`}>
+                      <span class={`col-wallcard__cover${item.cover ? " has-img" : ""}`}>
+                        {item.cover ? <img class="col-wallcard__img" src={coverSrc(item.cover, 480)} srcset={coverSrcSet(item.cover)} sizes="(min-width: 768px) 150px, 40vw" alt="" loading="lazy" /> : null}
+                        <span class="col-wallcard__code">{fileNo}</span>
+                        <span class="col-wallcard__title">{item.title}</span>
+                        <span class="col-wallcard__by">{item.creator}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      );
+    })}
+        </section>
+
+        <!-- 拾集详情弹层（模态，DOM 位置无所谓） -->
+  <dialog id="col-dialog" class="col-dialog" aria-labelledby="cd-title">
+    <div class="col-dialog__panel">
+      <div class="col-dialog__rail">
+        <span class="col-dialog__code" id="cd-code"></span>
+        <span class="col-dialog__railsep" aria-hidden="true"></span>
+        <span class="col-dialog__cat" id="cd-cat"></span>
+        <span class="col-dialog__en" id="cd-en"></span>
+        <button type="button" class="col-dialog__close" data-close aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </div>
+
+      <div class="col-dialog__inner">
+        <aside class="col-dialog__aside">
+          <div class="col-dialog__coverwrap">
+            <span class="col-dialog__pad col-dialog__pad--tl" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--tr" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--bl" aria-hidden="true"></span>
+            <span class="col-dialog__pad col-dialog__pad--br" aria-hidden="true"></span>
+            <div class="col-dialog__cover" id="cd-cover" aria-hidden="true"><span class="col-dialog__cover-title" data-cd-cover-title></span></div>
+          </div>
+          <dl class="col-dialog__facts" id="cd-facts">
+            <div class="col-dialog__fact" data-fact="press"><dt>出版</dt><dd id="cd-press"></dd></div>
+            <div class="col-dialog__fact" data-fact="pubdate"><dt>年月</dt><dd id="cd-pubdate"></dd></div>
+            <div class="col-dialog__fact" data-fact="pages"><dt>页数</dt><dd id="cd-pages"></dd></div>
+          </dl>
+        </aside>
+
+        <div class="col-dialog__body">
+          <h2 class="col-dialog__title" id="cd-title"></h2>
+          <p class="col-dialog__by" id="cd-by"></p>
+
+          <div class="col-dialog__score" id="cd-score" hidden>
+            <span class="col-dialog__score-value" id="cd-score-value"></span>
+            <span class="col-dialog__score-meta" id="cd-score-meta"></span>
+            <span class="col-dialog__score-bar" aria-hidden="true"><span class="col-dialog__score-fill" id="cd-score-fill"></span></span>
+          </div>
+
+          <section class="col-dialog__section" id="cd-desc-wrap" hidden>
+            <h3 class="col-dialog__label">简介</h3>
+            <p class="col-dialog__desc" id="cd-desc"></p>
+            <a class="col-dialog__src" id="cd-desc-src" target="_blank" rel="noopener noreferrer" hidden>简介来源 · 维基百科</a>
+          </section>
+
+          <section class="col-dialog__section" id="cd-note-wrap" hidden>
+            <h3 class="col-dialog__label">短评</h3>
+            <p class="col-dialog__note" id="cd-note"></p>
+          </section>
+
+          <section class="col-dialog__section" id="cd-tracks-wrap" hidden>
+            <h3 class="col-dialog__label">曲目</h3>
+            <ol class="col-dialog__tracks" id="cd-tracks"></ol>
+          </section>
+
+          <a class="col-dialog__ref" id="cd-ref" target="_blank" rel="noopener noreferrer" hidden>查看条目</a>
+        </div>
+      </div>
+
+      <div class="col-dialog__foot">
+        <span class="col-dialog__mark">拾集 · COLLECTION</span>
+        <span class="col-dialog__esc">ESC 关闭</span>
+      </div>
+    </div>
+  </dialog>
+
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <ImageLightbox />
+</BaseLayout>
+
+<style>
+  /* ===== 关于页布局：左侧 dock 轨道 + 右侧内容（移动端单列、无 dock） ===== */
+  .about-layout {
+    display: block;
+  }
+  /* 视图切换：dock 选中哪个视图就只显示哪个（关于为默认），其余 display:none。
+     选择器带 .about-layout 前缀（0,2,0），否则会被后面同权重的 .about-hero{display:flex} 盖掉 */
+  .about-layout .about-view {
+    display: none;
+  }
+  .about-layout[data-view="about"] .about-view--about,
+  .about-layout[data-view="feed"] .about-view--feed,
+  .about-layout[data-view="collection"] .about-view--collection {
+    display: block;
+  }
+  /* 移动端没有 dock：三块依次展示（回到合并前的连续阅读体验） */
+  @media (max-width: 767px) {
+    .about-layout .about-view {
+      display: block;
+    }
+  }
+  @media (min-width: 768px) {
+    .about-layout {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: clamp(1rem, 2.5vw, 2rem);
+      align-items: start;
+    }
+    /* dock 已改为 fixed（视口垂直居中）：主内容显式占第二列 */
+    .about-main {
+      grid-column: 2;
+    }
+  }
+
+  /* --- 左侧 dock：macOS 风格 —— 磨砂悬浮面板 + 邻近放大（--dock-scale 由脚本按
+        指针距离写入）+ 悬停提示条（面板右侧）+ 运行小圆点 + 点击弹跳 --- */
+  .about-dock {
+    display: none;
+  }
+  @media (min-width: 768px) {
+    .about-dock {
+      /* macOS 位置：贴在视口最左侧、垂直居中，浮在页面留白上 */
+      position: fixed;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+      padding: 8px;
+      border: 1px solid rgba(28, 28, 28, 0.08);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.55);
+      -webkit-backdrop-filter: blur(14px) saturate(1.6);
+      backdrop-filter: blur(14px) saturate(1.6);
+      box-shadow:
+        0 1px 2px rgba(28, 28, 28, 0.05),
+        0 16px 40px -24px rgba(28, 28, 28, 0.35);
+    }
+  }
+  .about-dock__item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--color-ed-muted);
+    cursor: pointer;
+    transition:
+      background-color 180ms ease,
+      color 180ms ease;
+  }
+  .about-dock__item:hover,
+  .about-dock__item:focus-visible {
+    background: rgba(28, 28, 28, 0.05);
+    color: var(--color-ed-fg);
+  }
+  .about-dock__item:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: 2px;
+  }
+  .about-dock__item svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    transform: scale(var(--dock-scale, 1));
+    will-change: transform;
+  }
+  /* 悬停提示条（macOS tooltip 式，出现在面板右侧） */
+  .about-dock__label {
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translate(-4px, -50%);
+    padding: 4px 10px;
+    border-radius: 7px;
+    background: rgba(28, 28, 28, 0.9);
+    color: var(--color-ed-bg);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 160ms ease,
+      transform 220ms var(--ease-ed);
+    z-index: 6;
+  }
+  .about-dock__item:hover .about-dock__label,
+  .about-dock__item:focus-visible .about-dock__label {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+  .about-dock__item.is-active {
+    color: var(--color-ed-accent);
+  }
+  /* 点击弹跳（macOS 图标弹跳；用 translate 属性与放大 scale 互不覆盖） */
+  .about-dock__item.is-bounce svg {
+    animation: dock-bounce 520ms var(--ease-ed);
+  }
+  @keyframes dock-bounce {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    35% {
+      translate: 0 -6px;
+    }
+    65% {
+      translate: 0 0;
+    }
+    82% {
+      translate: 0 -2px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .about-dock__item,
+    .about-dock__label {
+      transition: none;
+    }
+    .about-dock__item.is-bounce svg {
+      animation: none;
+    }
+  }
+
+  /* ===== 关于区：扉页式身份带（头像 + 名字/简介/社交一行带过；
+     统计与热力图由首页关于卡承载，此处不重复） ===== */
+  .about-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .about-hero__avatar {
+    flex: none;
+    width: 84px;
+    height: 84px;
+    border-radius: 9999px;
+    object-fit: cover;
+    box-shadow: 0 12px 32px -18px rgba(28, 28, 28, 0.25);
+  }
+  .about-hero__text {
+    min-width: 0;
+  }
+  .about-hero__name {
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    letter-spacing: 0.04em;
+  }
+  .about-hero__bio {
+    margin-top: 0.375rem;
+    color: var(--color-ed-muted);
+    line-height: 1.7;
+  }
+  .about-hero__socials {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  @media (max-width: 559px) {
+    .about-hero {
+      gap: 1rem;
+    }
+    .about-hero__avatar {
+      width: 64px;
+      height: 64px;
+    }
+  }
+  /* 关于视图：自述（衬线、保留换行）+ 站点档案数字行 */
+  .about-story {
+    max-width: 36rem;
+    margin-top: clamp(1.75rem, 3vw, 2.5rem);
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 2.05;
+    white-space: pre-line;
+  }
+  /* 关于视图：桌面端在页头与页脚之间垂直居中（内容短，避免下方一大片空白；
+     移动端三块堆叠，不居中） */
+  @media (min-width: 768px) {
+    .about-layout[data-view="about"] .about-view--about {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: calc(100svh - 22rem);
+    }
+  }
+
+  /* 关于视图双栏：主列（身份带 + 自述）| 右窄栏（站点档案） */
+  .about-about-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    max-width: 62rem;
+    margin-inline: auto;
+    align-items: start;
+  }
+  @media (max-width: 767px) {
+    .about-about-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .about-rail-title {
+    margin-bottom: 0.75rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    color: var(--color-ed-subtle);
+  }
+  .about-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin: 0;
+  }
+  .about-facts__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .about-facts__row dt {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-subtle);
+  }
+  .about-facts__row dd {
+    margin: 0;
+    color: var(--color-ed-fg);
+  }
+  .about-soc {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-ed-hairline);
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--color-ed-muted);
+    transition:
+      color 180ms ease,
+      border-color 180ms ease,
+      transform 180ms var(--ease-ed);
+  }
+  .about-soc:hover {
+    color: var(--color-ed-accent);
+    border-color: var(--color-ed-rule-strong);
+    transform: translateY(-1px);
+  }
+
+  /* ===== 视图区块容器（标题由 page-head 承担，随视图切换） ===== */
+  .about-feed-sec {
+    margin-top: 0;
+    scroll-margin-top: 84px;
+  }
+
+  /* 右栏区块小标题 */
+  .tl-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .tl-title-row::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--color-ed-rule);
+  }
+
+  /* ================= 简约时间轴 =================
+     结构：每 <li> 自带一段竖线 .tl-seg + 一个圆点 .tl-simple__dot。
+     竖线分段 → 可逐段做入场生长与悬停高亮；圆点圆心钉在线上，dock 放大不脱线。 */
+  .tl-simple {
+    list-style: none;
+    margin: 0;
+    padding: 0 1.5rem 0 0.25rem; /* 右侧留余量：dock 放大时文字不被滚动条裁掉 */
+    position: relative;
+    height: 22rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  /* 时间线变量：线 X 坐标（1px 线，中心对齐）、dot 半径 */
+  .tl-simple {
+    --tl-line-x: 7.5px;
+    --tl-dot-d: 9px;
+  }
+  .timeline-point {
+    position: relative;
+    display: flex;
+    scroll-margin-top: 6rem;
+    padding: 0.625rem 0 0.625rem 1.5rem; /* 左 padding 让位给线/点 */
+    cursor: pointer;
+    border-radius: 4px;
+    /* 悬停/激活底色与边框（手机端卡片）都走同一条短过渡，避免硬切 */
+    transition: background-color 160ms ease, border-color 160ms ease;
+    /* 入场动画：整体淡入上移（delay 由 --tl-i 逐条错开） */
+    opacity: 0;
+    animation: tl-point-in 0.5s var(--ease-ed) forwards;
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 7) * 0.04s);
+  }
+  @keyframes tl-point-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .timeline-point:hover {
+    background: rgba(28, 28, 28, 0.03);
+  }
+
+  /* —— 每段竖线：默认透明，入场时逐段从顶生长；悬停/激活时本段点亮 —— */
+  .tl-seg {
+    position: absolute;
+    left: calc(var(--tl-line-x) - 0.5px);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-ed-rule);
+    transform: scaleY(0);
+    transform-origin: top;
+    animation: tl-seg-grow 0.5s var(--ease-ed) forwards;
+    animation-delay: calc(0.15s + min(var(--tl-i, 0), 7) * 0.04s);
+  }
+  @keyframes tl-seg-grow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  /* 极速换页：导航进入时点/线直接呈现，不做生长编排 */
+  :global(html.nav-fast) .timeline-point {
+    opacity: 1;
+    animation: none;
+    animation-delay: 0s;
+  }
+  :global(html.nav-fast) .tl-seg {
+    animation: none;
+    transform: none;
+  }
+
+  /* reduced-motion 下的时间轴入场：只淡不移（与上面 tl-point-in 配对） */
+  @keyframes tl-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .timeline-point:hover .tl-seg {
+    background: var(--color-ed-accent);
+    opacity: 0.7;
+  }
+  .timeline-point.is-active .tl-seg {
+    background: var(--color-ed-accent);
+  }
+
+  /* —— 圆点/方点：绝对定位，圆心精确钉在竖线上；放大以圆心为锚，不脱线 —— */
+  .tl-simple__dot {
+    position: absolute;
+    left: calc(var(--tl-line-x) - var(--tl-dot-d) / 2);
+    top: 0.9rem; /* 与首行文字（日期）大致齐平 */
+    width: var(--tl-dot-d);
+    height: var(--tl-dot-d);
+    border-radius: 50%;
+    border: 1px solid var(--color-ed-muted);
+    background: var(--color-ed-bg);
+    transform-origin: center;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  /* 日记节点用小方点以示区分 */
+  .timeline-point[data-kind="diary"] .tl-simple__dot {
+    border-radius: 2px;
+  }
+  .timeline-point:hover .tl-simple__dot {
+    border-color: var(--color-ed-accent);
+  }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞缩放/位移；置于 .is-active 状态规则之前保持原优先级 */
+  @media (hover: hover) and (pointer: fine) {
+    .timeline-point:hover .tl-simple__dot {
+      transform: scale(1.25);
+    }
+    .timeline-point:hover .tl-simple__body {
+      transform: translateX(4px);
+    }
+  }
+  .timeline-point.is-active .tl-simple__dot {
+    background: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.15);
+  }
+
+  /* —— 可 dock 缩放的主体：只放大文字区，线与点保持骑线不动 —— */
+  .tl-simple__body {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 0.25rem;
+    transform-origin: left center;
+    transition: transform 160ms var(--ease-ed);
+  }
+  .timeline-point.is-active .tl-simple__body {
+    transform: translateX(4px);
+  }
+  .tl-simple__date {
+    display: block;
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ed-subtle);
+    letter-spacing: 0.06em;
+  }
+  .tl-simple__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+  .tl-simple__label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    color: var(--color-ed-subtle);
+    text-transform: uppercase;
+  }
+  .tl-mark {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-ed-subtle);
+  }
+  .tl-mark svg {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+  /* 年份只在跨年时出现，避免每行重复 */
+  .tl-simple__year {
+    margin-right: 0.3rem;
+    color: var(--color-ed-subtle);
+  }
+  .timeline-point.is-active .tl-title {
+    color: var(--color-ed-accent);
+  }
+  /* 日记是流水，轴点上弱一档；人物/事件保持主级 */
+  .timeline-point[data-kind="diary"] .tl-title {
+    color: var(--color-ed-muted);
+    font-size: 0.8125rem;
+  }
+  .timeline-point[data-kind="diary"].is-active .tl-title {
+    color: var(--color-ed-accent);
+  }
+  /* 焦点环内缩：横轴/竖轴的 overflow 会裁掉外扩的 outline */
+  .timeline-point:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: -2px;
+  }
+
+  /* —— 纪事内容解锁（加密文章）—— */
+  .lock-box {
+    position: relative;
+    border: 1px dashed var(--color-ed-rule);
+    padding: 1rem;
+  }
+  /* 解锁成功：边框闪一次砖红。用叠加层只动 opacity（不动 border-color），
+     既符合「只动 transform/opacity」，也不触发逐帧重绘边框。 */
+  .lock-box::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--color-ed-accent);
+    pointer-events: none;
+    opacity: 0;
+  }
+  .lock-box.is-unlocked::after {
+    animation: lock-box-flash 400ms ease-out both;
+  }
+  @keyframes lock-box-flash {
+    0% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  .lock-question {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    color: var(--color-ed-fg);
+    margin: 0 0 0.75rem;
+  }
+  .lock-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .lock-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--color-ed-rule);
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--color-ed-fg);
+  }
+  .lock-input:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: 1px;
+  }
+  /* 答错：输入框轻抖一次（reduced-motion 下由媒体查询降级为无抖动） */
+  .lock-input.is-shake {
+    animation: lock-shake 260ms ease;
+  }
+  @keyframes lock-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-3px);
+    }
+    45% {
+      transform: translateX(3px);
+    }
+    70% {
+      transform: translateX(-2px);
+    }
+    88% {
+      transform: translateX(1px);
+    }
+  }
+  .lock-btn {
+    /* 锁定宽度：「解锁」→「解锁中…」时按钮不抖，输入框也不跟着跳 */
+    min-width: 5.25rem;
+    border: 1px solid var(--color-ed-fg);
+    background: transparent;
+    color: var(--color-ed-fg);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: transform 120ms ease, background-color 160ms ease,
+      color 160ms ease, opacity 160ms ease;
+  }
+  .lock-btn:hover:not(:disabled) {
+    background: var(--color-ed-fg);
+    color: var(--color-ed-bg);
+  }
+  .lock-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  /* PBKDF2 派生期间（约 100–300ms）禁止重复提交 */
+  .lock-btn:disabled {
+    cursor: progress;
+    opacity: 0.55;
+  }
+  .lock-error {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--color-ed-accent);
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+  .lock-error.is-shown {
+    opacity: 1;
+  }
+  /* 解锁成功：正文淡入上移（透明揭示），与锁行收起的 220ms 并行 */
+  .lock-content.is-reveal {
+    animation: lock-content-in 320ms var(--ease-ed) both;
+  }
+  @keyframes lock-content-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* 时间轴入场：点/线不位移、不 stagger，快速淡入 */
+    .timeline-point {
+      opacity: 1;
+      animation: tl-fade 160ms linear both;
+      animation-delay: 0s;
+    }
+    .tl-seg {
+      animation: none;
+      transform: none;
+    }
+    .timeline-point:hover .tl-simple__dot {
+      transform: none;
+    }
+    .timeline-point:hover .tl-simple__body,
+    .timeline-point.is-active .tl-simple__body {
+      transform: none;
+    }
+    .lock-box::after,
+    .lock-box.is-unlocked::after {
+      animation: none;
+      opacity: 0;
+    }
+    .lock-content.is-reveal {
+      animation: lock-content-fade 160ms linear both;
+    }
+    .lock-input.is-shake {
+      animation: none;
+    }
+    .lock-btn {
+      transition: none;
+    }
+    .lock-btn:active:not(:disabled) {
+      transform: none;
+    }
+  }
+  @keyframes lock-content-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* ===== 版面：桌面「左文右轴」，手机「横轴在上、正文在下」 ===== */
+  .timeline-layout {
+    display: grid;
+    gap: 1.75rem;
+  }
+  .timeline-rail {
+    min-width: 0;
+  }
+  .tl-simple {
+    min-width: 0;
+  }
+  .timeline-feed {
+    width: 100%;
+    min-width: 0;
+    /* 单列时也不要把正文拉成 50+ 字/行；桌面端在该列内居中 */
+    max-width: 47rem;
+    margin-inline: auto;
+    padding-top: 0.5rem;
+    /* 参考 flowersink /life：条目挂在一条竖线上（线在左侧凹槽，节点随条目） */
+    position: relative;
+    padding-left: 44px;
+  }
+  .timeline-feed::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    width: 1px;
+    background: var(--color-ed-hairline); /* 默认浅色：阅读进度线叠在上面加深 */
+    pointer-events: none;
+  }
+  /* 阅读进度线：随滚动加粗加深（高度 = --tl-progress × 全程），滚到哪条数据线就画到哪 */
+  .timeline-feed::after {
+    content: "";
+    position: absolute;
+    left: 13.5px;
+    top: 0.75rem;
+    width: 2px;
+    height: calc((100% - 1.5rem) * var(--tl-progress, 0));
+    background: var(--color-ed-fg);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  /* 条目节点：钉在竖线上，对齐条目头像/byline 行 */
+  .tl-entry::before {
+    content: "";
+    position: absolute;
+    left: -34.5px;
+    top: 2.8rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 9999px;
+    background: var(--color-ed-bg);
+    border: 1.2px solid var(--color-ed-fg);
+    box-sizing: border-box;
+    transition:
+      border-color 200ms ease,
+      background-color 200ms ease,
+      transform 240ms var(--ease-ed);
+  }
+  .tl-entry:hover::before {
+    border-color: var(--color-ed-accent);
+  }
+  /* 滚到当前条目：节点实心点亮 + 微微放大 */
+  .tl-entry.is-current::before {
+    background: var(--color-ed-accent);
+    border-color: var(--color-ed-accent);
+    transform: scale(1.18);
+  }
+  /* 月标题：实心节点钉在轴线上（位移合并在 .tl-month 原规则里） */
+  .tl-month::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    margin-top: -4.5px;
+    border-radius: 9999px;
+    background: var(--color-ed-fg);
+    box-sizing: border-box;
+  }
+  @media (max-width: 767px) {
+    .timeline-feed {
+      padding-left: 30px;
+    }
+    .timeline-feed::before {
+      left: 8px;
+    }
+    .tl-entry::before {
+      left: -26.5px;
+      top: 2.5rem;
+    }
+    .tl-month {
+      margin-left: -30px;
+      padding-left: 30px;
+    }
+    .tl-month::before {
+      left: 4px;
+    }
+    .timeline-feed::after {
+      left: 7.5px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .timeline-layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "feed";
+    }
+    .timeline-feed {
+      grid-area: feed;
+    }
+  }
+
+  /* —— 连续信息流条目：正文直出、连续排布，日记（碎碎念）占位更紧 —— */
+  .tl-entry {
+    position: relative;
+    padding: 2.25rem 0 2.5rem;
+    scroll-margin-top: 6rem;
+  }
+  /* 条目分隔线：虚线（呼应锁盒/流水语义），rule 色阶比发丝线明显一档 */
+  .tl-entry + .tl-entry {
+    border-top: 1px dashed var(--color-ed-rule);
+  }
+  /* —— 条目头：朋友圈式，头像 + 站名在左，日期 + 类型在右 —— */
+  .tl-entry__head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .tl-entry__by {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+  .tl-entry__avatar {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--color-ed-rule);
+    background: var(--color-ed-bg);
+  }
+  .tl-entry__name {
+    font-family: var(--font-serif);
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    color: var(--color-ed-fg);
+  }
+  .tl-entry__meta {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    min-width: 0;
+  }
+  /* 类型：日期行右对齐小字（人物 / 事件 / 日记） */
+  .tl-entry__kind {
+    flex: none;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-subtle);
+  }
+  /* —— 互动行：日期在左，点赞/评论在右 —— */
+  .tl-entry__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--color-ed-hairline);
+  }
+  .tl-entry__foot-date {
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ed-subtle);
+    letter-spacing: 0.06em;
+  }
+  .tl-entry__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .tl-like,
+  .tl-comment {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--color-ed-subtle);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease;
+  }
+  .tl-like svg,
+  .tl-comment svg {
+    width: 1rem;
+    height: 1rem;
+    transition: fill 160ms ease;
+  }
+  /* ♥ 旁的聚合计数（运行时创建，同样 :global；接口不可用时无数字） */
+  :global(.tl-like__count) {
+    margin-left: 0.05rem;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .tl-like:hover,
+  .tl-comment:hover {
+    color: var(--color-ed-accent);
+  }
+  /* 评论按钮：评论区展开时保持点亮 */
+  .tl-comment[aria-expanded="true"] {
+    color: var(--color-ed-accent);
+  }
+  .tl-like[aria-pressed="true"] {
+    color: var(--color-ed-accent);
+  }
+  .tl-like[aria-pressed="true"] svg {
+    fill: currentColor;
+  }
+  /* 点赞瞬间：爱心爆一下（只动 transform） */
+  .tl-like.is-pop svg {
+    animation: tl-like-pop 360ms var(--ease-ed);
+  }
+  @keyframes tl-like-pop {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.35);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tl-like.is-pop svg {
+      animation: none;
+    }
+  }
+
+  /* —— 长文入口卡：标题+引文整卡可点，正文原位展开 —— */
+  .tl-long-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tl-long-head:focus-visible {
+    outline: 2px solid var(--color-ed-accent);
+    outline-offset: -2px;
+  }
+  .tl-entry--long:hover .tl-entry__title {
+    color: var(--color-ed-accent);
+  }
+  .tl-long-text {
+    min-width: 0;
+  }
+  .tl-long-quote {
+    margin: 0.9rem 0 0;
+    /* 与正文排版统一：无衬线、同字号、2em 首行缩进 */
+    font-size: 1rem;
+    line-height: 1.8;
+    text-indent: 2em;
+    color: var(--color-ed-muted);
+    /* 两行截断：一眼看出内容未完，需点进详情页 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    position: relative;
+  }
+  /* 末行渐隐：比省略号更明确的「未完」信号 */
+  .tl-long-quote::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 6rem;
+    height: 1.8em;
+    background: linear-gradient(to right, transparent, var(--color-ed-bg));
+    pointer-events: none;
+  }
+  /* 末行渐隐：比省略号更明确的「未完」信号 */
+  .tl-long-quote::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 6rem;
+    height: 1.7em;
+    background: linear-gradient(to right, transparent, var(--color-ed-bg));
+    pointer-events: none;
+  }
+
+  /* —— 条目评论区：每条一个 giscus 讨论串，虚线顶线与分隔线同语言 —— */
+  .tl-comments {
+    margin-top: 1.25rem;
+    border-top: 1px dashed var(--color-ed-rule);
+    padding-top: 0.75rem;
+    min-height: 3rem;
+  }
+  .tl-comments[hidden] {
+    display: none;
+  }
+
+  /* —— 九宫格缩略图：朋友圈式方格，点击放大走全站 lightbox ——
+     （.tl-grid/.tl-cell 由运行时脚本生成，没有 astro-cid，必须 :global）—— */
+  :global(.tl-grid) {
+    display: grid;
+    gap: 2px;
+    margin: 1rem 0;
+    /* 方格定宽 160px，按行自动换列（手机端自然降为每行两枚） */
+    grid-template-columns: repeat(auto-fill, 160px);
+  }
+  :global(.tl-cell) {
+    display: block;
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 3px;
+    /* 浅色底 + 发丝线描边：方格有边界，但留白不深 */
+    background: var(--color-ed-bg);
+    border: 1px solid var(--color-ed-hairline);
+  }
+  :global(.tl-cell img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* 完整缩略显示（不裁剪）：不足方格的部分留纸色底 */
+    object-fit: contain;
+    cursor: zoom-in;
+  }
+  .tl-entry__title {
+    margin-top: 0.35rem;
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    line-height: 1.3;
+    color: var(--color-ed-fg);
+  }
+  /* 日记：无标题，正文直接跟在日期下 */
+  .tl-entry--diary {
+    padding-block: 1.75rem;
+  }
+  /* 月标题：serif 大字 + 英文小字（参考 flowersink /life 的年月标题） */
+  .tl-month {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-left: -44px;
+    padding-left: 44px;
+    padding-top: 1.5rem;
+  }
+  .tl-month__label {
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    letter-spacing: 0.02em;
+    color: var(--color-ed-fg);
+  }
+  .tl-month__en {
+    font-size: 0.625rem;
+    letter-spacing: 0.24em;
+    color: var(--color-ed-subtle);
+  }
+
+  @media (max-width: 1023px) {
+    .timeline-layout {
+      gap: 1.5rem;
+    }
+    .timeline-rail {
+      width: 100%;
+      max-width: 47rem;
+      margin-inline: auto;
+    }
+    .tl-title-row {
+      margin-bottom: 0.6rem;
+    }
+    /* 横轴：不再有 22rem 的嵌套滚动，改为整行横向滑动 */
+    .tl-simple {
+      display: flex;
+      gap: 0.55rem;
+      height: auto;
+      padding: 0.15rem 0.15rem 0.7rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x proximity;
+      overscroll-behavior-x: contain;
+    }
+    .timeline-point {
+      flex: 0 0 auto;
+      width: 11.5rem;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--color-ed-hairline);
+      border-radius: 3px;
+      scroll-snap-align: start;
+    }
+    .timeline-point.is-active {
+      border-color: var(--color-ed-accent);
+      background: rgba(166, 58, 43, 0.04);
+    }
+    .tl-seg,
+    .tl-simple__dot {
+      display: none;
+    }
+    .tl-simple__body {
+      padding-bottom: 0;
+    }
+    .tl-simple__date {
+      font-size: 0.6875rem;
+    }
+    .timeline-point .tl-title {
+      font-size: 0.875rem;
+    }
+    .timeline-point[data-kind="diary"] .tl-title {
+      font-size: 0.8125rem;
+    }
+    /* 手机端条目占位同步收紧 */
+    .tl-entry {
+      padding-block: 1.75rem;
+    }
+    .tl-entry--diary {
+      padding-block: 1.25rem;
+    }
+  }
+
+
+  /* ===== 拾集样式（原 collection.astro 迁入）===== */
+  .col-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.25rem 0 0.5rem; }
+  .col-chip {
+    font-family: var(--font-sans); font-size: 0.75rem; letter-spacing: 0.04em;
+    padding: 0.42rem 0.9rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.12);
+    background: rgba(254, 253, 248, 0.55);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+    color: var(--color-ed-muted); cursor: pointer;
+    transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+  }
+  .col-chip:hover { color: var(--color-ed-fg); border-color: rgba(28, 28, 28, 0.28); }
+  .col-chip.is-active { background: var(--color-ed-fg); color: var(--color-ed-bg); border-color: var(--color-ed-fg); }
+
+  /* 书架/专辑/封面墙内部用了 200~420 的 z-index（扇面抽书、悬停放大）：
+     给分区建独立层叠上下文，避免这些元素压过吸顶导航和页面外框。 */
+  .col-shelf { margin-top: 2.6rem; isolation: isolate; }
+  .col-shelf:first-of-type { margin-top: 1.4rem; }
+  /* 筛选切换：先淡出/收起，落定后才 hidden（JS 用内联 transition 驱动，
+     避免和全局 .reveal 的 transition 抢属性）。淡出中不接受点击。 */
+  .col-shelf[hidden] { display: none; }
+  .col-shelf.is-filtering-out { pointer-events: none; }
+  .col-shelf__head { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.2rem; }
+  .col-shelf__code, .col-shelf__count {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.12em; color: var(--color-ed-subtle); font-variant-numeric: tabular-nums;
+  }
+  .col-shelf__label { margin: 0; font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400; line-height: 1.2; color: var(--color-ed-fg); }
+  .col-shelf__rule { flex: 1; height: 1px; background: var(--color-ed-hairline); align-self: center; }
+  .col-shelf__mark { width: 3px; height: 3px; background: var(--color-ed-fg); align-self: center; }
+
+  /* ===== 立体书架（等距扇面，520px 档案柜） ===== */
+  .col-bank { position: relative; width: 100%; margin: 0.2rem auto 0; }
+  .col-bank__stage { position: relative; width: 100%; height: 420px; overflow: hidden; }
+  .vshadow {
+    position: absolute; left: 0; top: 0;
+    width: var(--FOOT, 100px); height: 16px;
+    background: radial-gradient(ellipse at 32% center, rgba(90, 78, 56, 0.20), rgba(90, 78, 56, 0) 72%);
+    filter: blur(2px); pointer-events: none; will-change: transform;
+  }
+  .vol {
+    position: absolute; left: 0; top: 0;
+    width: var(--FOOT, 100px); height: var(--H, 206px);
+    border: 0; margin: 0; padding: 0; background: none;
+    cursor: pointer; text-align: left;
+    transform-origin: 0 0; will-change: transform;
+  }
+  .vol__spine {
+    position: absolute; left: 0; top: 0;
+    width: var(--S, 18px); height: var(--H, 206px);
+    transform: matrix(1, 0.10, 0, 1, 0, 0); transform-origin: 0 0;
+    background: #F2F0E9; color: #2A2620;
+    box-shadow: inset 0 0 0 1px rgba(28, 28, 28, 0.10), inset -2px 0 3px -2px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0;
+  }
+  .vol__num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.04em; opacity: 0.55; }
+  .vol__stitle {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    font-family: var(--font-serif); font-size: 9px; line-height: 1.08; font-weight: 600;
+    max-height: 76%; overflow: hidden; text-align: center;
+    display: flex; align-items: center; justify-content: center; flex: 1; margin: 6px 0;
+  }
+  .vol__dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(28, 28, 28, 0.32); }
+  .vol__cover {
+    position: absolute; left: var(--S, 18px); top: calc(var(--S, 18px) * 0.10);
+    width: var(--C, 128px); height: var(--H, 206px);
+    transform: matrix(0.66, -0.30, 0, 1, 0, 0); transform-origin: 0 0;
+    background: var(--paper, #FEFDF8); color: var(--ink, #2A2620);
+    box-shadow: inset 0 0 0 1px rgba(28, 28, 28, 0.09);
+    transition: box-shadow 220ms var(--ease-ed), filter 220ms var(--ease-ed);
+    overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 9px 9px 7px;
+  }
+  .vol__no { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.08em; opacity: 0.55; }
+  .vol__ctitle {
+    font-family: var(--font-serif); font-size: 16px; line-height: 1.22;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .vol__cby { font-size: 9px; letter-spacing: 0.02em; opacity: 0.6; margin-top: 2px; }
+  .vol__code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.06em; opacity: 0.5; padding-top: 4px; border-top: 1px solid rgba(28, 28, 28, 0.10); }
+  .vol__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: block; }
+  .vol__text { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px; z-index: 1; }
+  .vol__cover .vol__no { position: absolute; top: 7px; left: 7px; z-index: 2; background: rgba(254, 253, 248, 0.82); padding: 1px 5px; border-radius: 2px; }
+  .vol__cover .vol__code { position: absolute; bottom: 7px; left: 7px; right: 7px; z-index: 2; background: rgba(254, 253, 248, 0.72); padding: 2px 5px; border-radius: 2px; border-top: 0; }
+  .vol__scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 56%; z-index: 1; pointer-events: none; background: linear-gradient(to top, rgba(10, 8, 6, 0.74), rgba(10, 8, 6, 0)); }
+  .vol__albumtag { position: absolute; top: 7px; right: 7px; z-index: 2; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 7px; letter-spacing: 0.1em; color: #fff; background: rgba(0, 0, 0, 0.34); padding: 2px 6px; border-radius: 2px; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  .vol__caption { position: absolute; left: 9px; right: 9px; bottom: 9px; z-index: 2; display: flex; flex-direction: column; gap: 2px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+  .vol__cap-title { font-family: var(--font-serif); font-size: 11px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vol__cap-by { font-size: 8px; letter-spacing: 0.02em; opacity: 0.86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-bank[data-mode="album"] .vol__no, .col-bank[data-mode="album"] .vol__code { display: none; }
+  .col-bank[data-mode="album"] .vol__cover { outline: 1px solid rgba(28, 28, 28, 0.18); outline-offset: 3px; }
+  .vol__ticks {
+    position: absolute; inset: 6px; z-index: 2; pointer-events: none; opacity: 0.72;
+    --tick: rgba(255, 255, 255, 0.92);
+    background:
+      linear-gradient(var(--tick), var(--tick)) left top / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left top / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / 1px 7px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / 7px 1px no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / 1px 7px no-repeat;
+  }
+  .vol:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 4px; }
+  .vol, .vshadow { transition: transform 520ms var(--ease-ed), filter 120ms ease; }
+  /* 按压反馈：书架模式用亮度（书脊/封面带 matrix 基础 transform，不叠加 scale）；
+     拖拽态由下方 is-drag 规则兜底 */
+  .vol:active { filter: brightness(0.94); }
+  /* 焦点高亮只跟「抬起」绑定：小屏中间那本是抬起的，所以给小屏；
+     桌面端不默认抬起，也就不画环（悬停只做原有的放大/浮起）。 */
+  @media (max-width: 1023px) {
+    .vol.is-focus .vol__cover {
+      box-shadow:
+        0 0 0 1.5px var(--color-ed-accent),
+        0 0 0 6px rgba(166, 58, 43, 0.1),
+        0 24px 40px -22px rgba(30, 20, 10, 0.55);
+    }
+  }
+  .col-bank.is-drag .vol, .col-bank.is-drag .vshadow { transition: none; }
+  /* 拖拽中 :active 必然成立（按下即拖拽起点）：亮度按压不得在拖拽时闪动 */
+  .col-bank.is-drag .vol:active { filter: none; }
+
+  .col-bank__foot {
+    min-height: 1.5rem; padding: 0 2.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.1em; color: var(--color-ed-subtle);
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .col-bank__nav {
+    position: absolute; top: 42%; z-index: 300;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.1rem; height: 2.1rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.14);
+    background: rgba(254, 253, 248, 0.72);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: var(--color-ed-fg); cursor: pointer;
+    transition: background-color 180ms ease, border-color 180ms ease, transform 120ms var(--ease-ed);
+  }
+  .col-bank__nav:hover { border-color: rgba(28, 28, 28, 0.35); }
+  /* 按压反馈：按钮类，缩到 0.94 */
+  .col-bank__nav:active { transform: scale(0.94); }
+  .col-bank__nav svg { width: 0.95rem; height: 0.95rem; }
+  .col-bank__nav--prev { left: -2px; }
+  .col-bank__nav--next { right: -2px; }
+
+  /* 去掉底部落地阴影 */
+  .vshadow { display: none !important; }
+
+  /* 音乐专辑：悬停浮出完整（去等距斜切）封面 */
+  .col-bank[data-mode="album"] .vol__cover {
+    transition: transform 260ms var(--ease-ed), box-shadow 260ms var(--ease-ed), filter 260ms var(--ease-ed);
+    transform-origin: 50% 50%;
+  }
+  .col-bank[data-mode="album"] .vol:hover { z-index: 420 !important; }
+  .col-bank[data-mode="album"] .vol:hover .vol__cover,
+  .col-bank[data-mode="album"] .vol:focus-visible .vol__cover {
+    z-index: 80;
+  }
+  .col-bank[data-mode="album"] .vol:focus-visible .vol__cover {
+    transform: scale(1.14);
+    box-shadow: 0 24px 42px -22px rgba(30, 20, 10, 0.5), inset 0 0 0 1px rgba(28, 28, 28, 0.14);
+    filter: brightness(1.03);
+  }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞缩放/阴影；置于 :active 按压规则之前保持原优先级 */
+  @media (hover: hover) and (pointer: fine) {
+    .col-bank[data-mode="album"] .vol:hover .vol__cover {
+      transform: scale(1.14);
+      box-shadow: 0 24px 42px -22px rgba(30, 20, 10, 0.5), inset 0 0 0 1px rgba(28, 28, 28, 0.14);
+      filter: brightness(1.03);
+    }
+  }
+  /* 专辑模式按压：封面从悬停的 1.14 缩回 0.98；与 :hover 同权级，必须排在其后才能按住时胜出 */
+  .col-bank[data-mode="album"] .vol:active .vol__cover { transform: scale(0.98); }
+
+  /* ===== 音乐专辑横向轮播（只借滚动动画，保留专辑封面样式） ===== */
+  .col-albums { position: relative; }
+  .col-albums__track {
+    display: flex; gap: 18px;
+    overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none; -ms-overflow-style: none;
+    padding: 14px 6px 18px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  }
+  .col-albums__track::-webkit-scrollbar { display: none; }
+  .album {
+    flex: 0 0 auto; width: 172px;
+    border: 0; margin: 0; padding: 0; background: none; cursor: pointer;
+    scroll-snap-align: center; text-align: left;
+    display: block; text-decoration: none; color: inherit;
+    transform-origin: bottom center; will-change: transform;
+    /* 不要在这里加 transform 过渡：滚动时 JS 每帧写 transform，CSS 过渡会逐帧重启，
+       结果是封面追不上指针、整体"飘"。滚动动画交给 scroll-snap + rAF。 */
+  }
+  .album__cover {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between;
+    aspect-ratio: 1 / 1; padding: 14px 12px 12px; border-radius: 3px; color: var(--ink);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover) 96%, white), var(--cover));
+    box-shadow: 0 12px 24px -18px rgba(60, 48, 30, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.1);
+    overflow: hidden;
+  }
+  .album__cover::before { content: ""; position: absolute; inset: 9px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 2px; pointer-events: none; }
+  .album__code { position: relative; z-index: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.5rem; letter-spacing: 0.1em; opacity: 0.5; }
+  .album__title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.06rem; line-height: 1.28; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .album__by { position: relative; z-index: 1; font-size: 0.625rem; letter-spacing: 0.04em; opacity: 0.6; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 5px; }
+  .album__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: block; }
+  .album__fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; font-family: var(--font-serif); font-size: 1.1rem; line-height: 1.3; color: var(--ink); z-index: 1; }
+  .album__code { position: absolute !important; top: 8px; left: 8px; background: rgba(254, 253, 248, 0.82); padding: 2px 6px; border-radius: 2px; z-index: 2; }
+  .album__meta { display: block; margin-top: 8px; }
+  .album__meta .album__title { display: block; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.3; color: var(--color-ed-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album__meta .album__by { display: block; margin-top: 2px; border-top: 0; padding-top: 0; font-size: 0.6875rem; letter-spacing: 0.02em; color: var(--color-ed-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-albums__nav {
+    position: absolute; top: 44%; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.1rem; height: 2.1rem; border-radius: 999px;
+    border: 1px solid rgba(28, 28, 28, 0.14);
+    background: rgba(254, 253, 248, 0.72);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: var(--color-ed-fg); cursor: pointer;
+    transition: background-color 180ms ease, border-color 180ms ease;
+  }
+  .col-albums__nav:hover { border-color: rgba(28, 28, 28, 0.35); }
+  .col-albums__nav svg { width: 0.95rem; height: 0.95rem; }
+  .col-albums__nav--prev { left: -4px; }
+  .col-albums__nav--next { right: -4px; }
+
+  /* ===== 封面墙 ===== */
+  .col-wall { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 18px; }
+  .col-wallitem { min-width: 0; }
+  .col-wallcard { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+  .col-wallcard__cover {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between;
+    aspect-ratio: var(--ar, 3 / 4); padding: 14px 12px 12px; border-radius: 3px; color: var(--ink);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover) 96%, white), var(--cover));
+    box-shadow: 0 10px 22px -18px rgba(60, 48, 30, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.1);
+    overflow: hidden; transition: transform 260ms var(--ease-ed), box-shadow 260ms var(--ease-ed);
+  }
+  .col-wallcard__cover::before { content: ""; position: absolute; inset: 8px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 1px; pointer-events: none; }
+  .col-wallcard:focus-visible .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  /* 悬停位移收进 hover-gate：触屏不再粘滞浮起，:focus-visible 反馈留在门外 */
+  @media (hover: hover) and (pointer: fine) {
+    .col-wallcard:hover .col-wallcard__cover { transform: translateY(-4px); box-shadow: 0 18px 30px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.12); }
+  }
+  .col-wallcard__code { position: relative; z-index: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.5rem; letter-spacing: 0.1em; opacity: 0.5; }
+  .col-wallcard__title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.02rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .col-wallcard__by { position: relative; z-index: 1; font-size: 0.625rem; letter-spacing: 0.04em; opacity: 0.6; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-wallcard:focus-visible { outline: 1.5px solid var(--color-ed-accent); outline-offset: 5px; }
+
+  /* 有真实海报时：图铺满，底部渐变压暗，文字反白 */
+  .col-wallcard__img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 0; display: block;
+  }
+  .col-wallcard__cover.has-img {
+    background: #241f18;
+    box-shadow: 0 14px 28px -18px rgba(60, 48, 30, 0.7), inset 0 0 0 1px rgba(28, 28, 28, 0.18);
+  }
+  .col-wallcard__cover.has-img::before { border-color: rgba(247, 243, 234, 0.28); }
+  .col-wallcard__cover.has-img::after {
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(to top, rgba(10, 8, 6, 0.82) 0%, rgba(10, 8, 6, 0.28) 36%, rgba(10, 8, 6, 0) 62%);
+    pointer-events: none;
+  }
+  .col-wallcard__cover.has-img .col-wallcard__code,
+  .col-wallcard__cover.has-img .col-wallcard__title,
+  .col-wallcard__cover.has-img .col-wallcard__by { color: #f7f3ea; text-shadow: 0 1px 14px rgba(0, 0, 0, 0.45); }
+  .col-wallcard__cover.has-img .col-wallcard__by { border-top-color: rgba(247, 243, 234, 0.32); }
+
+  /* ===== 详情弹层（档案卡） ===== */
+  /* 居中不依赖 UA 的 dialog{margin:auto}（会被 Tailwind preflight 的 *{margin:0} 干掉）：
+     dialog 铺满视口当 flex 容器，外观、宽度与滚动都交给 .col-dialog__panel。 */
+  .col-dialog {
+    position: fixed; inset: 0; margin: 0; padding: 0;
+    width: auto; height: auto; max-width: none; max-height: none;
+    border: 0; background: transparent; color: var(--color-ed-fg);
+    overflow: visible;
+  }
+  .col-dialog[open] { display: flex; align-items: center; justify-content: center; }
+
+  .col-dialog__panel {
+    position: relative;
+    width: min(94vw, 58rem); max-height: 90vh; overflow: auto;
+    background:
+      linear-gradient(90deg, rgba(28, 28, 28, 0.045), rgba(28, 28, 28, 0) 32px),
+      var(--color-ed-bg);
+    border: 1px solid var(--color-ed-rule);
+    border-top: 3px solid var(--color-ed-accent);
+    box-shadow: 0 70px 140px -70px rgba(20, 14, 9, 0.7), 0 2px 0 rgba(28, 28, 28, 0.04);
+    outline: 1px solid var(--color-ed-hairline);
+    outline-offset: -12px;
+    overscroll-behavior: contain;
+    /* 开合是 transition 型状态切换：基础态即隐藏态，中途关闭可从当前位置平滑重定向 */
+    opacity: 0;
+    transform: translateY(18px) scale(0.962);
+    transition:
+      opacity 340ms var(--ease-ed),
+      transform 340ms var(--ease-ed);
+    will-change: opacity, transform;
+  }
+  .col-dialog::backdrop {
+    background: radial-gradient(120% 120% at 50% 0%, rgba(28, 28, 28, 0.42), rgba(28, 28, 28, 0.66));
+    backdrop-filter: blur(6px) saturate(0.9);
+    -webkit-backdrop-filter: blur(6px) saturate(0.9);
+  }
+
+  /* 入场：背板先压暗，面板上浮+微放大，封面再晚一拍跟进 */
+  .col-dialog[open]::backdrop { animation: col-dialog-backdrop-in 260ms ease-out both; }
+  @keyframes col-dialog-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+  .col-dialog[open] .col-dialog__panel {
+    opacity: 1;
+    transform: none;
+  }
+  /* 从 display:none 打开时 transition 没有起点，用 @starting-style 补上起始帧
+    （不支持的环境降级为打开时瞬现，可接受） */
+  @starting-style {
+    .col-dialog[open] .col-dialog__panel {
+      opacity: 0;
+      transform: translateY(18px) scale(0.962);
+    }
+  }
+  .col-dialog[open] .col-dialog__cover {
+    animation: col-dialog-cover-in 460ms var(--ease-ed) 60ms both;
+  }
+  @keyframes col-dialog-cover-in {
+    from { opacity: 0; translate: 0 10px; scale: 1.035; }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+  /* 退场：220ms 收回（transition 型，Esc 中途关闭可平滑重定向） */
+  .col-dialog.is-closing::backdrop { animation: col-dialog-backdrop-out 220ms var(--ease-ed) both; }
+  @keyframes col-dialog-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+  .col-dialog.is-closing .col-dialog__panel {
+    opacity: 0;
+    transform: translateY(12px) scale(0.978);
+    transition:
+      opacity 220ms var(--ease-ed),
+      transform 220ms var(--ease-ed);
+  }
+  .col-dialog.is-closing .col-dialog__cover { animation: none; }
+
+  /* 顶部编号条：WK-00001 · 分类 · 英文 · 关闭 */
+  .col-dialog__rail {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 1rem 1.4rem 1rem 2.5rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__code { color: var(--color-ed-fg); font-variant-numeric: tabular-nums; }
+  .col-dialog__railsep { width: 1.1rem; height: 1px; background: var(--color-ed-rule); }
+  .col-dialog__cat { color: var(--color-ed-accent); }
+  .col-dialog__en { color: var(--color-ed-subtle); opacity: 0.7; letter-spacing: 0.22em; }
+  .col-dialog__close {
+    margin-left: auto;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.4rem; height: 2.4rem; padding: 0;
+    border: 1px solid var(--color-ed-hairline); border-radius: 999px;
+    background: transparent; color: var(--color-ed-muted); cursor: pointer;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 120ms var(--ease-ed);
+  }
+  .col-dialog__close:hover, .col-dialog__close:focus-visible {
+    color: var(--color-ed-fg); border-color: var(--color-ed-rule);
+    background: rgba(28, 28, 28, 0.04);
+  }
+  /* 按压反馈：按钮类，缩到 0.94 */
+  .col-dialog__close:active { transform: scale(0.94); }
+  .col-dialog__close svg { width: 1rem; height: 1rem; }
+
+  /* 主体：左侧封面 + 出版信息，右侧文字档案 */
+  .col-dialog__inner {
+    display: grid; grid-template-columns: 236px minmax(0, 1fr);
+    gap: 2.75rem; padding: 2rem 2.5rem 2.4rem;
+  }
+  .col-dialog__aside { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+  .col-dialog__coverwrap {
+    position: relative; width: 100%; aspect-ratio: 3 / 4;
+    perspective: 900px;
+  }
+  .col-dialog[data-kind="album"] .col-dialog__coverwrap { aspect-ratio: 1 / 1; }
+  .col-dialog[data-kind="film"] .col-dialog__coverwrap,
+  .col-dialog[data-kind="tv"] .col-dialog__coverwrap { aspect-ratio: 2 / 3; }
+  .col-dialog__pad { position: absolute; z-index: 2; width: 50%; height: 50%; }
+  .col-dialog__pad--tl { left: 0; top: 0; }
+  .col-dialog__pad--tr { right: 0; top: 0; }
+  .col-dialog__pad--bl { left: 0; bottom: 0; }
+  .col-dialog__pad--br { right: 0; bottom: 0; }
+  .col-dialog__cover {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: flex-end; padding: 1.2rem;
+    border-radius: 2px; color: var(--ink, #2a2620);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cover, #fefdf8) 96%, white), var(--cover, #fefdf8));
+    box-shadow: 0 30px 46px -28px rgba(20, 14, 9, 0.6), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+    overflow: hidden;
+    /* 热区在上层，封面不接收指针，保证四角 hover 生效 */
+    pointer-events: none;
+    transform-style: preserve-3d;
+    transition: transform 500ms var(--ease-ed), box-shadow 500ms var(--ease-ed);
+  }
+  .col-dialog__cover::before { content: ""; position: absolute; inset: 10px; border: 1px solid color-mix(in srgb, var(--ink, #2a2620) 20%, transparent); border-radius: 1px; pointer-events: none; }
+  .col-dialog__cover::after { content: ""; position: absolute; inset: 0; box-shadow: inset 9px 0 18px -14px rgba(0, 0, 0, 0.6); pointer-events: none; }
+  .col-dialog__cover-title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.32; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* 音乐专辑：方形封面（去掉书脊暗部），播放按钮做成实心 CTA */
+  .col-dialog[data-kind="album"] .col-dialog__cover { aspect-ratio: 1 / 1; }
+  .col-dialog[data-kind="album"] .col-dialog__cover::after { display: none; }
+  /* 专辑封面：鼠标移到哪个角，卡片就朝那个角凹进去（纯 CSS 兄弟选择器，无 JS） */
+  .col-dialog[data-kind="album"] .col-dialog__pad { cursor: default; }
+  .col-dialog[data-kind="album"] .col-dialog__pad--tl:hover ~ .col-dialog__cover {
+    transform: rotateX(12deg) rotateY(-12deg);
+    box-shadow: 16px 20px 36px rgba(20, 14, 9, 0.38), -10px -8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--tr:hover ~ .col-dialog__cover {
+    transform: rotateX(12deg) rotateY(12deg);
+    box-shadow: -16px 20px 36px rgba(20, 14, 9, 0.38), 10px -8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--bl:hover ~ .col-dialog__cover {
+    transform: rotateX(-12deg) rotateY(-12deg);
+    box-shadow: 16px -16px 36px rgba(20, 14, 9, 0.38), -10px 8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__pad--br:hover ~ .col-dialog__cover {
+    transform: rotateX(-12deg) rotateY(12deg);
+    box-shadow: -16px -16px 36px rgba(20, 14, 9, 0.38), 10px 8px 26px rgba(166, 58, 43, 0.18), inset 0 0 0 1px rgba(28, 28, 28, 0.12);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__ref {
+    border-color: var(--color-ed-accent);
+    background: var(--color-ed-accent);
+    color: var(--color-ed-bg);
+  }
+  .col-dialog[data-kind="album"] .col-dialog__ref:hover,
+  .col-dialog[data-kind="album"] .col-dialog__ref:focus-visible {
+    background: transparent;
+    color: var(--color-ed-accent);
+  }
+
+  .col-dialog__facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem 1.1rem; }
+  .col-dialog__fact { display: flex; flex-direction: column; gap: 0.2rem; padding-top: 0.55rem; border-top: 1px solid var(--color-ed-hairline); }
+  .col-dialog__fact[hidden] { display: none; }
+  .col-dialog__fact dt {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__fact dd { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--color-ed-fg); }
+
+  .col-dialog__body { padding-top: 0.1rem; min-width: 0; }
+  .col-dialog__title { margin: 0 0 0.6rem; font-family: var(--font-serif); font-size: clamp(1.75rem, 3vw, 2.35rem); line-height: 1.18; font-weight: 400; }
+  .col-dialog__by {
+    margin: 0 0 1.4rem; padding-bottom: 0.95rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle); font-variant-numeric: tabular-nums;
+  }
+
+  /* 评分：大号衬线数字 + 来源/人数 + 细进度条 */
+  .col-dialog__score {
+    display: grid; grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "value meta" "value bar";
+    gap: 0.4rem 1.15rem; align-items: center;
+    margin: 0 0 1.8rem; padding-bottom: 1.6rem;
+    border-bottom: 1px solid var(--color-ed-hairline);
+  }
+  .col-dialog__score[hidden] { display: none; }
+  .col-dialog__score-value {
+    grid-area: value; font-family: var(--font-serif);
+    font-size: 3rem; line-height: 0.88; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .col-dialog__score-meta {
+    grid-area: meta; align-self: end;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__score-bar { grid-area: bar; position: relative; height: 2px; background: var(--color-ed-hairline); overflow: hidden; }
+  .col-dialog__score-fill { position: absolute; inset: 0; width: 100%; background: var(--color-ed-accent); transform: scaleX(0); transform-origin: 0 50%; transition: transform 480ms var(--ease-ed); }
+
+  /* 分节：小标签 + 细线 */
+  .col-dialog__section { margin: 0 0 1.6rem; }
+  .col-dialog__section[hidden] { display: none; }
+  .col-dialog__label {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin: 0 0 0.75rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 400; color: var(--color-ed-subtle);
+  }
+  .col-dialog__label::after { content: ""; flex: 1; height: 1px; background: var(--color-ed-hairline); }
+  .col-dialog__desc { margin: 0; font-size: 0.9375rem; line-height: 1.95; color: var(--color-ed-muted); white-space: pre-line; }
+  .col-dialog__src {
+    display: inline-block; margin-top: 0.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-ed-subtle); text-decoration: none;
+    border-bottom: 1px solid transparent; transition: color 160ms ease, border-color 160ms ease;
+  }
+  .col-dialog__src:hover, .col-dialog__src:focus-visible { color: var(--color-ed-accent); border-color: currentColor; }
+  .col-dialog__src[hidden] { display: none; }
+  .col-dialog__note {
+    position: relative; margin: 0; padding: 0.1rem 0 0.1rem 1.15rem;
+    border-left: 2px solid var(--color-ed-accent);
+    font-family: var(--font-serif); font-size: 1rem; line-height: 1.95;
+    color: var(--color-ed-fg);
+  }
+
+  .col-dialog__ref {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    margin-top: 0.3rem; padding: 0.62rem 0.95rem;
+    border: 1px solid var(--color-ed-rule);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-ed-fg); text-decoration: none;
+    transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+  }
+  .col-dialog__ref::after { content: "↗"; font-size: 0.9em; }
+  .col-dialog__ref:hover, .col-dialog__ref:focus-visible { border-color: var(--color-ed-accent); color: var(--color-ed-accent); background: rgba(166, 58, 43, 0.05); }
+  .col-dialog__ref[hidden] { display: none; }
+  /* 曲目行由 JS 生成，Astro 的 scoped 属性加不到这些节点上，故用 :global 选择器 */
+  .col-dialog__tracks { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
+  .col-dialog__tracks :global(li) { display: flex; align-items: baseline; gap: 1.5rem; min-width: 0; }
+  .col-dialog__tracks :global(.col-dialog__track-idx) {
+    flex: none; width: 1.6rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.08em; color: var(--color-ed-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+  .col-dialog__tracks :global(a) {
+    flex: 1; min-width: 0; text-align: right;
+    font-size: 0.9375rem; line-height: 1.6;
+    color: var(--color-ed-fg); text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color 160ms ease, border-color 160ms ease;
+  }
+  .col-dialog__tracks :global(a:hover),
+  .col-dialog__tracks :global(a:focus-visible) {
+    color: var(--color-ed-accent); border-color: color-mix(in srgb, var(--color-ed-accent) 45%, transparent);
+  }
+
+  /* 底部条：刊名 + 关闭提示 */
+  .col-dialog__foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.85rem 2.5rem;
+    border-top: 1px solid var(--color-ed-hairline);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.5625rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-ed-subtle);
+  }
+  .col-dialog__mark { color: var(--color-ed-muted); }
+
+  @media (max-width: 720px) {
+    .col-bank__nav { display: none; }
+    .col-wall { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 14px; }
+    .col-dialog__rail { padding: 0.8rem 1rem 0.8rem 1.4rem; }
+    .col-dialog__en { display: none; }
+    .col-dialog__inner { grid-template-columns: 1fr; gap: 1.25rem; padding: 1.1rem 1.4rem 1.6rem; }
+    .col-dialog__aside { flex-direction: row; align-items: flex-start; gap: 1rem; }
+    .col-dialog__coverwrap { width: 104px; flex: none; }
+    .col-dialog__cover { padding: 0.6rem; }
+    .col-dialog__cover-title { font-size: 0.8125rem; }
+    .col-dialog__facts { flex: 1; gap: 0.7rem 0.9rem; }
+    .col-dialog__title { font-size: 1.65rem; }
+    .col-dialog__score-value { font-size: 2.4rem; }
+    .col-dialog__foot { padding: 0.7rem 1.4rem; }
+    .col-dialog__esc { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vol, .vshadow { transition: none; }
+    /* 专辑封面：过渡与悬停缩放归零（位移动画 reduce 覆盖补漏） */
+    .col-bank[data-mode="album"] .vol__cover { transition: none; }
+    .col-bank[data-mode="album"] .vol:hover .vol__cover { transform: none; }
+    .col-wallcard__cover { transition: none; }
+    .col-wallcard:hover .col-wallcard__cover { transform: none; }
+    .col-dialog__cover { transition: none; }
+    /* 减少动态：评分条属状态指示，瞬时到位即可 */
+    .col-dialog__score-fill { transition: none; }
+    /* 减少动态：直接不倾斜，保留平面封面 */
+    .col-dialog[data-kind="album"] .col-dialog__pad:hover ~ .col-dialog__cover { transform: none; }
+    /* 减少动态：面板只留快速淡入淡出，位移全部去掉；背板动画直接禁用 */
+    .col-dialog__panel,
+    .col-dialog[open] .col-dialog__panel,
+    .col-dialog.is-closing .col-dialog__panel {
+      transform: none;
+      transition: opacity 150ms linear;
+    }
+    .col-dialog[open]::backdrop,
+    .col-dialog.is-closing::backdrop { animation: none; }
+  }
+</style>
+
+<script>
+  import {
+    GISCUS_REPO,
+    GISCUS_REPO_ID,
+    GISCUS_CATEGORY,
+    GISCUS_CATEGORY_ID,
+  } from "../consts";
+
+  // ===== 纪事连续流 =====
+  // 服务端已直出全部条目；本脚本只负责：
+  //   1. 时间轴（目录）点击/键盘 → 平滑滚动到对应条目并写入 hash
+  //   2. scroll-spy：滚动时高亮当前位置的轴点（rAF 节流，hash 用 replaceState 不污染历史）
+  //   3. 加锁条目解密（见下方锁一节，lock-box 常驻 DOM）
+  // View Transitions：脚本只执行一次，引用在事件发生时现查，状态挂 window 上。
+  type TLState = { active: number | null; bound: boolean };
+  const tlWindow = window as Window & { __timelineState?: TLState };
+  const TL: TLState = (tlWindow.__timelineState ??= {
+    active: null,
+    bound: false,
+  });
+  const TL_MOBILE = window.matchMedia("(max-width: 1023px)");
+  const TL_REDUCED = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  const tlPoints = () =>
+    Array.from(document.querySelectorAll<HTMLElement>(".timeline-point"));
+  const tlEntries = () =>
+    Array.from(document.querySelectorAll<HTMLElement>(".tl-entry"));
+
+  function tlHash(): string {
+    const raw = location.hash.replace(/^#/, "");
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+
+  function tlSetHash(anchor: string, push: boolean) {
+    if (!anchor || location.hash === `#${anchor}`) return;
+    const url = `${location.pathname}${location.search}#${anchor}`;
+    if (push) history.pushState(null, "", url);
+    else history.replaceState(null, "", url);
+  }
+
+  function tlSetActive(index: number) {
+    tlPoints().forEach((p, i) => {
+      const on = i === index;
+      p.classList.toggle("is-active", on);
+      if (on) p.setAttribute("aria-current", "true");
+      else p.removeAttribute("aria-current");
+    });
+  }
+
+  // 对齐条目顶部（锚点语义）；已在位时不再抽动
+  function tlScrollToEntry(article: HTMLElement) {
+    const top = article.getBoundingClientRect().top + window.scrollY - 84;
+    if (Math.abs(window.scrollY - Math.max(0, top)) < 4) return;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: TL_REDUCED ? "auto" : "smooth",
+    });
+  }
+
+  // 只滚时间轴自身：桌面向上下、手机向左右，不抢正文的滚动
+  function tlRevealPoint(point: HTMLElement) {
+    const scroller = point.closest<HTMLElement>(".tl-simple");
+    if (!scroller) return;
+    if (TL_MOBILE.matches) {
+      const left = point.offsetLeft - 8;
+      const right = left + point.offsetWidth;
+      if (
+        left < scroller.scrollLeft ||
+        right > scroller.scrollLeft + scroller.clientWidth
+      ) {
+        scroller.scrollTo({
+          left: Math.max(0, left),
+          behavior: TL_REDUCED ? "auto" : "smooth",
+        });
+      }
+      return;
+    }
+    const p = point.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    if (p.top < box.top + 4) scroller.scrollTop += p.top - box.top - 8;
+    else if (p.bottom > box.bottom - 4)
+      scroller.scrollTop += p.bottom - box.bottom + 8;
+  }
+
+  // scroll-spy：以「顶部越过导航线下方」的最后一条为当前位置；触底时取最后一条。
+  // 页面顶端不写 hash（保持 /about/ 干净），滚进正文后才用 replaceState 同步。
+  // 程序化导航（轴点点击/深链接）的滚动期间暂停 spy——否则起步瞬间 spy 会把
+  // 刚设置的高亮/hash 抢回落点之前的条目（observed：点日记却被改回事件）。
+  let navQuiet = false;
+  let navQuietTimer = 0;
+  function tlBeginNav() {
+    navQuiet = true;
+    window.clearTimeout(navQuietTimer);
+    navQuietTimer = window.setTimeout(() => {
+      navQuiet = false;
+    }, 1200);
+    // scrollend（现代浏览器）在平滑滚动结束时立即解除抑制
+    window.addEventListener(
+      "scrollend",
+      () => {
+        navQuiet = false;
+      },
+      { once: true }
+    );
+  }
+
+  function tlSpy() {
+    if (navQuiet) return;
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    let index = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].getBoundingClientRect().top <= 100) index = i;
+    }
+    const doc = document.documentElement;
+    if (window.innerHeight + window.scrollY >= doc.scrollHeight - 4) {
+      index = entries.length - 1;
+    }
+    if (index === TL.active) return;
+    TL.active = index;
+    tlSetActive(index);
+    const point = tlPoints()[index];
+    if (point) {
+      tlRevealPoint(point);
+      // 页面顶端不写 hash；「feed」是重定向落点（动态区），保留它不被条目锚点顶掉
+      const h = tlHash();
+      if (window.scrollY > 40 || (h && h !== "feed")) {
+        tlSetHash(point.dataset.anchor ?? "", false);
+      }
+    }
+  }
+
+  let spyRaf = 0;
+  function tlOnScroll() {
+    if (spyRaf) return;
+    spyRaf = window.requestAnimationFrame(() => {
+      spyRaf = 0;
+      tlSpy();
+    });
+  }
+
+  // ===== 互动行：本地点赞（纯静态无后端，状态只存本机 localStorage）=====
+  const LIKE_STORAGE_KEY = "snark_moment_likes";
+
+  function loadLikes(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(LIKE_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  // 首屏/换页后恢复已点赞状态（aria-pressed 驱动样式）
+  function tlRestoreLikes() {
+    const likes = loadLikes();
+    document.querySelectorAll<HTMLButtonElement>(".tl-like").forEach((btn) => {
+      if (btn.dataset.like && likes[btn.dataset.like]) {
+        btn.setAttribute("aria-pressed", "true");
+      }
+    });
+  }
+
+  // ===== 点赞聚合：Worker /api/likes（KV 计数），失败退回纯本地 =====
+  // GET 拉全部聚合数 → ♥ 旁显示真实次数；POST 在点亮时记账（服务端按
+  // IP 哈希 24h 去重，重复点赞返回当前数不重复计）。接口不可用就没有数字，
+  // 红心行为照旧。
+  let likeCounts: Record<string, number> | null = null;
+
+  function updateLikeCount(btn: HTMLButtonElement) {
+    const id = btn.dataset.like ?? "";
+    if (!id) return;
+    const n = likeCounts?.[id] ?? 0;
+    let span = btn.querySelector<HTMLElement>(".tl-like__count");
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "tl-like__count";
+      btn.appendChild(span);
+    }
+    if (n > 0) {
+      span.textContent = String(n);
+      span.hidden = false;
+    } else {
+      span.hidden = true;
+    }
+  }
+
+  function fetchLikeCounts() {
+    fetch("/api/likes")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          data: { ok?: boolean; likes?: Record<string, number> } | null
+        ) => {
+          if (!data?.likes) return;
+          likeCounts = data.likes;
+          document
+            .querySelectorAll<HTMLButtonElement>(".tl-like")
+            .forEach(updateLikeCount);
+        }
+      )
+      .catch(() => {
+        /* 聚合不可用：退回纯本地点赞 */
+      });
+  }
+
+  function postLike(id: string, btn: HTMLButtonElement) {
+    fetch("/api/likes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { ok?: boolean; count?: number } | null) => {
+        if (!data || typeof data.count !== "number") return;
+        likeCounts = likeCounts ?? {};
+        likeCounts[id] = data.count;
+        updateLikeCount(btn);
+      })
+      .catch(() => {
+        /* 记账失败：红心照旧，下次点赞会重试 */
+      });
+  }
+
+  function tlLikeClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-like"
+    ) as HTMLButtonElement | null;
+    if (!btn || !btn.dataset.like) return;
+    const liked = btn.getAttribute("aria-pressed") === "true";
+    btn.setAttribute("aria-pressed", liked ? "false" : "true");
+    if (!liked && !TL_REDUCED) {
+      btn.classList.remove("is-pop");
+      void btn.offsetWidth;
+      btn.classList.add("is-pop");
+    }
+    const likes = loadLikes();
+    if (liked) delete likes[btn.dataset.like];
+    else {
+      likes[btn.dataset.like] = 1;
+      postLike(btn.dataset.like, btn);
+    }
+    try {
+      localStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(likes));
+    } catch {
+      /* 隐私模式等存不进就当次会话有效 */
+    }
+  }
+
+  // 目录导航：轴点 → 对应条目（点击 push hash，键盘/历史恢复只 replace）
+  function tlGo(point: HTMLElement, push: boolean) {
+    const article = document.getElementById(point.dataset.anchor ?? "");
+    if (!article) return;
+    const idx = Number(point.dataset.index ?? "-1");
+    if (idx >= 0) {
+      TL.active = idx;
+      tlSetActive(idx);
+    }
+    tlSetHash(point.dataset.anchor ?? "", push);
+    tlRevealPoint(point);
+    tlBeginNav();
+    tlScrollToEntry(article);
+  }
+
+  function tlClick(e: MouseEvent) {
+    const point = (e.target as HTMLElement | null)?.closest?.(
+      ".timeline-point"
+    ) as HTMLElement | null;
+    if (point) tlGo(point, true);
+  }
+
+  function tlKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    const point = target?.closest?.(".timeline-point") as HTMLElement | null;
+    if (!point) return;
+    const pts = tlPoints();
+    const idx = Number(point.dataset.index ?? "-1");
+
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      tlGo(point, true);
+      return;
+    }
+
+    let next: number | null = null;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight")
+      next = Math.min(pts.length - 1, idx + 1);
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft")
+      next = Math.max(0, idx - 1);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = pts.length - 1;
+    if (next === null) return;
+
+    e.preventDefault();
+    pts[next]?.focus();
+    if (pts[next]) tlGo(pts[next], false);
+  }
+
+  function tlHistory() {
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    const hash = tlHash();
+    // 后退到没有 hash 的初始状态：回到最新一条（页面顶部）
+    if (!hash) {
+      if (TL.active !== 0) {
+        TL.active = 0;
+        tlSetActive(0);
+      }
+      window.scrollTo({ top: 0, behavior: TL_REDUCED ? "auto" : "smooth" });
+      return;
+    }
+    const target = entries.find((el) => el.id === hash);
+    if (!target) return;
+    const idx = entries.indexOf(target);
+    if (idx !== TL.active) {
+      TL.active = idx;
+      tlSetActive(idx);
+      tlRevealPoint(tlPoints()[idx]);
+    }
+    tlScrollToEntry(target);
+  }
+
+  function tlInit() {
+    TL.active = null;
+    const entries = tlEntries();
+    if (entries.length === 0) return;
+    tlRestoreLikes();
+    tlBuildImageGrids();
+    tlInitComments();
+    const hash = tlHash();
+    const target = hash ? entries.find((el) => el.id === hash) : undefined;
+    if (target) {
+      // 深链接进入：浏览器原生锚点滚动已落位，这里兜底一次并同步轴点高亮
+      const idx = entries.indexOf(target);
+      TL.active = idx;
+      tlSetActive(idx);
+      tlRevealPoint(tlPoints()[idx]);
+      tlBeginNav();
+      requestAnimationFrame(() => tlScrollToEntry(target));
+      window.setTimeout(() => tlScrollToEntry(target), 180);
+      return;
+    }
+    // 非条目锚点（如 /timeline 重定向落点 #feed）：加载期布局会重排（图片九宫格），
+    // 原生锚点滚动常落空，这里等重排后兜底滚到位
+    if (hash) {
+      const anchorEl = document.getElementById(hash);
+      if (anchorEl) {
+        window.setTimeout(
+          () =>
+            anchorEl.scrollIntoView({
+              behavior: TL_REDUCED ? "auto" : "smooth",
+              block: "start",
+            }),
+          220,
+        );
+      }
+    }
+    // 无深链接：默认高亮最新一条（页面顶部）
+    tlSpy();
+  }
+
+  // ===== 纪事内容解锁（AES-GCM，答案解密）=====
+  // 构建期已把带 lock 的正文加密成密文（明文不进产物）；浏览器端用答案经
+  // PBKDF2 派生密钥解密，成功后在当前会话记忆，无需重复输入。
+  const PBKDF2_ITERATIONS = 120000;
+  const LOCK_STORAGE_KEY = "snark_locked_entries";
+
+  function b64ToBuf(b64: string): ArrayBuffer {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer as ArrayBuffer;
+  }
+
+  // 解密后的 markdown 原文做最简渲染：按空行分段 → <p>，单换行 → <br>
+  function renderPlainMd(text: string): string {
+    const blocks = text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+    if (blocks.length === 0) return "";
+    return blocks
+      .map((b) => `<p>${b.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  }
+
+  async function decryptBlock(box: HTMLElement, answer: string): Promise<string | null> {
+    const ciphertext = box.dataset.ciphertext ?? "";
+    const salt = box.dataset.salt ?? "";
+    const iv = box.dataset.iv ?? "";
+    if (!ciphertext || !salt || !iv) return null;
+    try {
+      const enc = new TextEncoder();
+      const saltBuf = b64ToBuf(salt);
+      const ivBuf = b64ToBuf(iv);
+      // 密文 = [GCM tag(16B) | ciphertext]，整体作为 AES-GCM 的 ciphertext 传入
+      const combined = b64ToBuf(ciphertext);
+
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(answer.normalize("NFC").trim()),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+      );
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: saltBuf, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+      const plain = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: ivBuf, tagLength: 128 },
+        key,
+        combined
+      );
+      return new TextDecoder().decode(plain);
+    } catch {
+      return null;
+    }
+  }
+
+  // 会话记忆：记录已解锁条目的 id → 明文
+  function loadLocks(): Record<string, string> {
+    try {
+      return JSON.parse(sessionStorage.getItem(LOCK_STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+  function saveLock(id: string, plain: string) {
+    const locks = loadLocks();
+    locks[id] = plain;
+    sessionStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(locks));
+  }
+
+  // 解锁成功：锁行高度收起 220ms。max-height 必须从「量出来的实际高度」收到 0，
+  // 直接写 auto → 0 不会产生过渡，所以先钉住起始高度、强制 reflow 再改终点。
+  function collapseLockRow(box: HTMLElement, reduced: boolean) {
+    const parts = [
+      box.querySelector<HTMLElement>(".lock-question"),
+      box.querySelector<HTMLElement>(".lock-row"),
+    ].filter((el): el is HTMLElement => Boolean(el));
+    const drop = () => {
+      parts.forEach((el) => el.remove());
+      box
+        .querySelectorAll<HTMLElement>(".lock-input, .lock-btn")
+        .forEach((el) => el.remove());
+    };
+    if (reduced || parts.length === 0) {
+      drop();
+      return;
+    }
+    parts.forEach((el) => {
+      el.style.maxHeight = `${el.getBoundingClientRect().height}px`;
+      el.style.overflow = "hidden";
+    });
+    void box.offsetHeight; // 强制 reflow：让起始高度生效后再改终点
+    parts.forEach((el) => {
+      el.style.transition =
+        "max-height 220ms var(--ease-ed), opacity 160ms ease, margin-bottom 220ms var(--ease-ed)";
+      el.style.maxHeight = "0px";
+      el.style.opacity = "0";
+      el.style.marginBottom = "0px";
+    });
+    window.setTimeout(drop, 240);
+  }
+
+  function fillLocked(box: HTMLElement, plain: string, animate = true) {
+    const contentEl = box.querySelector<HTMLElement>(".lock-content");
+    if (!contentEl) return;
+    contentEl.innerHTML = renderPlainMd(plain);
+    contentEl.hidden = false;
+    const err = box.querySelector<HTMLElement>(".lock-error");
+    if (err) {
+      err.hidden = true;
+      err.classList.remove("is-shown");
+    }
+    box.dataset.unlocked = "1";
+    if (animate) {
+      // 正文透明揭示（reduced-motion 下 CSS 降级为纯淡入）
+      contentEl.classList.add("is-reveal");
+      collapseLockRow(box, TL_REDUCED);
+      // 边框闪一次砖红（CSS ::after 只动 opacity）
+      box.classList.add("is-unlocked");
+    } else {
+      // 会话记忆恢复 / 首屏直出：不做揭示动画，直接落到终态
+      contentEl.classList.remove("is-reveal");
+      collapseLockRow(box, true);
+      box.classList.remove("is-unlocked");
+    }
+
+    // 解锁成功后才放出本条纪事的 BGM：MiniPlayer 带 gated 标记时先隐藏、不自动播放，
+    // 由这里显式启动（会话记忆恢复也走同一条路径）。
+    const holder = box.closest("article") ?? box.parentElement;
+    const player = holder?.querySelector("mini-player") as
+      | (HTMLElement & { unlockPlay?: () => void })
+      | null;
+    player?.unlockPlay?.();
+  }
+
+  async function tryUnlock(box: HTMLElement) {
+    // 已解锁 / 正在解密：忽略重复提交（PBKDF2 120k 有 100–300ms 空窗）
+    if (box.dataset.unlocked === "1" || box.dataset.pending === "1") {
+      return;
+    }
+    const id = box.dataset.lockId ?? "";
+    const input = box.querySelector<HTMLInputElement>(".lock-input");
+    const answer = input?.value ?? "";
+    if (!answer) return;
+    // 若已记忆则直接展示
+    const memo = loadLocks();
+    if (id && memo[id]) {
+      fillLocked(box, memo[id]);
+      return;
+    }
+
+    // pending：按钮禁用 + 文案「解锁中…」，min-width 保证宽度不抖
+    const btn = box.querySelector<HTMLButtonElement>(".lock-btn");
+    const err = box.querySelector<HTMLElement>(".lock-error");
+    box.dataset.pending = "1";
+    if (btn) {
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent ?? "解锁";
+      btn.disabled = true;
+      btn.textContent = "解锁中…";
+    }
+    if (input) input.readOnly = true;
+
+    const plain = await decryptBlock(box, answer);
+
+    delete box.dataset.pending;
+    // 解密期间可能已换页 / 被解锁（元素脱离文档），先确认还在
+    if (btn?.isConnected) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.label ?? "解锁";
+    }
+    if (input?.isConnected) input.readOnly = false;
+
+    if (plain !== null) {
+      if (id) saveLock(id, plain);
+      fillLocked(box, plain);
+    } else {
+      if (err) {
+        err.hidden = false;
+        void err.offsetWidth; // 先让 display:block 生效（opacity 仍是 0），再淡入
+        err.classList.add("is-shown");
+      }
+      // 输入框轻抖一次；reduced-motion 只保留错误文案淡入
+      if (input && !TL_REDUCED) {
+        input.classList.remove("is-shake");
+        void input.offsetWidth;
+        input.classList.add("is-shake");
+      }
+    }
+  }
+
+  // 事件委托：任意条目的 lock-box 都能触发解锁；Enter 提交
+  function tlLockClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(".lock-btn");
+    if (!btn) return;
+    e.preventDefault();
+    const box = btn.closest<HTMLElement>(".lock-box");
+    if (box) void tryUnlock(box);
+  }
+  function tlLockKeydown(e: KeyboardEvent) {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLElement | null;
+    if (!target?.classList?.contains("lock-input")) return;
+    e.preventDefault();
+    const box = target.closest<HTMLElement>(".lock-box");
+    if (box) void tryUnlock(box);
+  }
+
+  // 初始加载：把已记忆的加密条目直接呈现（若页面含其 lock-box）
+  document.querySelectorAll<HTMLElement>(".lock-box").forEach((box) => {
+    const id = box.dataset.lockId ?? "";
+    const locks = loadLocks();
+    if (id && locks[id]) fillLocked(box, locks[id], false);
+  });
+
+  // ===== 条目评论：每条一个 giscus 讨论串（specific 映射，term=条目锚点）=====
+  // 「有没有评论」用免鉴权 GitHub Discussions REST 探测（60 次/小时/IP，
+  // sessionStorage 缓存 10 分钟）：有评论的条目直接展开，没有的点互动行按钮
+  // 才注入 giscus（沿用全站「不点不请求 giscus.app」的首屏策略）。
+  // 探测失败（限流/离线）则降级为全部「点按钮才加载」。
+  const COMMENTS_CACHE_KEY = "snark_giscus_counts";
+  const COMMENTS_CACHE_MS = 10 * 60 * 1000;
+
+  async function fetchCommentCounts(): Promise<Record<string, number> | null> {
+    try {
+      const raw = sessionStorage.getItem(COMMENTS_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw) as { t?: number; d?: Record<string, number> };
+        if (cached?.t && Date.now() - cached.t < COMMENTS_CACHE_MS && cached.d) {
+          return cached.d;
+        }
+      }
+    } catch {
+      /* 缓存读不到就走网络 */
+    }
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${GISCUS_REPO}/discussions?per_page=100`,
+        { headers: { Accept: "application/vnd.github+json" } }
+      );
+      if (!res.ok) return null;
+      const list = (await res.json()) as { title?: unknown; comments?: unknown }[];
+      if (!Array.isArray(list)) return null;
+      const counts: Record<string, number> = {};
+      for (const d of list) {
+        // giscus 的 specific 映射创建的讨论串，标题就是 term（条目锚点）
+        if (typeof d.title === "string" && typeof d.comments === "number") {
+          counts[d.title] = d.comments;
+        }
+      }
+      try {
+        sessionStorage.setItem(
+          COMMENTS_CACHE_KEY,
+          JSON.stringify({ t: Date.now(), d: counts })
+        );
+      } catch {
+        /* 隐私模式存不进就每次现拉 */
+      }
+      return counts;
+    } catch {
+      return null;
+    }
+  }
+
+  function loadEntryGiscus(container: HTMLElement) {
+    if (container.dataset.loaded === "1") return;
+    container.dataset.loaded = "1";
+    // 主题走同源 endpoint /giscus-theme.css（与文章页评论同一套皮肤）
+    const themeUrl = new URL("/giscus-theme.css", location.origin).href;
+    const script = document.createElement("script");
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    const attrs: Record<string, string> = {
+      "data-repo": GISCUS_REPO,
+      "data-repo-id": GISCUS_REPO_ID,
+      "data-category": GISCUS_CATEGORY,
+      "data-category-id": GISCUS_CATEGORY_ID,
+      "data-mapping": "specific",
+      "data-term": container.dataset.term ?? "",
+      "data-strict": "0",
+      "data-reactions-enabled": "0",
+      "data-emit-metadata": "0",
+      "data-input-position": "bottom",
+      "data-lang": "zh-CN",
+      "data-loading": "lazy",
+    };
+    for (const [k, v] of Object.entries(attrs)) script.setAttribute(k, v);
+    script.setAttribute("data-theme", themeUrl);
+    script.src = "https://giscus.app/client.js";
+    container.appendChild(script);
+  }
+
+  function showEntryComments(anchor: string, expand: boolean) {
+    const container = document.getElementById(`tl-comments-${anchor}`);
+    const btn = document.querySelector<HTMLButtonElement>(
+      `.tl-comment[data-comment="${CSS.escape(anchor)}"]`
+    );
+    if (!container) return;
+    container.hidden = !expand;
+    if (expand) loadEntryGiscus(container);
+    btn?.setAttribute("aria-expanded", expand ? "true" : "false");
+  }
+
+  function tlCommentClick(e: MouseEvent) {
+    const btn = (e.target as HTMLElement | null)?.closest?.(
+      ".tl-comment"
+    ) as HTMLButtonElement | null;
+    if (!btn?.dataset.comment) return;
+    showEntryComments(
+      btn.dataset.comment,
+      btn.getAttribute("aria-expanded") !== "true"
+    );
+  }
+
+  // 空闲 1.5s 后再探测评论数 / 拉取点赞聚合（不与首屏资源抢路）；
+  // giscus 注入只发生在需要时
+  function tlInitComments() {
+    window.setTimeout(async () => {
+      fetchLikeCounts();
+      const counts = await fetchCommentCounts();
+      if (!counts) return;
+      document.querySelectorAll<HTMLElement>(".tl-comments").forEach((c) => {
+        const term = c.dataset.term ?? "";
+        if (term && (counts[term] ?? 0) > 0) showEntryComments(term, true);
+      });
+    }, 1500);
+  }
+
+  // ===== 九宫格：条目内连续图片重排为方格缩略图（点击走全站 lightbox）=====
+  // 朋友圈式排版：同一 <p> 或相邻 <p> 的图片归为一组；1 图占 2/3 宽，
+  // 2~3 图一行三列，4 图两行两列，5 图起一行三列。散落的单图保持原位不动。
+  function tlBuildImageGrids() {
+    document.querySelectorAll<HTMLElement>(".tl-entry .prose").forEach((prose) => {
+      if (prose.dataset.gridDone === "1") return;
+      prose.dataset.gridDone = "1";
+
+      const isImgNode = (n: Node): n is HTMLImageElement =>
+        n.nodeType === 1 && (n as HTMLElement).tagName === "IMG";
+      // <p> 仅含一张图（其余是空白）→ 以 <p> 为组员；否则以 img 自身为组员
+      const groupAnchor = (n: Node): Node | null => {
+        if (isImgNode(n)) return n;
+        if (n.nodeType !== 1) return null;
+        const el = n as HTMLElement;
+        if (el.tagName !== "P") return null;
+        const children = Array.from(el.childNodes).filter(
+          (c) => !(c.nodeType === 3 && !c.textContent?.trim())
+        );
+        return children.length === 1 && isImgNode(children[0]) ? el : null;
+      };
+
+      // 扫描子节点：连续的图片组员归为一组，中间遇到其他内容即断组
+      type Group = { start: ChildNode; members: Node[]; imgs: HTMLImageElement[] };
+      const groups: Group[] = [];
+      let cur: Group | null = null;
+      for (const child of Array.from(prose.childNodes)) {
+        if (child.nodeType === 3 && !child.textContent?.trim()) continue; // 空白不断组
+        const anchor = groupAnchor(child);
+        if (anchor) {
+          if (!cur) cur = { start: child, members: [], imgs: [] };
+          cur.members.push(child);
+          if (isImgNode(anchor)) cur.imgs.push(anchor);
+          else anchor.childNodes.forEach((c) => isImgNode(c) && cur!.imgs.push(c));
+        } else if (cur) {
+          groups.push(cur);
+          cur = null;
+        }
+      }
+      if (cur) groups.push(cur);
+      if (!groups.length) return;
+
+      for (const g of groups) {
+        if (g.imgs.length === 0) continue;
+        const cols = g.imgs.length === 1 ? 1 : g.imgs.length === 4 ? 4 : 3;
+        const grid = document.createElement("div");
+        grid.className = "tl-grid";
+        grid.dataset.cols = String(cols);
+        g.start.parentElement!.insertBefore(grid, g.start);
+        for (const img of g.imgs) {
+          const cell = document.createElement("span");
+          cell.className = "tl-cell";
+          grid.appendChild(cell);
+          cell.appendChild(img); // img 从 <p> 原位挪进方格
+        }
+        // 组员节点内容已搬空：删掉残留的空 <p>
+        g.members.forEach((m) => {
+          const el = m as HTMLElement;
+          if (el.tagName === "P" && !el.textContent?.trim() && !el.querySelector("img")) {
+            el.remove();
+          }
+        });
+      }
+    });
+  }
+
+  // ===== 一次性绑定（换页不重复绑），每次 page-load 重新初始化状态 =====
+  if (!TL.bound) {
+    TL.bound = true;
+    document.addEventListener("click", tlClick);
+    document.addEventListener("keydown", tlKeydown);
+    document.addEventListener("click", tlLikeClick);
+    document.addEventListener("click", tlCommentClick);
+    document.addEventListener("click", tlLockClick);
+    document.addEventListener("keydown", tlLockKeydown);
+    window.addEventListener("popstate", tlHistory);
+    window.addEventListener("hashchange", tlHistory);
+    window.addEventListener("scroll", tlOnScroll, { passive: true });
+    document.addEventListener("astro:page-load", tlInit);
+    document.addEventListener("astro:before-swap", () => {
+      TL.active = null;
+    });
+  }
+  tlInit();
+</script>
+
+<script>
+  // ===== 关于页 dock（macOS 风格）：视图切换（关于/动态/拾集）+ 邻近放大 + 点击弹跳。
+  // 视图 = data-view（about/feed/collection），URL hash 跟随（#feed / #collection / 空）；
+  // VT 换页安全：astro:page-load 重设视图；全局监听只绑一次（每帧重查 DOM）。
+  type AboutView = "about" | "feed" | "collection";
+
+  function viewFromHash(hash: string): AboutView {
+    const h = decodeURIComponent(hash.replace(/^#/, ""));
+    if (h === "collection") return "collection";
+    // #feed、动态条目锚点（#moment-xxx）以及其他 hash 都归动态视图
+    return h ? "feed" : "about";
+  }
+
+  const VIEW_TITLE: Record<AboutView, string> = {
+    about: "关于",
+    feed: "动态",
+    collection: "拾集",
+  };
+
+  function applyAboutView(view: AboutView) {
+    const layout = document.querySelector<HTMLElement>(".about-layout");
+    if (!layout) return;
+    layout.dataset.view = view;
+    document.querySelectorAll<HTMLElement>("[data-dock-view]").forEach((item) => {
+      item.classList.toggle("is-active", item.dataset.dockView === view);
+      item.setAttribute("aria-pressed", item.dataset.dockView === view ? "true" : "false");
+    });
+    // 页头标题跟视图走（移动端三块堆叠，固定「关于」）；拾集计数只在拾集视图显示
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const title = document.querySelector<HTMLElement>("[data-view-title]");
+    if (title) title.textContent = mobile ? VIEW_TITLE.about : VIEW_TITLE[view];
+    const aside = document.querySelector<HTMLElement>("[data-view-aside]");
+    if (aside) aside.hidden = mobile || view !== "collection";
+    // 拾集书架在隐藏时无法测量宽度：切换后抛一次 resize 让书架脚本重排
+    window.dispatchEvent(new Event("resize"));
+  }
+
+  // 强制瞬时滚动：html 上全局 scroll-behavior:smooth 会把 auto 也变平滑
+  function instantScrollTop() {
+    const html = document.documentElement;
+    const prev = html.style.scrollBehavior;
+    html.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+    html.style.scrollBehavior = prev;
+  }
+
+  let dockGlobalBound = false;
+
+  function initAboutDock() {
+    const dock = document.querySelector<HTMLElement>(".about-dock");
+    if (!dock) return;
+
+    // 按当前 hash 重新校准视图（VT 返回本页时 DOM 被替换）
+    applyAboutView(viewFromHash(location.hash));
+
+    // 点击 dock：切视图 + 同步 hash + 回顶 + 弹跳
+    dock.querySelectorAll<HTMLButtonElement>("[data-dock-view]").forEach((btn) => {
+      if (btn.dataset.dockBound) return;
+      btn.dataset.dockBound = "1";
+      btn.addEventListener("click", () => {
+        btn.classList.remove("is-bounce");
+        void btn.offsetWidth; // 重置动画，连点可重播
+        btn.classList.add("is-bounce");
+        btn.addEventListener(
+          "animationend",
+          () => btn.classList.remove("is-bounce"),
+          { once: true },
+        );
+        const view = (btn.dataset.dockView ?? "about") as AboutView;
+        applyAboutView(view);
+        const url = view === "about" ? location.pathname : `${location.pathname}#${view}`;
+        history.replaceState(null, "", url);
+        instantScrollTop();
+      });
+    });
+
+    // 邻近放大：指针距图标中心越近图标越大（1 → 1.3，二次衰减）。
+    // 不按 pointer 类型守卫：触屏上指针远离时缩放保持 1，行为等价。
+    if (!dockGlobalBound) {
+      dockGlobalBound = true;
+      const MAX = 0.3;
+      const RANGE = 90;
+      let raf = 0;
+      let px = -9999;
+      let py = -9999;
+      const frame = () => {
+        raf = 0;
+        // 每帧重查（VT 换页会替换 DOM）；每个 dock 项按自身距离独立放大
+        document.querySelectorAll<HTMLElement>(".about-dock__item").forEach((item) => {
+          const r = item.getBoundingClientRect();
+          const d = Math.hypot(px - (r.left + r.width / 2), py - (r.top + r.height / 2));
+          const t = Math.max(0, 1 - d / RANGE);
+          item.style.setProperty("--dock-scale", (1 + MAX * t * t).toFixed(3));
+        });
+      };
+      window.addEventListener(
+        "pointermove",
+        (e) => {
+          px = e.clientX;
+          py = e.clientY;
+          if (!raf) raf = requestAnimationFrame(frame);
+        },
+        { passive: true },
+      );
+      // 前进/后退修改 hash 时同步视图
+      window.addEventListener("hashchange", () => applyAboutView(viewFromHash(location.hash)));
+    }
+  }
+
+  document.addEventListener("astro:page-load", initAboutDock);
+  initAboutDock();
+</script>
+
+<script>
+  // ===== 立体书架：按 Wenku8_Flutter 的几何与物理 =====
+  const DEPTH_X = 0.66, DEPTH_Y = -0.30, RADIUS = 1.48;
+
+  type Bank = { root: HTMLElement; layout: () => void; step: (d: number) => void; refresh: () => void };
+  const banks: Bank[] = [];
+
+  function makeBank(root: HTMLElement): Bank {
+    const stage = root.querySelector<HTMLElement>("[data-stage]")!;
+    const foot = root.querySelector<HTMLElement>("[data-bankfoot]");
+    const vols = Array.from(stage.querySelectorAll<HTMLElement>(".vol"));
+    const shadows = Array.from(stage.querySelectorAll<HTMLElement>(".vshadow"));
+    const n = vols.length;
+    const mode = root.dataset.mode || "book";
+    let S = 18, C = 128, H = 206, FOOT = S + C * DEPTH_X, BASEY = -C * DEPTH_Y + H * 0.6 + 12, PITCH = 30;
+    let focus = Math.floor((n - 1) / 2);
+    let dragging = false, lastX = 0, lastT = 0, vel = 0;
+    let wheelAccum = 0; // 垂直滚轮累积量 → 攒够一格横移一档
+
+    function measure() {
+      const W = stage.clientWidth || 520;
+      if (mode === "album") {
+        // 专辑：方形封面，无书脊；沿用同样的扇面排布与抽出动画
+        C = Math.max(120, Math.min(172, W * 0.15));
+        S = 0;
+        H = C;
+        FOOT = C * DEPTH_X;
+        BASEY = 46;
+        PITCH = Math.max(44, Math.min(120, C * 0.55));
+        stage.style.height = H + 96 + "px";
+      } else {
+        S = Math.max(14, Math.min(18, W * 0.043));
+        C = Math.max(100, Math.min(128, W * 0.32));
+        H = ((C - 20) * 166) / 118 + 54;
+        FOOT = S + C * DEPTH_X;
+        BASEY = -C * DEPTH_Y + H * 0.6 + 12;
+        PITCH = Math.max(22, Math.min(150, (W - FOOT) / Math.max(1, n - 1)));
+        stage.style.height = BASEY + H + 70 + "px";
+      }
+      stage.style.setProperty("--S", S + "px");
+      stage.style.setProperty("--C", C + "px");
+      stage.style.setProperty("--H", H + "px");
+      stage.style.setProperty("--FOOT", FOOT + "px");
+    }
+    const railY = (_d: number) => 0; // 不要弧度：整排压平
+    const weight = (d: number) => { const a = Math.abs(d); if (a >= RADIUS) return 0; const v = Math.cos((a / RADIUS) * Math.PI / 2); return v * v; };
+
+    function layout() {
+      const W = stage.clientWidth || 520;
+      const cx = W / 2;
+      vols.forEach((el, i) => {
+        const d = i - focus;
+        const w = weight(d);
+        const lift = w * w * (3 - 2 * w);
+        let ox: number, oy: number;
+        // 桌面端默认不抬起中间那一本（悬停/点击仍可交互）；小屏保留抬起
+        const liftK = window.matchMedia("(min-width: 1024px)").matches ? 0 : 1;
+        if (mode === "album") {
+          const pull = C * 0.30 * w * (1.24 - 0.24 * w);
+          ox = -pull * DEPTH_X;
+          oy = BASEY - H * 0.16 * lift * liftK;
+        } else {
+          const pull = C * 0.78 * w * (1.24 - 0.24 * w);
+          ox = -pull * DEPTH_X;
+          oy = BASEY + 0.30 * pull - H * 0.28 * lift * liftK;
+        }
+        const xSlot = cx - FOOT / 2 + d * PITCH;
+        el.style.transform = `translate(${(xSlot + ox).toFixed(2)}px, ${(railY(d) + oy).toFixed(2)}px)`;
+        el.style.zIndex = String(200 - Math.round(Math.abs(d) * 8));
+        const sh = shadows[i];
+        if (sh) {
+          sh.style.transform = `translate(${xSlot.toFixed(2)}px, ${(railY(d) + BASEY + H - 6).toFixed(2)}px)`;
+          sh.style.opacity = String(Math.max(0.15, 0.95 - Math.abs(d) * 0.08));
+        }
+      });
+      const focusIdx = Math.max(0, Math.min(n - 1, Math.round(focus)));
+      vols.forEach((el, i) => el.classList.toggle("is-focus", i === focusIdx));
+      if (foot) {
+        const el = vols[focusIdx];
+        const t = el?.dataset.title ?? "";
+        const a = el?.dataset.creator ?? "";
+        foot.textContent = t ? `${String(Math.round(focus) + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")}　${t} · ${a}` : "";
+      }
+    }
+
+    function animateTo(t: number) {
+      // 位置由 CSS transition 平滑过渡，只设置目标焦点
+      focus = Math.max(0, Math.min(n - 1, t));
+      layout();
+    }
+
+    function step(d: number) { animateTo(Math.round(focus) + d); }
+    function refresh() { measure(); layout(); }
+
+    let startX = 0, moved = false;
+    stage.addEventListener("pointerdown", (e) => {
+      dragging = true; moved = false; startX = e.clientX; lastX = e.clientX; lastT = performance.now(); vel = 0;
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      if (!moved && Math.abs(e.clientX - startX) > 5) { moved = true; root.classList.add("is-drag"); }
+      if (!moved) return;
+      const now = performance.now();
+      const dx = e.clientX - lastX;
+      const dt = Math.max(1, now - lastT);
+      vel = dx / dt;
+      focus = Math.max(0, Math.min(n - 1, focus - dx / PITCH));
+      layout();
+      lastX = e.clientX; lastT = now;
+    });
+    const endDrag = (e?: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      root.classList.remove("is-drag");
+      if (moved) {
+        (window as any).__shelfSuppressClick = performance.now();
+        const projected = focus - vel * 10;
+        animateTo(Math.round(projected));
+      } else if (e) {
+        // 轻点：命中处找书，命中不到就取离指针最近的一本（等距斜面 bbox 可能偏）
+        const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+        let cover = hit?.closest?.("[data-cover]") as HTMLElement | null;
+        if (!cover) {
+          let best: HTMLElement | null = null, bd = 1e9;
+          vols.forEach((v) => {
+            const r = v.getBoundingClientRect();
+            const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+            const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+            const d = Math.hypot(dx, dy);
+            if (d < bd) { bd = d; best = v; }
+          });
+          if (best && bd < 36) cover = best;
+        }
+        if (cover) { (window as any).__shelfSuppressClick = performance.now(); openDetail(cover); }
+      }
+    };
+    stage.addEventListener("pointerup", (e) => endDrag(e));
+    stage.addEventListener("pointercancel", () => endDrag());
+    stage.addEventListener("wheel", (e) => {
+      // 垂直滚轮 → 横向滑动（像手机上横着拖一样）：deltaY 累积，攒够一格翻一档；
+      // deltaX（触控板横扫）维持原有逐档翻页。
+      // 已到边界时放行默认滚动，页面继续纵滚、不把用户卡死在架子上。
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+        step(Math.sign(e.deltaX));
+        return;
+      }
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      const atStart = focus <= 0 && e.deltaY < 0;
+      const atEnd = focus >= n - 1 && e.deltaY > 0;
+      if (atStart || atEnd) return; // 不 preventDefault，交给页面滚动
+      wheelAccum += e.deltaY;
+      const stepWidth = 53; // 一格档位的滚轮行程（约 3~4 行 standard notches）
+      while (wheelAccum >= stepWidth) { step(1); wheelAccum -= stepWidth; }
+      while (wheelAccum <= -stepWidth) { step(-1); wheelAccum += stepWidth; }
+    }, { passive: false });
+    root.querySelectorAll<HTMLElement>("[data-banknav]").forEach((btn) => {
+      btn.addEventListener("click", () => step(Number(btn.dataset.banknav || "0")));
+    });
+    stage.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    });
+    window.addEventListener("resize", () => { measure(); layout(); });
+
+    return { root, layout, step, refresh };
+  }
+
+  function initBanks() {
+    banks.length = 0;
+    document.querySelectorAll<HTMLElement>("[data-bank]").forEach((root) => {
+      const b = makeBank(root);
+      banks.push(b);
+      b.refresh();
+    });
+  }
+
+  type Album = { root: HTMLElement; refresh: () => void };
+  const albums: Album[] = [];
+  function makeAlbums(root: HTMLElement): Album {
+    const track = root.querySelector<HTMLElement>("[data-albumtrack]")!;
+    let pending = false;
+    function update() {
+      const tr = track.getBoundingClientRect();
+      const cx = tr.left + tr.width / 2;
+      track.querySelectorAll<HTMLElement>(".album").forEach((it) => {
+        const r = it.getBoundingClientRect();
+        const d = Math.abs(r.left + r.width / 2 - cx);
+        const range = Math.max(120, r.width * 1.5);
+        let w = 0;
+        if (d < range) w = 0.5 + 0.5 * Math.cos((d / range) * Math.PI);
+        it.style.transform = `translateY(${(-6 * w).toFixed(2)}px) scale(${(1 + 0.06 * w).toFixed(3)})`;
+        it.style.zIndex = String(Math.round(w * 100));
+      });
+    }
+    track.addEventListener("scroll", () => {
+      if (pending) return; pending = true;
+      requestAnimationFrame(() => { pending = false; update(); });
+    }, { passive: true });
+    // 垂直滚轮 → 横向滑动（原生横滚容器）：平滑滚动一格；
+    // 到边界时放行默认滚动，页面继续纵滚。触控板 deltaX 走浏览器原生横滚，不抢。
+    track.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY) || e.deltaY === 0) return;
+      const maxScroll = track.scrollWidth - track.clientWidth;
+      if (maxScroll <= 0) return;
+      const goingRight = e.deltaY > 0;
+      const atStart = track.scrollLeft <= 0 && !goingRight;
+      const atEnd = track.scrollLeft >= maxScroll - 1 && goingRight;
+      if (atStart || atEnd) return;
+      e.preventDefault();
+      track.scrollBy({ left: goingRight ? 190 : -190, behavior: "smooth" });
+    }, { passive: false });
+    root.querySelectorAll<HTMLElement>("[data-albumnav]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const first = track.querySelector<HTMLElement>(".album");
+        const pitch = first ? first.offsetWidth + 18 : 190;
+        track.scrollBy({ left: Number(btn.dataset.albumnav || "0") * pitch, behavior: "smooth" });
+      });
+    });
+    window.addEventListener("resize", update);
+    return { root, refresh: update };
+  }
+  function initAlbums() {
+    albums.length = 0;
+    document.querySelectorAll<HTMLElement>("[data-albums]").forEach((root) => {
+      const a = makeAlbums(root);
+      albums.push(a);
+      a.refresh();
+    });
+  }
+
+  // ===== 筛选：淡出/收起 → 落定后再 hidden；按书架 30ms 交错 =====
+  const FILTER_MS = 200;
+  const FILTER_STAGGER = 30;
+  const shelfTimers = new WeakMap<HTMLElement, number>();
+  const colReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // 用内联 transition 驱动：全局 .reveal 也给 .col-shelf 声明了 transition，
+  // 走类名会和它抢属性；内联样式优先级更高，且随时可被下一次点击打断。
+  function shelfToggle(sec: HTMLElement, show: boolean, delay: number) {
+    const prev = shelfTimers.get(sec);
+    if (prev) { window.clearTimeout(prev); shelfTimers.delete(sec); }
+    const target = show ? "in" : "out";
+    if (sec.dataset.shelfState === target && !sec.hidden === show) return;
+    sec.dataset.shelfState = target;
+    const st = sec.style;
+
+    if (colReduced()) {
+      st.transition = ""; st.transitionDelay = "";
+      st.maxHeight = ""; st.overflow = ""; st.opacity = ""; st.transform = "";
+      sec.classList.remove("is-filtering-out");
+      sec.hidden = !show;
+      return;
+    }
+
+    st.transition = `opacity ${FILTER_MS}ms var(--ease-ed), transform ${FILTER_MS}ms var(--ease-ed), max-height ${FILTER_MS}ms var(--ease-ed)`;
+    st.transitionDelay = `${delay}ms`;
+
+    if (show) {
+      sec.hidden = false;
+      st.overflow = "hidden";
+      st.maxHeight = "0px";
+      st.opacity = "0";
+      st.transform = "translateY(4px)";
+      void sec.offsetHeight; // 起始值生效后再改终点，过渡才会真的跑
+      st.maxHeight = `${sec.scrollHeight}px`;
+      st.opacity = "1";
+      st.transform = "translateY(0)";
+      shelfTimers.set(sec, window.setTimeout(() => {
+        // 撤掉临时约束，避免裁掉悬停溢出
+        st.maxHeight = ""; st.overflow = "";
+        st.transition = ""; st.transitionDelay = "";
+        shelfTimers.delete(sec);
+      }, FILTER_MS + delay + 40));
+    } else {
+      sec.classList.add("is-filtering-out");
+      st.overflow = "hidden";
+      st.maxHeight = `${sec.offsetHeight}px`;
+      void sec.offsetHeight;
+      st.maxHeight = "0px";
+      st.opacity = "0";
+      st.transform = "translateY(4px)";
+      shelfTimers.set(sec, window.setTimeout(() => {
+        sec.hidden = true;
+        sec.classList.remove("is-filtering-out");
+        st.maxHeight = ""; st.overflow = ""; st.opacity = ""; st.transform = "";
+        st.transition = ""; st.transitionDelay = "";
+        shelfTimers.delete(sec);
+      }, FILTER_MS + delay + 40));
+    }
+  }
+
+  function refreshBanks() {
+    banks.forEach((b) => { if (!b.root.closest<HTMLElement>("[data-section]")?.hidden) b.refresh(); });
+    albums.forEach((a) => { if (!a.root.closest<HTMLElement>("[data-section]")?.hidden) a.refresh(); });
+  }
+
+  function initFilter() {
+    const chips = Array.from(document.querySelectorAll<HTMLElement>("[data-filter]"));
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-section]"));
+    sections.forEach((sec) => { if (!sec.hidden) sec.dataset.shelfState = "in"; });
+    chips.forEach((chip) => {
+      if (chip.dataset.filterBound === "1") return; // astro:page-load 会重复 init
+      chip.dataset.filterBound = "1";
+      chip.addEventListener("click", () => {
+        const f = chip.dataset.filter || "all";
+        chips.forEach((c) => { const on = c === chip; c.classList.toggle("is-active", on); c.setAttribute("aria-selected", on ? "true" : "false"); });
+        sections.forEach((sec, i) => shelfToggle(sec, f === "all" || sec.dataset.cat === f, i * FILTER_STAGGER));
+        // 新出现的段要立刻重算几何（隐藏段此时已 visible、只是 opacity 0）
+        requestAnimationFrame(refreshBanks);
+        window.setTimeout(refreshBanks, FILTER_MS + sections.length * FILTER_STAGGER + 60);
+      });
+    });
+  }
+
+  const dialog = () => document.getElementById("col-dialog") as HTMLDialogElement | null;
+  let closeTimer = 0;
+  // 关闭：先播 220ms 退场（.is-closing，transition 型），过渡结束再真正 close()。
+  // transitionend 在中途被打断时不触发、子元素事件还会冒泡，改用与退场时长对齐的定时器收尾；
+  // 连点关闭 / 后台标签页也都有兜底，不会卡住打不开。
+  function closeDetail() {
+    const dlg = dialog();
+    if (!dlg || !dlg.open) return;
+    if (colReduced()) { dlg.classList.remove("is-closing"); dlg.close(); return; }
+    if (dlg.classList.contains("is-closing")) return;
+    dlg.classList.add("is-closing");
+    const finish = () => {
+      window.clearTimeout(closeTimer);
+      dlg.classList.remove("is-closing");
+      if (dlg.open) dlg.close();
+    };
+    closeTimer = window.setTimeout(finish, 220);
+  }
+
+  function openDetail(btn: HTMLElement) {
+    const dlg = dialog(); if (!dlg) return;
+    const d = btn.dataset;
+    const kind = d.kind ?? "book";
+    const $ = (id: string) => document.getElementById(id);
+
+    const code = $("cd-code");
+    const cat = $("cd-cat");
+    const en = $("cd-en");
+    const title = $("cd-title");
+    const by = $("cd-by");
+    const cover = $("cd-cover");
+    const coverTitle = cover?.querySelector<HTMLElement>("[data-cd-cover-title]");
+
+    if (code) code.textContent = d.code ?? "";
+    if (cat) cat.textContent = d.cat ?? "";
+    if (en) en.textContent = d.en ?? "";
+    if (title) title.textContent = d.title ?? "";
+    if (by) {
+      const yr = d.year && d.year !== "0" ? ` · ${d.year}` : "";
+      by.textContent = `${d.creator ?? ""}${yr}`;
+    }
+
+    // 评分：大号数字 + 来源/人数 + 进度条（scaleX = 分值 × 10%）
+    const score = $("cd-score");
+    const scoreValue = $("cd-score-value");
+    const scoreMeta = $("cd-score-meta");
+    const scoreFill = $("cd-score-fill");
+    const rating = d.rating ? Number(d.rating) : NaN;
+    if (score) {
+      const hasRating = Number.isFinite(rating) && rating > 0;
+      score.hidden = !hasRating;
+      if (hasRating) {
+        if (scoreValue) scoreValue.textContent = rating.toFixed(1);
+        if (scoreFill) scoreFill.style.transform = `scaleX(${Math.max(0.04, Math.min(1, rating * 10 / 100))})`;
+        const source = (d.ratingSource ?? "").trim();
+        const count = Number(d.ratingCount ?? 0);
+        const countText = count >= 10000
+          ? `${(count / 10000).toFixed(1).replace(/\.0$/, "")} 万人评价`
+          : count > 0 ? `${count} 人评价` : "";
+        if (scoreMeta) scoreMeta.textContent = [source, countText].filter(Boolean).join(" · ");
+      }
+    }
+
+    // 事实行标签：书籍 / 电影 / 剧集各用一套说法
+    const factLabels: Record<string, [string, string, string]> = {
+      book: ["出版", "年月", "页数"],
+      film: ["制片", "上映", "片长"],
+      tv: ["制片", "首播", "集数"],
+    };
+    const labels = factLabels[kind] ?? factLabels.book;
+    [["press", labels[0]], ["pubdate", labels[1]], ["pages", labels[2]]].forEach(([key, text]) => {
+      const dt = dlg.querySelector(`[data-fact="${key}"] dt`);
+      if (dt) dt.textContent = text;
+    });
+
+    // 出版信息：空字段整行隐藏，全空则隐藏整个列表
+    const facts: Array<[string, string]> = [
+      ["press", "cd-press"],
+      ["pubdate", "cd-pubdate"],
+      ["pages", "cd-pages"],
+    ];
+    let factCount = 0;
+    for (const [key, id] of facts) {
+      const row = dlg.querySelector<HTMLElement>(`[data-fact="${key}"]`);
+      const dd = $(id);
+      const text = ((d[key] as string | undefined) ?? "").trim();
+      if (dd) dd.textContent = text;
+      if (row) row.hidden = text === "";
+      if (text !== "") factCount += 1;
+    }
+    const factsEl = $("cd-facts");
+    if (factsEl) factsEl.hidden = factCount === 0;
+
+    // 分节：简介 / 短评
+    const descWrap = $("cd-desc-wrap");
+    const desc = $("cd-desc");
+    const descText = (d.desc ?? "").trim();
+    if (desc) desc.textContent = descText;
+    if (descWrap) descWrap.hidden = descText === "";
+    const descSrc = $("cd-desc-src") as HTMLAnchorElement | null;
+    if (descSrc) {
+      const url = d.descSource ?? "";
+      if (url) descSrc.href = url;
+      descSrc.hidden = url === "";
+    }
+
+    const noteWrap = $("cd-note-wrap");
+    const note = $("cd-note");
+    const noteText = (d.note ?? "").trim();
+    if (note) note.textContent = noteText;
+    if (noteWrap) noteWrap.hidden = noteText === "";
+
+    // 曲目：同一张专辑在歌单里的所有歌，逐首可点
+    const tracksWrap = $("cd-tracks-wrap");
+    const tracksEl = $("cd-tracks");
+    if (tracksWrap && tracksEl) {
+      let tracks: { id: number; name: string }[] = [];
+      try { tracks = JSON.parse(d.tracks || "[]"); } catch { tracks = []; }
+      tracksEl.replaceChildren(...tracks.map((t, i) => {
+        const li = document.createElement("li");
+        const idx = document.createElement("span");
+        idx.className = "col-dialog__track-idx";
+        idx.textContent = String(i + 1).padStart(2, "0");
+        const a = document.createElement("a");
+        a.href = `https://music.163.com/#/song?id=${t.id}`;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = t.name || "未命名曲目";
+        li.append(idx, a);
+        return li;
+      }));
+      tracksWrap.hidden = tracks.length === 0;
+    }
+
+    // 外链：有 link 才显示
+    const isAlbum = kind === "album";
+    const ref = $("cd-ref") as HTMLAnchorElement | null;
+    if (ref) {
+      const href = d.ref ?? "";
+      if (href) {
+        ref.href = href;
+        ref.textContent = isAlbum
+          ? "在网易云播放"
+          : href.includes("douban.com") ? "豆瓣条目" : "查看来源";
+      }
+      ref.hidden = href === "";
+    }
+
+    if (cover) {
+      if (d.image) {
+        // 本地封面用 960w 派生图（弹层大图）；外链图原样
+        const imgSrc = d.image.startsWith("/images/covers/") && /\.(jpe?g|png)$/i.test(d.image)
+          ? d.image.replace(/^(.*\/)([^/]+)\.(jpe?g|png)$/i, "$1gen/$2-960w.webp")
+          : d.image;
+        cover.style.backgroundImage = `url("${imgSrc}")`;
+        cover.style.backgroundSize = "cover";
+        cover.style.backgroundPosition = "center";
+      } else {
+        cover.style.backgroundImage = "";
+        cover.style.setProperty("--cover", d.coverColor ?? "#fefdf8");
+        cover.style.setProperty("--ink", d.ink ?? "#2a2620");
+      }
+    }
+    if (coverTitle) coverTitle.textContent = d.image ? "" : (d.title ?? "");
+
+    dlg.dataset.kind = kind;
+
+    if (!dlg.open) {
+      dlg.classList.remove("is-closing");
+      dlg.showModal();
+    }
+  }
+
+  let bound = false;
+  function bindOnce() {
+    if (bound) return; bound = true;
+    document.addEventListener("click", (e) => {
+      const w = window as unknown as { __shelfSuppressClick?: number };
+      if (w.__shelfSuppressClick && performance.now() - w.__shelfSuppressClick < 350) return;
+      const target = e.target as HTMLElement | null; if (!target) return;
+      if (target.closest("[data-close]")) { closeDetail(); return; }
+      let cover = target.closest<HTMLElement>("[data-cover]");
+      if (!cover) {
+        const bank = target.closest<HTMLElement>("[data-bank]");
+        if (bank) {
+          const vols = Array.from(bank.querySelectorAll<HTMLElement>(".vol"));
+          let best: HTMLElement | null = null, bd = 1e9;
+          for (const v of vols) {
+            const r = v.getBoundingClientRect();
+            const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+            const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+            const d = Math.hypot(dx, dy);
+            if (d < bd) { bd = d; best = v; }
+          }
+          if (best && bd < 44) cover = best;
+        }
+      }
+      if (cover) openDetail(cover);
+    });
+    document.addEventListener("click", (e) => { const dlg = dialog(); if (dlg && dlg.open && e.target === dlg) closeDetail(); });
+    document.addEventListener("astro:page-load", () => {
+      initBanks(); initAlbums(); initFilter(); bindDialogEsc();
+    });
+    document.addEventListener("astro:before-swap", () => { banks.length = 0; dialog()?.close(); });
+  }
+
+  // Esc 也走同一条退场动画（cancel 事件不冒泡，直接绑在 dialog 上）
+  function bindDialogEsc() {
+    const dlg = dialog();
+    if (!dlg || dlg.dataset.escBound === "1") return;
+    dlg.dataset.escBound = "1";
+    dlg.addEventListener("cancel", (e) => {
+      if (!dlg.classList.contains("is-closing")) e.preventDefault();
+      closeDetail();
+    });
+  }
+
+  bindOnce();
+  initBanks();
+  initAlbums();
+  initFilter();
+  bindDialogEsc();
+</script>
+
+<script>
+  // ===== 动态视图：时间线阅读进度 =====
+  // 基线是浅色发丝线，滚动时 ::after 进度线（2px 墨色）从顶部画下来——
+  // 滚到哪条数据，轴线就加深加粗到哪；当前条目的节点同步点亮（.is-current）。
+  let tlProgressRaf = 0;
+
+  function updateTimelineProgress() {
+    tlProgressRaf = 0;
+    const feed = document.getElementById("timeline-feed");
+    if (!feed) return;
+    if (getComputedStyle(feed).display === "none") return; // 非动态视图时跳过
+    const rect = feed.getBoundingClientRect();
+    const mid = window.innerHeight * 0.5;
+    const p = Math.min(Math.max((mid - rect.top) / Math.max(1, rect.height), 0), 1);
+    feed.style.setProperty("--tl-progress", p.toFixed(4));
+    // 当前条目 = 最后一个顶边越过视口中线的
+    let current: Element | null = null;
+    feed.querySelectorAll(".tl-entry").forEach((el) => {
+      if (el.getBoundingClientRect().top <= mid) current = el;
+    });
+    feed.querySelectorAll(".tl-entry").forEach((el) => {
+      el.classList.toggle("is-current", el === current);
+    });
+  }
+
+  function scheduleTlProgress() {
+    if (!tlProgressRaf) tlProgressRaf = requestAnimationFrame(updateTimelineProgress);
+  }
+
+  const tlProgressWindow = window as Window & { __tlProgressBound?: boolean };
+  if (!tlProgressWindow.__tlProgressBound) {
+    tlProgressWindow.__tlProgressBound = true;
+    window.addEventListener("scroll", scheduleTlProgress, { passive: true });
+    window.addEventListener("resize", scheduleTlProgress, { passive: true });
+    // VT 换页 / 视图切换（dock 切到动态时会派发 resize）后重新计算
+    document.addEventListener("astro:page-load", scheduleTlProgress);
+  }
+  scheduleTlProgress();
+</script>

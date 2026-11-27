@@ -5,10 +5,9 @@ import { ROUTES } from "../utils/urls";
 // 导航 5 个目标页是换页最常去的页面：桌面与抽屉链接统一加 viewport 级预取（每次页面加载后即预取，点击时必然命中缓存）
 const navLinks = [
   { href: ROUTES.home, label: "首页" },
-  { href: ROUTES.timeline, label: "动态" },
   { href: ROUTES.archive, label: "归档" },
-  { href: ROUTES.collection, label: "拾集" },
   { href: ROUTES.friends, label: "友链" },
+  { href: ROUTES.about, label: "关于" },
 ];
 
 // 去尾斜杠后比较：ROUTES 里的路径带尾斜杠，而 Astro.url.pathname 依产物形态而定，

@@ -22,8 +22,7 @@ export function withSlash(path: string): string {
 export const ROUTES = {
   home: "/",
   archive: "/archive/",
-  timeline: "/timeline/",
-  collection: "/collection/",
+  about: "/about/",
   friends: "/friends/",
   rss: "/rss.xml",
 } as const;
