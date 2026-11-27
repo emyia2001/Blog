@@ -2,6 +2,7 @@
  * 站点 API Worker：
  *   /api/bark  —— 友链申请提醒（Bark 推送到站长手机）
  *   /api/likes —— 纪事点赞聚合（KV 计数）
+ *   /api/weather —— 票面天气（request.cf 定位访客 → Worker 侧拉 open-meteo）
  * 其余请求全部透传给静态资源（env.ASSETS.fetch），行为与纯静态部署一致：
  * 有匹配资源时由 assets 直接服务（不经过本 Worker，不计 Worker 请求），
  * 未匹配的路径（如 /api/bark）才会进到这里。
@@ -151,9 +152,63 @@ async function handleLikes(
   return json({ ok: true, count: counts[id] });
 }
 
+// ===== /api/weather：票面天气 =====
+// request.cf 按 IP 定位访客 → Worker 侧请求 open-meteo（免 key）。
+// 要点：天气接口在国内网络常不可达，改由 Cloudflare 边缘出网，访客只打同源请求。
+// 无 cf（本地 dev 等）时用查询参数兜底（前端传默认城市坐标）。
+// 不落库、不记录 IP；上游失败返回 { ok:false }，前端只显示日期。
+type CfProps = {
+  city?: string;
+  region?: string;
+  latitude?: string;
+  longitude?: string;
+};
+async function handleWeather(request: Request, url: URL): Promise<Response> {
+  const cf = (request as Request & { cf?: CfProps }).cf;
+  let lat = Number(cf?.latitude);
+  let lon = Number(cf?.longitude);
+  let city = cf?.city ?? cf?.region ?? "";
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    lat = Number(url.searchParams.get("lat"));
+    lon = Number(url.searchParams.get("lon"));
+    city = url.searchParams.get("city") ?? "";
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return json({ ok: false });
+    }
+  }
+  try {
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`
+    );
+    if (!res.ok) return json({ ok: false });
+    const data = (await res.json()) as {
+      current?: { temperature_2m?: number; weather_code?: number };
+    };
+    const temp = data.current?.temperature_2m;
+    const code = data.current?.weather_code;
+    if (typeof temp !== "number" || typeof code !== "number") {
+      return json({ ok: false });
+    }
+    return new Response(
+      JSON.stringify({ ok: true, city, code, temp: Math.round(temp) }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "public, max-age=600",
+        },
+      }
+    );
+  } catch (err) {
+    console.error("[weather] upstream failed:", err);
+    return json({ ok: false });
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/api/weather") return handleWeather(request, url);
     if (url.pathname === "/api/likes") return handleLikes(request, env, url);
     if (url.pathname !== "/api/bark") return env.ASSETS.fetch(request);
     if (request.method !== "POST") {

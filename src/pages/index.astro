@@ -4,13 +4,16 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 import { readingTime } from "../utils/readingTime";
 import ContributionHeatmap from "../components/ContributionHeatmap.astro";
+import TagCloud from "../components/TagCloud.astro";
 import { fetchContributions } from "../utils/contributions";
 import { postPath } from "../utils/urls";
 import {
   SITE_NAME,
   SITE_AVATAR,
+  SITE_DESCRIPTION,
   SITE_SOCIAL,
   SITE_CREATED,
+  WEATHER_FALLBACK,
 } from "../consts";
 
 // GitHub 贡献热力图（构建时取数；失败留空不影响首页）
@@ -41,6 +44,37 @@ const listPosts = published.slice(1, 6);
 const now = new Date();
 const daysNum = Math.floor((now.getTime() - SITE_CREATED.getTime()) / 86400000) + 1;
 
+// 车票封面票面字段：创站年月（如 2026.08）与票号（文章数补零，装饰）
+const createdYm = `${SITE_CREATED.getFullYear()}.${String(SITE_CREATED.getMonth() + 1).padStart(2, "0")}`;
+
+// 票号（文章数补零，装饰）与由它派生的一维码条纹（纯装饰，不编码真实数据）
+const ticketNo = String(published.length).padStart(4, "0");
+const barcodeBars = (() => {
+  const seed = Number(ticketNo) + 1;
+  const bars: { x: number; w: number }[] = [];
+  let x = 0;
+  for (let i = 0; i < 60; i++) {
+    const v = (seed * 9301 + i * 49297) % 233280;
+    const w = 0.8 + ((v >> 3) % 3) * 0.9;
+    const gap = 0.8 + ((v >> 7) % 2) * 0.9;
+    if (x + w > 100) break;
+    bars.push({ x: +x.toFixed(2), w: +w.toFixed(2) });
+    x += w + gap;
+  }
+  return bars;
+})();
+
+
+// 无标题动态在右栏列表里用正文首行兜底，避免整行只剩日期
+const momentSnippet = (body: string | undefined) => {
+  const firstLine = (body ?? "")
+    .split("\n")
+    .map((line) => line.replace(/[#>*`[\]!]|^- /g, "").trim())
+    .find(Boolean);
+  if (!firstLine) return "动态";
+  return firstLine.length > 16 ? `${firstLine.slice(0, 16)}…` : firstLine;
+};
+
 // --- journal helpers ---
 const fmtMonthDay = (d: Date) =>
   d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
@@ -50,6 +84,81 @@ const fmtYearMonth = (d: Date) =>
 ---
 
 <BaseLayout title="首页">
+  <!-- ===== 车票封面：滚动驱动撕开（CSS 消费 --tear 变量），撕过本次会话不再出现。
+       runway 多出的 70vh 是撕票行程；sticky 封面钉在首屏，撕完随行程自然上移让位。
+       撕的过程：拉扯微颤 → 裂缝沿打孔线自上而下生长 → 票根先飞、主票后落（不渐隐）。 ===== -->
+  <div class="ticket-runway">
+    <section class="ticket-cover" aria-label={SITE_NAME}>
+      <div class="ticket ed-in">
+        <span class="ticket__shadow ticket__shadow--main" aria-hidden="true"></span>
+        <span class="ticket__shadow ticket__shadow--stub" aria-hidden="true"></span>
+        <!-- 主票：名称行（证件照 + 标题）→ 介绍 → 字段行 -->
+        <div class="ticket__main">
+          <div class="ticket__body">
+              <div class="ticket__head">
+              <img
+                class="ticket__avatar"
+                src={SITE_AVATAR}
+                alt={SITE_NAME}
+                width="256"
+                height="256"
+                loading="eager"
+                decoding="async"
+              />
+              <p class="ticket__name">{SITE_NAME}</p>
+            </div>
+            <p class="ticket__desc">{SITE_DESCRIPTION}</p>
+            <p class="ticket__meta">
+              <span>发行 {createdYm}</span>
+              <span class="ticket__meta-dot" aria-hidden="true">·</span>
+              <span>里程 {published.length} 篇</span>
+            </p>
+          </div>
+        </div>
+        <!-- 存根：日期 + 天气看板（天气按访客位置，/api/geo 定位；本地回退默认城市） -->
+        <div
+          class="ticket__stub"
+          data-ticket-board
+          data-weather-city={WEATHER_FALLBACK.city}
+          data-weather-lat={WEATHER_FALLBACK.lat}
+          data-weather-lon={WEATHER_FALLBACK.lon}
+        >
+          <p class="ticket__board-date" data-today-date>—</p>
+          <p class="ticket__board-week" data-today-week></p>
+          <p class="ticket__board-weather" data-today-weather hidden></p>
+          <div class="ticket__data">
+            <p class="ticket__data-row">
+              <span class="ticket__data-key">运行</span>
+              <span class="ticket__data-val">{daysNum} 天</span>
+            </p>
+            <p class="ticket__data-row">
+              <span class="ticket__data-key">票号</span>
+              <span class="ticket__data-val">SN-{ticketNo}</span>
+            </p>
+          </div>
+          <svg class="ticket__barcode" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true">
+            {barcodeBars.map((b) => (
+              <rect x={b.x} y="0" width={b.w} height="22" fill="currentColor"></rect>
+            ))}
+          </svg>
+        </div>
+        <!-- 打孔线：裂缝经过的部分被裁掉，只留裂缝下方的未撕段落 -->
+        <span class="ticket__perforation" aria-hidden="true"></span>
+        <!-- 撕裂缝：沿打孔线自上而下生长 -->
+        <span class="ticket__crack" aria-hidden="true"><span></span></span>
+        <!-- 上下打孔缺口 -->
+        <span class="ticket__notch ticket__notch--top" aria-hidden="true"></span>
+        <span class="ticket__notch ticket__notch--bottom" aria-hidden="true"></span>
+      </div>
+      <span class="ticket-hint" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9l6 6 6-6"></path>
+        </svg>
+      </span>
+    </section>
+  </div>
+  <noscript><style>.ticket-runway { display: none; }</style></noscript>
+
   <div class="mx-auto max-w-[1380px] px-6 md:px-8">
     <!-- ===== 双栏主区：左列（报头头条 + 近期笔墨） | 右列（关于/纪事/标签，贴顶） ===== -->
     <div class="home-layout">
@@ -140,7 +249,7 @@ const fmtYearMonth = (d: Date) =>
               <span class="home-stat__label">天</span>
             </div>
           </div>
-          <div class="home-about-heatmap mb-3">
+          <div class="home-about-heatmap mb-2">
             <ContributionHeatmap grid={contribGrid} total={contribTotal} />
           </div>
           <div class="home-about-socials">
@@ -167,10 +276,13 @@ const fmtYearMonth = (d: Date) =>
           <div class="home-side-card reveal" style="--reveal-delay: 80ms">
             <h2 class="home-side-label">动态</h2>
             {moments.slice(0, 4).map((m) => (
-              <a href="/timeline/" class="home-moment-line">
+              <a
+                href={`/about/#${m.id.replace(/\.mdx?$/, "")}`}
+                class="home-moment-line"
+              >
                 <span class="home-moment-dot" aria-hidden="true"></span>
                 <span class="home-moment-title">
-                  {m.data.title ?? m.data.date.toISOString().slice(0, 10)}
+                  {m.data.title ?? momentSnippet(m.body)}
                 </span>
                 <span class="home-moment-date">
                   {fmtYearMonth(m.data.date)}
@@ -179,6 +291,12 @@ const fmtYearMonth = (d: Date) =>
             ))}
           </div>
         )}
+
+        <!-- 标签 -->
+        <div class="home-side-card reveal" style="--reveal-delay: 160ms">
+          <h2 class="home-side-label">标签</h2>
+          <TagCloud />
+        </div>
       </aside>
     </div>
   </div>
@@ -293,10 +411,520 @@ const fmtYearMonth = (d: Date) =>
   initHomeStats();
 </script>
 
+<script>
+  // ===== 车票封面：滚动驱动撕开。JS 只把进度写进 --tear（0→1），
+  // 所有位移/旋转/透明度都在 CSS 里消费该变量——回滚车票自然复原。
+  // 首页默认永远从票根开始（2026-11-27 起取消「会话内只出现一次」的跳过）。
+  const ticketWindow = window as Window & { __ticketBound?: boolean };
+  let tearRaf = 0;
+
+  function updateTear() {
+    tearRaf = 0;
+    const cover = document.querySelector<HTMLElement>(".ticket-cover");
+    const runway = document.querySelector<HTMLElement>(".ticket-runway");
+    if (!cover || !runway) return;
+    // 撕票行程 = runway 减去封面自身高度（封面 = 视口 - 导航高，实测最稳）
+    const span = Math.max(runway.offsetHeight - cover.offsetHeight, 1);
+    const p = Math.min(Math.max(window.scrollY / span, 0), 1);
+    cover.style.setProperty("--tear", p.toFixed(4));
+    cover.classList.toggle("is-torn", p >= 0.999);
+  }
+
+  function scheduleTear() {
+    if (!tearRaf) tearRaf = requestAnimationFrame(updateTear);
+  }
+
+  if (!ticketWindow.__ticketBound) {
+    ticketWindow.__ticketBound = true;
+    addEventListener("scroll", scheduleTear, { passive: true });
+    addEventListener("resize", scheduleTear, { passive: true });
+    // VT 换页回首页：重查引用并按当前滚动位置校准（脚本本体只执行一次）
+    document.addEventListener("astro:page-load", scheduleTear);
+  }
+  scheduleTear();
+</script>
+
 <style>
+  /* ===== 车票封面 =====
+   主票与存根是两个独立半块：锯齿 clip-path 互补（存根左移 7px 与主票嵌合），
+   静止时拼成一张完整车票。--tear（0→1，滚动进度）在 .ticket 上重映射为四个阶段变量：
+   拉扯 0–0.10 / 撕裂 0.10–0.55 / 票根飞离 0.55–0.81 / 主票飞离 0.66–0.96。
+   所有位移/旋转/裂缝生长都在 CSS 里消费这些变量，回滚自然复原。 */
+  .ticket-runway {
+    height: calc(100vh + 70vh);
+  }
+  .ticket-cover {
+    position: sticky;
+    /* 钉在导航下沿（--nav-h 由 Nav 脚本实测写入，脚本失效退回 4.875rem），
+       高度为可视区；overflow 裁掉飞出的半块并防止生成滚动条 */
+    top: var(--nav-h, 4.875rem);
+    height: calc(100vh - var(--nav-h, 4.875rem));
+    height: calc(100svh - var(--nav-h, 4.875rem));
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow: hidden;
+  }
+  .ticket {
+    --tear-d: 7px; /* 锯齿深度 = 主票与存根的嵌合重叠量 */
+    --stub-w: 148px; /* 存根宽 */
+    --pull: clamp(0, calc(var(--tear, 0) * 10), 1);
+    --rip: clamp(0, calc((var(--tear, 0) - 0.1) * 2.2222), 1);
+    --fly-stub: clamp(0, calc((var(--tear, 0) - 0.55) * 3.8), 1);
+    --fly-main: clamp(0, calc((var(--tear, 0) - 0.66) * 3.3), 1);
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr var(--stub-w);
+    width: min(680px, calc(100vw - 48px));
+  }
+  /* 阴影载体：主票/存根各一块，分别跟随对应半块离场并淡出，
+     避免票根飞走后残留整卡矩形影；拼缝处的轻微重叠若隐若现，
+     恰似打孔线压出的折影 */
+  .ticket__shadow {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    box-shadow:
+      0 1px 2px rgba(28, 28, 28, 0.06),
+      0 24px 48px -24px rgba(28, 28, 28, 0.18);
+  }
+  .ticket__shadow--main {
+    inset: -1px;
+    right: calc(var(--stub-w) - var(--tear-d) - 1px);
+    border-radius: 16px 0 0 16px;
+    transform:
+      translate(calc(var(--fly-main) * -5vw), calc(var(--fly-main) * 72vh))
+      rotate(calc(var(--fly-main) * -7deg));
+    opacity: calc(1 - min(1, var(--fly-main, 0) * 1.4));
+  }
+  .ticket__shadow--stub {
+    top: -1px;
+    bottom: -1px;
+    left: calc(100% - var(--stub-w) - var(--tear-d) - 1px);
+    width: calc(var(--stub-w) + var(--tear-d) + 2px);
+    border-radius: 0 16px 16px 0;
+    transform: translate(calc(var(--fly-stub) * 15vw), calc(var(--fly-stub) * -75vh))
+      rotate(calc(var(--fly-stub) * 13deg));
+    opacity: calc(1 - min(1, var(--fly-stub, 0) * 1.4));
+  }
+  .ticket__main {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 30px 30px 30px 36px;
+    background: #fff;
+    border: 1px solid var(--color-ed-hairline);
+    border-right: 0;
+    border-radius: 14px 0 0 14px;
+    /* 右缘锯齿（撕开后是毛边，静止时与存根嵌合成直线） */
+    clip-path: polygon(
+      0 0,
+      calc(100% - 2.5px) 0%,
+      calc(100% - 5px) 10%,
+      calc(100% - 2px) 18%,
+      calc(100% - 6px) 27%,
+      calc(100% - 3px) 38%,
+      calc(100% - 6.5px) 47%,
+      calc(100% - 2px) 58%,
+      calc(100% - 5.5px) 67%,
+      calc(100% - 2.5px) 76%,
+      calc(100% - 6px) 86%,
+      calc(100% - 3px) 93%,
+      calc(100% - 2px) 100%,
+      0 100%
+    );
+    /* 离场：主票后落（下坠 + 左偏 + 逆时针） */
+    transform:
+      translate(calc(var(--fly-main) * -5vw), calc(var(--fly-main) * 72vh))
+      rotate(calc(var(--fly-main) * -7deg));
+  }
+  .ticket__stub {
+    position: relative;
+    z-index: 2;
+    margin-left: calc(var(--tear-d) * -1);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    padding: 18px 12px;
+    background: #fff;
+    border: 1px solid var(--color-ed-hairline);
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+    /* 左缘锯齿：与主票右缘同一轮廓的互补形（深度 = 7px - 主票侧深度） */
+    clip-path: polygon(
+      4.5px 0%,
+      100% 0%,
+      100% 100%,
+      5px 100%,
+      4px 93%,
+      1px 86%,
+      4.5px 76%,
+      1.5px 67%,
+      5px 58%,
+      0.5px 47%,
+      4px 38%,
+      1px 27%,
+      5px 18%,
+      2px 10%,
+      4.5px 0%
+    );
+    /* 以打孔线底端为轴：拉扯期微颤、撕裂期随裂缝被「掀起」，
+       离场时向右上方飞出 */
+    transform-origin: 0% 100%;
+    transform:
+      translateX(calc(var(--rip) * 2px))
+      rotate(calc(var(--pull) * 0.6deg + var(--rip) * 2.6deg))
+      translate(calc(var(--fly-stub) * 15vw), calc(var(--fly-stub) * -75vh))
+      rotate(calc(var(--fly-stub) * 13deg));
+  }
+  /* 打孔线：圆点串。裂缝经过的部分被裁掉，只保留裂缝下方未撕段落 */
+  .ticket__perforation {
+    position: absolute;
+    z-index: 3;
+    top: 6px;
+    bottom: 6px;
+    left: calc(100% - var(--stub-w) - 5.5px);
+    width: 4px;
+    background-image: radial-gradient(circle, var(--color-ed-rule) 1.6px, transparent 1.8px);
+    background-size: 4px 9px;
+    background-repeat: repeat-y;
+    background-position: center;
+    clip-path: inset(calc(var(--rip, 0) * 100%) 0 0 0);
+    transform: translateX(calc(var(--pull, 0) * 0.6px));
+    pointer-events: none;
+  }
+  /* 撕裂缝：沿打孔线自上而下「拉链式」生长；裂缝即纸底色（中心略深 + 内阴影
+     表现纸张厚度与凹陷），两端为锯齿毛边 */
+  .ticket__crack {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    bottom: 0;
+    left: calc(100% - var(--stub-w) - 9.5px);
+    width: 12px;
+    clip-path: inset(0 0 calc((1 - var(--rip, 0)) * 100%) 0);
+    opacity: calc(1 - min(1, var(--fly-stub, 0) * 4));
+    pointer-events: none;
+  }
+  .ticket__crack > span {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      var(--color-ed-bg) 0%,
+      #edebe5 50%,
+      var(--color-ed-bg) 100%
+    );
+    box-shadow:
+      inset 3px 0 4px -2px rgba(28, 28, 28, 0.24),
+      inset -3px 0 4px -2px rgba(28, 28, 28, 0.24);
+    clip-path: polygon(
+      1.5px 0%, 10.5px 2%, 9.4px 11%, 10.8px 20%, 8.6px 29%, 10.4px 38%,
+      9.6px 47%, 10.8px 56%, 8.8px 65%, 10.6px 74%, 9.2px 83%, 10.2px 92%,
+      9.6px 100%,
+      1.7px 100%, 0.7px 92%, 2.3px 83%, 0.5px 74%, 1.9px 65%, 0.4px 56%,
+      1.7px 47%, 0.6px 38%, 2.1px 29%, 0.5px 20%, 1.5px 11%, 0.9px 3%
+    );
+  }
+  .ticket__notch {
+    position: absolute;
+    z-index: 4;
+    left: calc(100% - var(--stub-w) - 13.5px);
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: var(--color-ed-bg);
+    opacity: calc(1 - min(1, var(--tear, 0) * 10));
+    pointer-events: none;
+  }
+  .ticket__notch--top {
+    top: -10px;
+  }
+  .ticket__notch--bottom {
+    bottom: -10px;
+  }
+  /* 票面文字 */
+  .ticket__name {
+    font-family: var(--font-serif);
+    font-size: clamp(2.125rem, 5.5vw, 3.25rem);
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+  }
+  .ticket__desc {
+    margin-top: 10px;
+    color: var(--color-ed-muted);
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    max-width: 40ch;
+  }
+  .ticket__meta {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 4px;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-ed-hairline);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ed-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+  .ticket__meta > span {
+    white-space: nowrap;
+  }
+  /* 名称行：证件照与标题同高并排（logo 锁定式） */
+  .ticket__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .ticket__avatar {
+    display: block;
+    width: 54px;
+    height: 54px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+  .ticket__body {
+    min-width: 0;
+  }
+  /* 存根看板：日期 + 天气（天气按访客位置，加载后填充）。
+     日期与正文同款无衬线（用户要求与文字字体一致） */
+  .ticket__board-date {
+    font-size: 0.8125rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .ticket__board-week {
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+    color: var(--color-ed-subtle);
+    text-align: center;
+  }
+  .ticket__board-weather {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--color-ed-rule);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--color-ed-muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  /* 票务数据（运行/票号）与一维码保留在存根下半部 */
+  .ticket__data {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--color-ed-rule);
+  }
+  .ticket__data-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    color: var(--color-ed-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ticket__data-key {
+    font-size: 0.625rem;
+    color: var(--color-ed-subtle);
+  }
+  .ticket__barcode {
+    display: block;
+    width: 100%;
+    height: 22px;
+    margin-top: 4px;
+    color: var(--color-ed-fg);
+    opacity: 0.82;
+  }
+  /* 滚动提示 */
+  .ticket-hint {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--color-ed-subtle);
+    opacity: calc(1 - min(1, var(--tear, 0) * 16));
+    animation: ticket-hint-bob 2.4s ease-in-out infinite;
+  }
+  .ticket-hint svg {
+    display: block;
+    width: 22px;
+    height: 22px;
+  }
+  @keyframes ticket-hint-bob {
+    0%,
+    100% {
+      transform: translate(-50%, 0);
+    }
+    50% {
+      transform: translate(-50%, 7px);
+    }
+  }
+  /* 窄屏：收窄存根与证件照；检票章隐藏（避免与正文挤字） */
+  @media (max-width: 559px) {
+    .ticket {
+      --stub-w: 96px;
+      width: calc(100vw - 40px);
+    }
+    .ticket__main {
+      padding: 20px 16px;
+    }
+    .ticket__head {
+      gap: 10px;
+    }
+    .ticket__avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    .ticket__stub {
+      gap: 4px;
+      padding: 14px 8px;
+    }
+    .ticket__board-date {
+      font-size: 0.75rem;
+    }
+    .ticket__board-week {
+      font-size: 0.5625rem;
+      letter-spacing: 0.1em;
+    }
+    .ticket__board-weather {
+      margin-top: 8px;
+      padding-top: 8px;
+      font-size: 0.625rem;
+    }
+    .ticket__data-row {
+      font-size: 0.5625rem;
+    }
+    .ticket__data-key {
+      font-size: 0.5rem;
+    }
+    .ticket__barcode {
+      height: 18px;
+    }
+  }
+  /* 减弱动效：位移/旋转归零，撕开退化为裂缝生长 + 两半原地消隐 */
+  @media (prefers-reduced-motion: reduce) {
+    .ticket__main {
+      transform: none;
+      opacity: calc(1 - var(--fly-main, 0));
+    }
+    .ticket__stub {
+      transform: none;
+      opacity: calc(1 - var(--fly-stub, 0));
+    }
+    .ticket-hint {
+      animation: none;
+    }
+  }
+
   /* 计数滚动时数字宽度会跳动，等宽数字让三栏不抖 */
   .home-stat__num {
     font-variant-numeric: tabular-nums;
   }
 </style>
 
+
+<script>
+  // ===== 票面看板：日期 + 天气 =====
+  // 日期取访客本地；天气问同源 /api/weather——Worker 用 request.cf 按 IP 定位访客、
+  // 在 Cloudflare 边缘请求 open-meteo（天气 API 国内常不可达，前端不经外网）。
+  // 本地 dev/preview 没有 Worker（404）或上游失败时，只显示日期。
+  const WEATHER_CACHE_KEY = "snark-weather-v1";
+  const WEATHER_TTL = 30 * 60 * 1000;
+  const WEATHER_TEXT: Record<number, string> = {
+    0: "晴", 1: "少云", 2: "多云", 3: "阴",
+    45: "雾", 48: "雾",
+    51: "毛毛雨", 53: "毛毛雨", 55: "毛毛雨", 56: "冻雨", 57: "冻雨",
+    61: "小雨", 63: "中雨", 65: "大雨", 66: "冻雨", 67: "冻雨",
+    71: "小雪", 73: "中雪", 75: "大雪", 77: "米雪",
+    80: "阵雨", 81: "阵雨", 82: "阵雨", 85: "阵雪", 86: "阵雪",
+    95: "雷暴", 96: "雷暴", 99: "雷暴",
+  };
+  const WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+  function fillBoardDate() {
+    const dEl = document.querySelector<HTMLElement>("[data-today-date]");
+    const wEl = document.querySelector<HTMLElement>("[data-today-week]");
+    if (!dEl || !wEl) return;
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    dEl.textContent = `${now.getFullYear()}.${mm}.${dd}`;
+    wEl.textContent = WEEK[now.getDay()];
+  }
+
+  async function fillBoardWeather() {
+    const board = document.querySelector<HTMLElement>("[data-ticket-board]");
+    const out = document.querySelector<HTMLElement>("[data-today-weather]");
+    if (!board || !out) return;
+
+    // 30 分钟内复用（VT 往返不重复请求）
+    try {
+      const cached = JSON.parse(
+        sessionStorage.getItem(WEATHER_CACHE_KEY) ?? "null",
+      ) as { text: string; ts: number } | null;
+      if (cached && Date.now() - cached.ts < WEATHER_TTL) {
+        out.textContent = cached.text;
+        out.hidden = false;
+        return;
+      }
+    } catch {
+      /* 忽略缓存异常 */
+    }
+
+    const city = board.dataset.weatherCity ?? "";
+    const lat = board.dataset.weatherLat ?? "";
+    const lon = board.dataset.weatherLon ?? "";
+
+    try {
+      const res = await fetch(
+        `/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&city=${encodeURIComponent(city)}`,
+        { headers: { accept: "application/json" } },
+      );
+      const data = (await res.json()) as {
+        ok?: boolean;
+        city?: string;
+        code?: number;
+        temp?: number;
+      };
+      if (data.ok && typeof data.code === "number" && typeof data.temp === "number") {
+        const label = data.city ? `${data.city} · ` : "";
+        const text = `${label}${WEATHER_TEXT[data.code] ?? "—"} ${data.temp}°C`;
+        out.textContent = text;
+        out.hidden = false;
+        try {
+          sessionStorage.setItem(
+            WEATHER_CACHE_KEY,
+            JSON.stringify({ text, ts: Date.now() }),
+          );
+        } catch {
+          /* 隐私模式等：不缓存 */
+        }
+      }
+    } catch {
+      /* 无 Worker / 网络失败：只显示日期 */
+    }
+  }
+
+  function initTicketBoard() {
+    fillBoardDate();
+    void fillBoardWeather();
+  }
+  document.addEventListener("astro:page-load", initTicketBoard);
+  initTicketBoard();
+</script>

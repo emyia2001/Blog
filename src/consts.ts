@@ -1,6 +1,6 @@
 export const SITE_NAME = "Snark";
 export const SITE_DESCRIPTION =
-  "一个个人博客 — 关于写作、技术，以及那些缝隙之间的随笔与反思。";
+  "个人博客 — 关于写作、技术，以及那些缝隙之间的随笔与反思。";
 
 // 关于页头像：同时用于「个人信息卡」和「关系图谱」的中心节点（self）。
 // 放到 public/images/ 下，支持 svg / png / webp 等任意浏览器可解码格式；留空则不显示头像。
@@ -10,6 +10,16 @@ export const SITE_URL = "https://snarkm.com";
 // 创站日：水印数字（坚持天数）以此为起点
 // 暂取第一篇《回来了》的日期，可自行修改
 export const SITE_CREATED = new Date("2026-08-06T00:00:00+08:00");
+
+// 关于页「自述」：2–4 行，写你自己（写作动机、技术偏好、日常……）。
+// 换行保留（pre-line 渲染）；留空则关于视图不显示自述区。
+export const SITE_STORY = `一个普通的咸鱼，创建这个博客的主要目的是记录一下自己
+    热爱折腾一些电子产品。喜欢前沿最新技术
+    `;
+
+// 车票封面存根的天气回退城市：生产环境优先用 /api/geo 按访客 IP 定位
+// （Cloudflare request.cf），本地 dev/preview 无 Worker 时回退到这里。
+export const WEATHER_FALLBACK = { city: "北京", lat: 39.9, lon: 116.4 };
 
 // Default background music for pages without a per-post bgm (timeline etc.)
 // export const SITE_BGM = {
